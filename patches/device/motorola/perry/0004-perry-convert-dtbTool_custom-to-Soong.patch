@@ -1,0 +1,50 @@
+From 260ad1f1bdf35a757dde2fba0a939ff6e08d1db1 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 14:51:02 -0700
+Subject: [PATCH 1/2] perry: convert dtbTool_custom to Soong
+
+BUILD_HOST_EXECUTABLE is obsolete on lineage-18.1 / Android 11.
+Replace dtbtool/Android.mk with Android.bp (cc_binary_host).
+
+---
+ dtbtool/Android.bp |  5 +++++
+ dtbtool/Android.mk | 15 ---------------
+ 2 files changed, 5 insertions(+), 15 deletions(-)
+ create mode 100644 dtbtool/Android.bp
+ delete mode 100644 dtbtool/Android.mk
+
+diff --git a/dtbtool/Android.bp b/dtbtool/Android.bp
+new file mode 100644
+index 0000000..f90c11c
+--- /dev/null
++++ b/dtbtool/Android.bp
+@@ -0,0 +1,5 @@
++cc_binary_host {
++    name: "dtbTool_custom",
++    srcs: ["dtbtool.c"],
++    cflags: ["-Wall"],
++}
+diff --git a/dtbtool/Android.mk b/dtbtool/Android.mk
+deleted file mode 100644
+index 5e53a81..0000000
+--- a/dtbtool/Android.mk
++++ /dev/null
+@@ -1,15 +0,0 @@
+-LOCAL_PATH := $(call my-dir)
+-
+-include $(CLEAR_VARS)
+-
+-LOCAL_SRC_FILES := \
+-	dtbtool.c
+-
+-LOCAL_CFLAGS += \
+-	-Wall
+-
+-## Hybrid v1/v2 dtbTool. Use a different name to avoid conflicts with copies in device repos
+-LOCAL_MODULE := dtbTool_custom
+-LOCAL_MODULE_TAGS := optional
+-
+-include $(BUILD_HOST_EXECUTABLE)
+-- 
+2.53.0
+

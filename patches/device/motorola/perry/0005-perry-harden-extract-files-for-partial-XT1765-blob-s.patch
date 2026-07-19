@@ -1,0 +1,67 @@
+From 98583f97345d48fa6e0164ea22b15ecbde4d32ad Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 14:51:02 -0700
+Subject: [PATCH 2/2] perry: harden extract-files for partial XT1765 blob sets
+
+Document that bare extract wipes msm8937-common proprietary
+(CLEAN_VENDOR=true); prefer -n --only-target. Guard post-extract
+fixups so missing montana-era fingerprint blobs do not abort.
+
+---
+ extract-files.sh | 36 ++++++++++++++++++++++++++++++------
+ 1 file changed, 30 insertions(+), 6 deletions(-)
+
+diff --git a/extract-files.sh b/extract-files.sh
+index e2cc8a6..9d1483b 100755
+--- a/extract-files.sh
++++ b/extract-files.sh
+@@ -13,6 +13,13 @@ fi
+ 
+ set -e
+ 
++# IMPORTANT (xylitol): default CLEAN_VENDOR=true in msm8937-common's
++# extract-files.sh will wipe vendor/motorola/msm8937-common/proprietary
++# before extracting. For perry-only refreshes use:
++#   ./extract-files.sh -n --only-target adb
++# Never run a bare ./extract-files.sh adb against a tree that already
++# has common blobs unless you intend to re-extract common too.
++
+ export BOARD_COMMON=msm8937-common
+ export DEVICE=perry
+ export VENDOR=motorola
+@@ -21,9 +28,26 @@ export VENDOR=motorola
+ 
+ DEVICE_BLOB_ROOT="../../../vendor/${VENDOR}/${DEVICE}/proprietary"
+ 
+-sed -i 's|/firmware/image|/vendor/f/image|' "${DEVICE_BLOB_ROOT}/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-fpcservice"
+-patchelf --remove-needed android.hidl.base@1.0.so "${DEVICE_BLOB_ROOT}/vendor/lib/com.fingerprints.extension@1.0_vendor.so"
+-sed -i "s/libgui/libwui/" "${DEVICE_BLOB_ROOT}/vendor/lib/libmmcamera_ppeiscore.so"
+-patchelf --add-needed libppeiscore_shim.so "${DEVICE_BLOB_ROOT}/vendor/lib/libmmcamera_ppeiscore.so"
+-sed -i "s/system input/system uhid input/" "${DEVICE_BLOB_ROOT}/vendor/etc/init/android.hardware.biometrics.fingerprint@2.1-service.rc"
+-sed -i "s/class late_start/class hal/" "${DEVICE_BLOB_ROOT}/vendor/etc/init/android.hardware.biometrics.fingerprint@2.1-service.rc"
++# Post-processing is best-effort: XT1765 stock lacks several montana-era
++# entries still listed in proprietary-files.txt (FPC fingerprint, etc.).
++fixup_if_exists() {
++    local path="$1"; shift
++    if [ -f "${path}" ]; then
++        "$@" "${path}"
++    else
++        echo "  skip fixup (missing): ${path}" >&2
++    fi
++}
++
++fixup_if_exists "${DEVICE_BLOB_ROOT}/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-fpcservice" \
++    sed -i 's|/firmware/image|/vendor/f/image|'
++fixup_if_exists "${DEVICE_BLOB_ROOT}/vendor/lib/com.fingerprints.extension@1.0_vendor.so" \
++    patchelf --remove-needed android.hidl.base@1.0.so
++fixup_if_exists "${DEVICE_BLOB_ROOT}/vendor/lib/libmmcamera_ppeiscore.so" \
++    sed -i "s/libgui/libwui/"
++fixup_if_exists "${DEVICE_BLOB_ROOT}/vendor/lib/libmmcamera_ppeiscore.so" \
++    patchelf --add-needed libppeiscore_shim.so
++fixup_if_exists "${DEVICE_BLOB_ROOT}/vendor/etc/init/android.hardware.biometrics.fingerprint@2.1-service.rc" \
++    sed -i "s/system input/system uhid input/"
++fixup_if_exists "${DEVICE_BLOB_ROOT}/vendor/etc/init/android.hardware.biometrics.fingerprint@2.1-service.rc" \
++    sed -i "s/class late_start/class hal/"
+-- 
+2.53.0
+

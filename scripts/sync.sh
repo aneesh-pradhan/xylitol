@@ -32,4 +32,27 @@ cp "$LOCAL_MANIFEST" .repo/local_manifests/perry.xml
 echo "==> repo sync"
 repo sync -c --no-clone-bundle --no-tags
 
+# repo init --depth=1 shallow-clones every project. Older repo accepted
+# clone-depth="0" in the local manifest to opt out; current repo rejects
+# that, so unshallow the perry-related projects here instead.
+echo "==> Unshallowing perry device/kernel/vendor projects"
+for path in \
+  device/motorola/perry \
+  device/motorola/msm8937-common \
+  kernel/motorola/msm8953 \
+  vendor/motorola
+do
+  target="$LINEAGE_DIR/$path"
+  if [ ! -e "$target/.git" ]; then
+    echo "  skip $path (not present)" >&2
+    continue
+  fi
+  if [ "$(git -C "$target" rev-parse --is-shallow-repository 2>/dev/null || true)" = "true" ]; then
+    echo "  unshallow $path"
+    git -C "$target" fetch --unshallow
+  else
+    echo "  already full $path"
+  fi
+done
+
 echo "==> Done. Source tree is at $LINEAGE_DIR."

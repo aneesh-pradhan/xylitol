@@ -43,13 +43,12 @@
     (a device consolidation, not a HAL/VNDK bump) rather than porting jeter
     itself.
 
-  clone-depth="0" forces full history on these projects even though
-  scripts/sync.sh runs repo init with a depth of 1 (shallow) for the rest of
-  the LineageOS/AOSP tree: see project.py's Sync_NetworkHalf, where
-  clone_depth=0 is falsy, so no shallow depth is applied and the project
-  clones in full. We want this on all four: perry to build a working branch
-  off 17.1, and the other three so their own 17.1->18.1 history is available
-  locally to study without extra fetches.
+  Full history for these four: do NOT set clone-depth here. Older repo
+  treated clone-depth="0" as "ignore init depth and clone full", but
+  current repo rejects clone-depth of 0 or less at parse time. With
+  repo init depth=1, omitting the attribute means these projects sync
+  shallow like everything else; scripts/sync.sh then unshallows just
+  these four so their 17.1 to 18.1 history is available locally.
 -->
 <manifest>
   <remote name="moto-msm89xx" fetch="https://github.com/moto-msm89xx/" />
@@ -57,24 +56,20 @@
   <project name="android_device_motorola_perry"
            path="device/motorola/perry"
            remote="moto-msm89xx"
-           revision="lineage-17.1"
-           clone-depth="0" />
+           revision="lineage-17.1" />
 
   <project name="android_device_motorola_msm8937-common"
            path="device/motorola/msm8937-common"
            remote="moto-msm89xx"
-           revision="lineage-18.1"
-           clone-depth="0" />
+           revision="lineage-18.1" />
 
   <project name="android_kernel_motorola_msm8953"
            path="kernel/motorola/msm8953"
            remote="moto-msm89xx"
-           revision="lineage-18.1"
-           clone-depth="0" />
+           revision="lineage-18.1" />
 
   <project name="proprietary_vendor_motorola"
            path="vendor/motorola"
            remote="moto-msm89xx"
-           revision="lineage-18.1"
-           clone-depth="0" />
+           revision="lineage-18.1" />
 </manifest>
