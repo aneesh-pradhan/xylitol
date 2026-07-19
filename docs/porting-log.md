@@ -272,3 +272,35 @@ Root cause: `device/motorola/msm8937-common/Android.mk` gates
 `patches/device/motorola/msm8937-common/0001-...` adds `perry` to the
 filter.
 
+
+
+## 2026-07-19 — OMX V4L2 undeclared identifiers (libOmxVdec/libOmxVenc)
+
+`brunch perry` failed compiling `hardware/qcom-caf/msm8996` media:
+
+- `V4L2_QCOM_CMD_FLUSH` (omx_vdec_v4l2.cpp / video_encoder_device_v4l2.cpp)
+- `V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN` (omx_vdec_v4l2.cpp)
+
+**Root cause:** `msm8937-common` sets `TARGET_KERNEL_VERSION := 4.9`
+(commit `b4adeb5`), which makes the msm8996 CAF media HAL define
+`_TARGET_KERNEL_VERSION_49_` and take the 4.9 ioctl/enum names. Perry's
+`kernel/motorola/msm8953` on `lineage-18.1` is still 3.18.140 with
+3.18-style uapi (`V4L2_DEC_QCOM_CMD_FLUSH` / `V4L2_ENC_QCOM_CMD_FLUSH`,
+no `LEVEL_UNKNOWN`). `BoardConfigQcom.mk` maps `msm8937` →
+`QCOM_HARDWARE_VARIANT := msm8996` (UM_3_18_FAMILY), so this HAL path is
+expected.
+
+`moto-msm89xx` `staging/lineage-18.1` already has the unified
+`V4L2_QCOM_CMD_FLUSH` and `LEVEL_UNKNOWN` in uapi; shipping `lineage-18.1`
+does not. Sibling device trees (cedric/hannah) inherit the same common
+flag and would hit the same gap against this kernel tip.
+
+**Fix:** minimal uapi shim (keep DEC/ENC names the driver switch still
+uses; add aliases with the same numeric values):
+
+- `include/uapi/linux/videodev2.h`: `#define V4L2_QCOM_CMD_FLUSH (4)`
+- `include/uapi/linux/v4l2-controls.h`: `V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN = 17`
+
+Patch: `patches/kernel/motorola/msm8953/0002-uapi-add-V4L2-macros-for-CAF-media-HAL-TARGET_KERNEL.patch`
+(applied on the live tree). Did **not** unset `TARGET_KERNEL_VERSION` —
+common intentionally opted into the 4.9 HAL path for 18.1.
