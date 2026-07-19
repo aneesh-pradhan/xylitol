@@ -29,10 +29,12 @@ trusting names from memory:
   `vendor/motorola`, not `vendor/motorola/montana` — `montana/` is a subdir of
   it. This repo also has blobs on a `lineage-18.1` branch already.
 
-See `manifests/perry.xml` for the local manifest (full history via
-`clone-depth="0"`). Initial draft pinned all four projects to
-`lineage-17.1`; repinned to `lineage-18.1` for the platform repos in the
-entry below once `git compare` confirmed those branches are real.
+See `manifests/perry.xml` for the local manifest. Initial draft pinned
+all four projects to `lineage-17.1`; repinned to `lineage-18.1` for the
+platform repos in the entry below once `git compare` confirmed those
+branches are real. Full history for the four perry-related projects is
+handled by `scripts/sync.sh` (unshallow after sync), not by
+`clone-depth="0"` — current repo rejects that attribute.
 
 ## 2026-07-19 — fastboot re-verification, Android version ceiling, manifest revision-pinning fix
 
@@ -155,3 +157,100 @@ written in the scaffold. Updated `scripts/setup-env.sh` to target 26.04;
 the libtinfo5/libncurses5 mantic-.deb workaround is unchanged (those packages
 are still absent from 26.04's repos). `setup-env.sh` requires sudo for
 apt/dpkg steps — run it before the first `sync.sh`.
+
+## 2026-07-19 — clone-depth="0" rejected by current repo
+
+`repo sync` failed immediately with:
+`clone-depth must be greater than 0, not "0"`. The scaffold used
+`clone-depth="0"` as a "full history despite init --depth=1" trick that
+older repo treated as falsy; current repo validates `clone-depth > 0` at
+manifest parse time. Fix: drop the attribute from `manifests/perry.xml`
+and unshallow the four perry-related projects at the end of
+`scripts/sync.sh` instead.
+
+## 2026-07-19 — perry_recovery_defconfig kernel patch (WLAN strip)
+
+**Finding:** `TARGET_KERNEL_RECOVERY_CONFIG := perry_recovery_defconfig` in
+device-tree patch `0001` pointed at a missing kernel file. Sibling devices
+(cedric/hannah/montana) all ship matching `*_recovery_defconfig` files under
+`arch/arm64/configs/` that differ from their normal defconfigs **only** by
+disabling Pronto WLAN and dropping its dependent options. perry had
+`perry_defconfig` but no recovery twin.
+
+**Patch:** `patches/kernel/motorola/msm8953/0001-perry-add-perry_recovery_defconfig-WLAN-stripped.patch`
+— generated from `perry_defconfig` (lineage-18.1) by applying the same WLAN
+strip as `cedric_defconfig` → `cedric_recovery_defconfig`:
+`CONFIG_PRONTO_WLAN=m` → `# CONFIG_PRONTO_WLAN is not set`, and remove the
+dependent PRIMA/WLAN options that disappear when Pronto is off
+(`CONFIG_PRIMA_WLAN_LFR`, `CONFIG_WLAN_FEATURE_SAE`, `CONFIG_WLAN_AKM_SUITE_OWE`,
+`CONFIG_PRIMA_WLAN_LFR_MBB`, `CONFIG_PRIMA_WLAN_OKC`,
+`CONFIG_PRIMA_WLAN_11AC_HIGH_TP`, `CONFIG_MDNS_OFFLOAD_SUPPORT`,
+`CONFIG_QCOM_TDLS`, `CONFIG_QCOM_VOWIFI_11R`, `CONFIG_WLAN_FEATURE_11W`,
+`CONFIG_ENABLE_LINUX_REG`, `CONFIG_WLAN_OFFLOAD_PACKETS`, plus the related
+`# CONFIG_* is not set` lines under that block). No other keys differ.
+(Earlier log note that recovery defconfigs were absent under
+`arch/arm/configs` was looking in the wrong arch tree — see next.)
+
+**Note (arch layout):** msm8937-common on `lineage-18.1` uses `TARGET_ARCH :=
+arm64` with `TARGET_2ND_ARCH := arm` (64-bit kernel, 32-bit userspace ABI
+available). Device defconfigs therefore live under `arch/arm64/configs/`,
+not `arch/arm/configs/`. That is why the earlier `arch/arm/configs` check
+missed `cedric_recovery_defconfig` / `hannah_recovery_defconfig` — they are
+present on arm64.
+
+**Note (HAL manifests):** HAL versions already live in msm8937-common's
+`manifest.xml` on the `lineage-18.1` branch. perry has no device-level
+`manifest.xml` and only an `interfaces/` fingerprint extension — no blind
+HAL patch needed from cedric's device tree for that part.
+
+**Pending (already in working tree, not committed):** sync fixes for
+`clone-depth="0"` rejection — attribute dropped from `manifests/perry.xml`,
+unshallow of the four perry-related projects moved into `scripts/sync.sh`
+(see previous entry).
+
+## 2026-07-19 — extract-files CLEAN_VENDOR wiped msm8937-common
+
+**Incident:** Running perry's `./extract-files.sh adb` (no flags) wiped
+`vendor/motorola/msm8937-common/proprietary/` because msm8937-common's
+helper defaults to `CLEAN_VENDOR=true`. That deleted the committed common
+APKs (`CneApp`, `QtiTelephonyService`, `datastatusnotification`,
+`qcrilmsgtunnel`, etc.) and the next `brunch perry` failed in Soong with
+missing module source paths. Restore with:
+
+```bash
+cd ~/android/lineage/vendor/motorola
+git checkout HEAD -- msm8937-common/proprietary/
+```
+
+**Safe perry-only extract** (does not wipe common):
+
+```bash
+cd ~/android/lineage/device/motorola/perry
+./extract-files.sh -n --only-target adb
+# or from the meta-repo:
+./scripts/extract-perry.sh adb
+```
+
+`-n` / `--no-cleanup` sets `CLEAN_VENDOR=false`; `--only-target` skips the
+board-common / device-common extract passes entirely.
+
+**XT1765 blob reality check:** After a safe extract, only **26 / 99**
+entries from `proprietary-files.txt` exist on stock 7.1.2. Many listed
+paths are montana leftovers (FPC fingerprint HAL, `*-montana.tdat` touch
+firmware, `s5k3p3` / `s5k3p8sp` / `ov5695_l5695f60` chromatix). This
+XT1765 actually has **imx219 / ov5695 / s5k4h8** camera libs under
+`/system/vendor/lib/` and **egis** fingerprint firmware
+(`egtzappfingerprint.*`), not FPC. `proprietary-files.txt` needs a
+rewrite against a full stock inventory before camera/FP will package
+correctly. For now `perry-vendor.mk` was regenerated locally to list only
+the 26 files present on disk so the build does not fail on missing
+`PRODUCT_COPY_FILES` sources.
+
+**Also fixed this session:**
+- Kernel: no `git am` in progress; `perry_recovery_defconfig` is present
+  under `arch/arm64/configs/` (applied earlier).
+- `dtbtool`: `BUILD_HOST_EXECUTABLE` is obsolete on 18.1 — converted to
+  Soong `cc_binary_host` (`patches/.../0004-...`).
+- `extract-files.sh`: warning comment + best-effort fixups
+  (`patches/.../0005-...`).
+
