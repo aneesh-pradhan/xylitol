@@ -311,3 +311,15 @@ uses; add aliases with the same numeric values):
 Patch: `patches/kernel/motorola/msm8953/0002-uapi-add-V4L2-macros-for-CAF-media-HAL-TARGET_KERNEL.patch`
 (applied on the live tree). Did **not** unset `TARGET_KERNEL_VERSION` —
 common intentionally opted into the 4.9 HAL path for 18.1.
+
+
+## 2026-07-19 — fingerprints HIDL root still pointed at montana
+
+After the OMX uapi fix, `m bacon` failed at ~35% on:
+
+`hidl-gen ... -rcom.fingerprints:device/motorola/montana/interfaces`
+→ `Could not open package path device/motorola/montana/interfaces/extension/1.0/`
+
+`device/motorola/perry/interfaces/Android.bp` still had montana's path
+(montana leftover). HALs are under perry. Patch
+`patches/device/motorola/perry/0006-...` retargets the package root.
