@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build environment setup for LineageOS 18.1, targeting Ubuntu 24.04 LTS (noble).
+# Build environment setup for LineageOS 18.1, targeting Ubuntu 26.04 LTS (resolute).
 # Package list per wiki.lineageos.org (verified 2026-07-19 against a currently
 # supported device's build page, since perry has no wiki page of its own).
 set -euo pipefail
@@ -12,8 +12,8 @@ LINEAGE_DIR="$HOME/android/lineage"
 
 echo "==> Checking OS version"
 . /etc/os-release
-if [ "${VERSION_ID:-}" != "24.04" ]; then
-  echo "Warning: this script targets Ubuntu 24.04 (noble); detected ${PRETTY_NAME:-unknown}." >&2
+if [ "${VERSION_ID:-}" != "26.04" ]; then
+  echo "Warning: this script targets Ubuntu 26.04 (resolute); detected ${PRETTY_NAME:-unknown}." >&2
 fi
 
 echo "==> Installing build packages"
@@ -25,8 +25,8 @@ sudo apt-get install -y \
   libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync \
   schedtool squashfs-tools xsltproc xxd zip zlib1g-dev python-is-python3
 
-# Ubuntu 24.04 (noble) is newer than 23.10 (mantic); libtinfo5/libncurses5
-# were dropped from the repos, so pull the mantic .debs directly.
+# libtinfo5/libncurses5 were dropped from Ubuntu repos after 23.04; LineageOS
+# 18.1's prebuilts still need them. Pull the mantic .debs directly.
 if ! dpkg -s libtinfo5 >/dev/null 2>&1 || ! dpkg -s libncurses5 >/dev/null 2>&1; then
   echo "==> Installing libtinfo5/libncurses5 from the mantic archive"
   tmpdir="$(mktemp -d)"

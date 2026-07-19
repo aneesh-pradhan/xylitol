@@ -1,0 +1,21 @@
+From fa46845f16f7927fb135d7c60645cc1d79099d59 Mon Sep 17 00:00:00 2001
+From: aneesh-pradhan <aneesh@localhost>
+Date: Sun, 19 Jul 2026 13:40:57 -0700
+Subject: [PATCH 3/3] perry: move sepolicy/file_contexts to sepolicy/vendor/
+
+Matches BOARD_VENDOR_SEPOLICY_DIRS now pointing at sepolicy/vendor (see
+previous BoardConfig.mk change) and the sepolicy/ -> sepolicy/vendor/
+restructure every msm8937-common sibling did in this same jump (cedric,
+hannah). No content change, pure move.
+---
+ sepolicy/{ => vendor}/file_contexts | 0
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ rename sepolicy/{ => vendor}/file_contexts (100%)
+
+diff --git a/sepolicy/file_contexts b/sepolicy/vendor/file_contexts
+similarity index 100%
+rename from sepolicy/file_contexts
+rename to sepolicy/vendor/file_contexts
+-- 
+2.53.0
+
