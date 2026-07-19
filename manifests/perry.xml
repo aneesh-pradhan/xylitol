@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Local manifest for perry (Moto E4, XT1765, MSM8917).
+  Copied into ~/android/lineage/.repo/local_manifests/ by scripts/sync.sh.
+
+  Verified against github.com/moto-msm89xx on 2026-07-19 (do not trust names
+  from memory when editing this file, re-verify against the org):
+
+  - android_device_motorola_perry: only real branches are lineage-16.0,
+    lineage-17.1, lineage-18.0, dynamic/lineage-17.1. lineage-18.0 is a TRAP:
+    its BoardConfig.mk still points at montana_defconfig and
+    vendor/motorola/montana/BoardConfigVendor.mk, and its last commit
+    (2020-09-14) predates lineage-17.1's last commit (2020-11-13). It is
+    stale montana leftovers, not a real perry port. Use lineage-17.1 as the
+    porting base.
+  - There is no msm8917-common or kernel_motorola_msm8917 repo. perry
+    inherits device/motorola/msm8937-common (android_device_motorola_
+    msm8937-common), which in turn targets kernel/motorola/msm8953
+    (android_kernel_motorola_msm8953) via TARGET_KERNEL_SOURCE, built with
+    perry_defconfig. Both of these already have real lineage-18.1 branches
+    upstream, and are the primary reference material for this port, more so
+    than sibling device trees.
+  - perry has no dedicated vendor repo. Its BoardConfig.mk inherits
+    vendor/motorola/montana/BoardConfigVendor.mk from the shared
+    proprietary_vendor_motorola repo (root contains cedric/, hannah-common/,
+    james/, montana/, msm8937-common/, so clone the whole repo to
+    vendor/motorola, not vendor/motorola/montana).
+
+  clone-depth="0" forces full history on these projects even though
+  scripts/sync.sh runs repo init with a depth of 1 (shallow) for the rest of
+  the LineageOS/AOSP tree: see project.py's Sync_NetworkHalf, where
+  clone_depth=0 is falsy, so no shallow depth is applied and the project
+  clones in full.
+-->
+<manifest>
+  <remote name="moto-msm89xx" fetch="https://github.com/moto-msm89xx/" />
+
+  <project name="android_device_motorola_perry"
+           path="device/motorola/perry"
+           remote="moto-msm89xx"
+           revision="lineage-17.1"
+           clone-depth="0" />
+
+  <project name="android_device_motorola_msm8937-common"
+           path="device/motorola/msm8937-common"
+           remote="moto-msm89xx"
+           revision="lineage-17.1"
+           clone-depth="0" />
+
+  <project name="android_kernel_motorola_msm8953"
+           path="kernel/motorola/msm8953"
+           remote="moto-msm89xx"
+           revision="lineage-17.1"
+           clone-depth="0" />
+
+  <project name="proprietary_vendor_motorola"
+           path="vendor/motorola"
+           remote="moto-msm89xx"
+           revision="lineage-17.1"
+           clone-depth="0" />
+</manifest>
