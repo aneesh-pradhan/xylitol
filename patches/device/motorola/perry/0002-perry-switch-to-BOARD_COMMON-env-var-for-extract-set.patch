@@ -1,0 +1,73 @@
+From 4a17e457b81b4921dc754cb13b830a0211630605 Mon Sep 17 00:00:00 2001
+From: aneesh-pradhan <aneesh@localhost>
+Date: Sun, 19 Jul 2026 13:40:57 -0700
+Subject: [PATCH 2/3] perry: switch to BOARD_COMMON env var for extract/setup
+ scripts
+
+msm8937-common's own extract-files.sh (lineage-18.1) reads BOARD_COMMON, not
+the old DEVICE_COMMON, when it calls setup_vendor/extract via
+tools/extract-utils/extract_utils.sh. Verified directly against
+moto-msm89xx/android_device_motorola_msm8937-common's live lineage-18.1
+extract-files.sh before making this change, since the two sibling device
+trees disagree here: cedric (also on msm8937-common) uses BOARD_COMMON;
+hannah uses the old DEVICE_COMMON because it inherits hannah-common instead,
+which is a different (older-style) common tree. Followed cedric's contract
+since perry inherits msm8937-common like cedric does, not hannah's.
+
+Also fixes DEVICE_BLOB_ROOT to a relative path (../../../vendor/...) instead
+of ${LINEAGE_ROOT}/vendor/..., matching cedric; perry's own camera/
+fingerprint blob patchelf/sed lines are left untouched since those are
+perry-specific and unrelated to this rename.
+
+Dropped DEVICE_BRINGUP_YEAR: unused by the current common-tree scripts,
+cedric's port drops it too.
+---
+ extract-files.sh   | 9 +++------
+ setup-makefiles.sh | 7 ++-----
+ 2 files changed, 5 insertions(+), 11 deletions(-)
+
+diff --git a/extract-files.sh b/extract-files.sh
+index 75cb485..e2cc8a6 100755
+--- a/extract-files.sh
++++ b/extract-files.sh
+@@ -13,16 +13,13 @@ fi
+ 
+ set -e
+ 
+-# Required!
++export BOARD_COMMON=msm8937-common
+ export DEVICE=perry
+-export DEVICE_COMMON=msm8937-common
+ export VENDOR=motorola
+ 
+-export DEVICE_BRINGUP_YEAR=2017
++"./../../${VENDOR}/${BOARD_COMMON}/extract-files.sh" "$@"
+ 
+-"./../../${VENDOR}/${DEVICE_COMMON}/extract-files.sh" "$@"
+-
+-DEVICE_BLOB_ROOT="${LINEAGE_ROOT}/vendor/${VENDOR}/${DEVICE}/proprietary"
++DEVICE_BLOB_ROOT="../../../vendor/${VENDOR}/${DEVICE}/proprietary"
+ 
+ sed -i 's|/firmware/image|/vendor/f/image|' "${DEVICE_BLOB_ROOT}/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-fpcservice"
+ patchelf --remove-needed android.hidl.base@1.0.so "${DEVICE_BLOB_ROOT}/vendor/lib/com.fingerprints.extension@1.0_vendor.so"
+diff --git a/setup-makefiles.sh b/setup-makefiles.sh
+index ccd7ce2..88b1341 100755
+--- a/setup-makefiles.sh
++++ b/setup-makefiles.sh
+@@ -7,11 +7,8 @@
+ 
+ set -e
+ 
+-# Required!
++export BOARD_COMMON=msm8937-common
+ export DEVICE=perry
+-export DEVICE_COMMON=msm8937-common
+ export VENDOR=motorola
+ 
+-export DEVICE_BRINGUP_YEAR=2017
+-
+-"./../../${VENDOR}/${DEVICE_COMMON}/setup-makefiles.sh" "$@"
++"./../../${VENDOR}/${BOARD_COMMON}/setup-makefiles.sh" "$@"
+-- 
+2.53.0
+

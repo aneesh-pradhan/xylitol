@@ -17,20 +17,39 @@
     inherits device/motorola/msm8937-common (android_device_motorola_
     msm8937-common), which in turn targets kernel/motorola/msm8953
     (android_kernel_motorola_msm8953) via TARGET_KERNEL_SOURCE, built with
-    perry_defconfig. Both of these already have real lineage-18.1 branches
-    upstream, and are the primary reference material for this port, more so
-    than sibling device trees.
+    perry_defconfig.
   - perry has no dedicated vendor repo. Its BoardConfig.mk inherits
     vendor/motorola/montana/BoardConfigVendor.mk from the shared
     proprietary_vendor_motorola repo (root contains cedric/, hannah-common/,
     james/, montana/, msm8937-common/, so clone the whole repo to
     vendor/motorola, not vendor/motorola/montana).
 
+  Revisions, checked 2026-07-19 via `git compare` between each repo's
+  lineage-17.1 and lineage-18.1 branches (ahead_by/behind_by), since two
+  branches in this org (perry's own lineage-18.0, montana's lineage-19.0)
+  turned out to be stale decoys rather than real forward ports:
+  - msm8937-common (194 commits ahead), kernel_msm8953 (1463 commits ahead),
+    and proprietary_vendor_motorola (26 commits ahead) all have GENUINE
+    lineage-18.1 work already done upstream, so this manifest pins them
+    straight to lineage-18.1: that platform-level bump is free, no need to
+    replay it ourselves.
+  - android_device_motorola_perry has no real lineage-18.1 branch at all
+    (see the lineage-18.0 trap above). It stays pinned to lineage-17.1: this
+    is the actual porting target. Sibling device trees that made this same
+    jump (cedric: 31 commits, hannah: 2 commits) show the shape of what's
+    needed: BoardConfig.mk tweaks, sepolicy/ moving to sepolicy/vendor/,
+    extract-files.sh/setup-makefiles.sh template alignment. jeter's "diff"
+    is a red herring for this purpose: it collapses jeter into hannah-common
+    (a device consolidation, not a HAL/VNDK bump) rather than porting jeter
+    itself.
+
   clone-depth="0" forces full history on these projects even though
   scripts/sync.sh runs repo init with a depth of 1 (shallow) for the rest of
   the LineageOS/AOSP tree: see project.py's Sync_NetworkHalf, where
   clone_depth=0 is falsy, so no shallow depth is applied and the project
-  clones in full.
+  clones in full. We want this on all four: perry to build a working branch
+  off 17.1, and the other three so their own 17.1->18.1 history is available
+  locally to study without extra fetches.
 -->
 <manifest>
   <remote name="moto-msm89xx" fetch="https://github.com/moto-msm89xx/" />
@@ -44,18 +63,18 @@
   <project name="android_device_motorola_msm8937-common"
            path="device/motorola/msm8937-common"
            remote="moto-msm89xx"
-           revision="lineage-17.1"
+           revision="lineage-18.1"
            clone-depth="0" />
 
   <project name="android_kernel_motorola_msm8953"
            path="kernel/motorola/msm8953"
            remote="moto-msm89xx"
-           revision="lineage-17.1"
+           revision="lineage-18.1"
            clone-depth="0" />
 
   <project name="proprietary_vendor_motorola"
            path="vendor/motorola"
            remote="moto-msm89xx"
-           revision="lineage-17.1"
+           revision="lineage-18.1"
            clone-depth="0" />
 </manifest>
