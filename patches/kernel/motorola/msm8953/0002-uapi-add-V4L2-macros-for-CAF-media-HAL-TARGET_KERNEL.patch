@@ -1,0 +1,50 @@
+From bbf6519df5ce7d44a2454f0de3e3385b4732c49d Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 15:36:01 -0700
+Subject: [PATCH] uapi: add V4L2 macros for CAF media HAL
+ (TARGET_KERNEL_VERSION=4.9)
+
+msm8937-common sets TARGET_KERNEL_VERSION := 4.9, which makes
+hardware/qcom-caf/msm8996 media define _TARGET_KERNEL_VERSION_49_ and
+expect V4L2_QCOM_CMD_FLUSH / V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN.
+
+lineage-18.1 still ships 3.18-style uapi (V4L2_DEC_QCOM_CMD_FLUSH etc.).
+Add the missing aliases with the same numeric values so libOmxVdec/
+libOmxVenc compile; kernel switch cases keep matching on the DEC_* name.
+---
+ include/uapi/linux/v4l2-controls.h | 3 +++
+ include/uapi/linux/videodev2.h     | 4 ++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/include/uapi/linux/v4l2-controls.h b/include/uapi/linux/v4l2-controls.h
+index 1260110225a9..b47fa2b747ee 100644
+--- a/include/uapi/linux/v4l2-controls.h
++++ b/include/uapi/linux/v4l2-controls.h
+@@ -420,6 +420,9 @@ enum v4l2_mpeg_video_h264_level {
+ 	V4L2_MPEG_VIDEO_H264_LEVEL_5_0	= 14,
+ 	V4L2_MPEG_VIDEO_H264_LEVEL_5_1	= 15,
+ 	V4L2_MPEG_VIDEO_H264_LEVEL_5_2	= 16,
++#define V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN \
++	V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN
++	V4L2_MPEG_VIDEO_H264_LEVEL_UNKNOWN = 17,
+ };
+ #define V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_ALPHA	(V4L2_CID_MPEG_BASE+360)
+ #define V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_BETA	(V4L2_CID_MPEG_BASE+361)
+diff --git a/include/uapi/linux/videodev2.h b/include/uapi/linux/videodev2.h
+index e6925f3a9722..43539fdb3501 100644
+--- a/include/uapi/linux/videodev2.h
++++ b/include/uapi/linux/videodev2.h
+@@ -1626,6 +1626,10 @@ struct v4l2_encoder_cmd {
+ #define V4L2_DEC_CMD_PAUSE       (2)
+ #define V4L2_DEC_CMD_RESUME      (3)
+ #define V4L2_DEC_QCOM_CMD_FLUSH  (4)
++/* Userspace alias expected by CAF media HAL when TARGET_KERNEL_VERSION=4.9.
++ * Same numeric value as V4L2_{DEC,ENC}_QCOM_CMD_FLUSH; kernel switch still
++ * matches on V4L2_DEC_QCOM_CMD_FLUSH. */
++#define V4L2_QCOM_CMD_FLUSH      (4)
+ #define V4L2_DEC_QCOM_CMD_RECONFIG_HINT  (5)
+ 
+ /* Flags for V4L2_DEC_CMD_START */
+-- 
+2.53.0
+
