@@ -254,3 +254,21 @@ the 26 files present on disk so the build does not fail on missing
 - `extract-files.sh`: warning comment + best-effort fixups
   (`patches/.../0005-...`).
 
+
+## 2026-07-19 — msm8937-common Android.mk omitted perry
+
+First `brunch perry` passed Soong APK checks (after proprietary restore)
+and the dtbtool Soong conversion, then failed at makefile analysis:
+
+`updater ... missing librecovery_updater_motorola (STATIC_LIBRARIES android-arm64)`
+
+Root cause: `device/motorola/msm8937-common/Android.mk` gates
+`all-makefiles-under` (including `recovery/` which builds
+`librecovery_updater_motorola`) behind
+
+`filter ahannah cedric hannah james montana rhannah`
+
+— perry was never added when the common tree grew that list. Patch:
+`patches/device/motorola/msm8937-common/0001-...` adds `perry` to the
+filter.
+

@@ -1,0 +1,27 @@
+From 8bf7ea43290a910ba6f7bcb3f07b7709182727cd Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 14:53:58 -0700
+Subject: [PATCH] msm8937-common: include perry in Android.mk device filter
+
+Without perry in the filter, recovery/ (librecovery_updater_motorola)
+and firmware symlink rules are skipped, breaking brunch perry on 18.1.
+---
+ Android.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Android.mk b/Android.mk
+index 1e94725..25bd6fc 100644
+--- a/Android.mk
++++ b/Android.mk
+@@ -15,7 +15,7 @@
+ 
+ LOCAL_PATH := $(call my-dir)
+ 
+-ifneq ($(filter ahannah cedric hannah james montana rhannah,$(TARGET_DEVICE)),)
++ifneq ($(filter ahannah cedric hannah james montana perry rhannah,$(TARGET_DEVICE)),)
+ 
+ include $(call all-makefiles-under,$(LOCAL_PATH))
+ 
+-- 
+2.53.0
+
