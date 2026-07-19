@@ -158,6 +158,13 @@ the libtinfo5/libncurses5 mantic-.deb workaround is unchanged (those packages
 are still absent from 26.04's repos). `setup-env.sh` requires sudo for
 apt/dpkg steps — run it before the first `sync.sh`.
 
+## 2026-07-19 — session handoff written
+
+Wrote `docs/handoff.md` capturing phase (first full bacon in flight / unproven),
+patch inventory, open gaps (XT1765 proprietary rewrite, bacon not green yet),
+and next-session research order. Meta-repo was otherwise clean at tip
+`00124df` before the handoff commit.
+
 ## 2026-07-19 — clone-depth="0" rejected by current repo
 
 `repo sync` failed immediately with:

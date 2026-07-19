@@ -1,6 +1,9 @@
 # xylitol
 Custom kernel + OS for the Moto E4 (perry)
 
+**Handoff / current phase:** see [`docs/handoff.md`](docs/handoff.md)  
+**Chronology:** [`docs/porting-log.md`](docs/porting-log.md)
+
 ## Blob extraction (important)
 
 `device/motorola/perry/extract-files.sh` delegates to msm8937-common, which
