@@ -1,0 +1,24 @@
+From ff142e98ddd6bfeae5554302539d4d1442a7d028 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 16:05:25 -0700
+Subject: [PATCH] perry: point com.fingerprints HIDL root at perry interfaces
+
+Montana leftover path broke hidl-gen (package path missing). HALs live
+under device/motorola/perry/interfaces.
+---
+ interfaces/Android.bp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/interfaces/Android.bp b/interfaces/Android.bp
+index 66306cc..abb3725 100644
+--- a/interfaces/Android.bp
++++ b/interfaces/Android.bp
+@@ -1,4 +1,4 @@
+ hidl_package_root {
+     name: "com.fingerprints",
+-    path: "device/motorola/montana/interfaces",
++    path: "device/motorola/perry/interfaces",
+ }
+-- 
+2.53.0
+
