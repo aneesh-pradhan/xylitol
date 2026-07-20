@@ -1,186 +1,115 @@
 # Session handoff — perry / xylitol
 
-**Date:** 2026-07-19 (end of day; pick up fresh next session)  
-**Meta-repo:** `main` tip includes handoff + build-fix commits (may be ahead of origin — push if needed)  
-**Lineage tree:** `~/android/lineage` (not in this repo)  
-**Build host:** Ubuntu **26.04** LTS (`resolute`), host `mke2fs` **1.47.2**
+**Date:** 2026-07-19 (EOD; start next session from here)  
+**Meta-repo:** `main` — check `git status` (likely ahead of origin; push when ready)  
+**Lineage tree:** `~/android/lineage`  
+**Build host:** Ubuntu **26.04** LTS; host e2fsprogs **1.47.2**
 
-Detailed chronology: [`porting-log.md`](porting-log.md). Project rules: [`../CLAUDE.md`](../CLAUDE.md).
+Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUDE.md).
 
 ---
 
-## 1. Project phase (where we are)
+## 1. Phase
 
 | Phase | Status |
 |---|---|
-| Evidence / ceiling (LOS 18.1) | **Done** |
-| Manifest + sync + env (26.04) | **Done** |
-| Perry 17.1→18.1 device/kernel patches | **Done** (applied in live tree) |
-| First full `m bacon` | **Blocked** — failed @ **94%** (see §5) |
-| Flashable zip | **None yet** |
+| LOS 18.1 ceiling / manifest / sync / env | **Done** |
+| Perry device + kernel patches | **Done** (applied in live tree) |
+| Full `m bacon` → zip | **Blocked @ ~94%** — see §3 |
 | XT1765 proprietary rewrite | **Not done** |
 | Boot / SELinux | **Not started** |
 
-**One-line summary:** First successful full build is **close but not done**. Multiple Soong/device blockers were fixed; the latest bacon died packaging the ART APEX because Ubuntu 26.04’s e2fsprogs defaults (`orphan_file`) break Lineage 18.1’s bundled `mke2fs` 1.45.4 via `apexer`.
+**Summary:** Very close to a first zip. Device/Soong blockers fixed. Latest failure is host `mke2fs`/`orphan_file` during ART APEX packaging. A fix is **already in the meta-repo** (`config/mke2fs.conf` + `MKE2FS_CONFIG`); the failed run simply did not have that env var in the build shell.
 
-**Goal:** LineageOS **18.1** for XT1765 perry. Do not pivot to 19.0+.
+**Goal:** LineageOS **18.1** for XT1765 perry only.
 
 ---
 
-## 2. First actions next session
+## 2. Do this first next session
 
 ```bash
-# Confirm no build running; read the failure
-pgrep -af 'soong_ui|ninja.*bacon' || echo 'idle'
-tail -80 ~/android/lineage/logs/brunch-perry-20260719-172106.log
+# 1) Ensure the apexer fix is active in THIS shell
+export MKE2FS_CONFIG=$HOME/android/mke2fs.conf
+# confirm no orphan_file:
+grep orphan_file "$MKE2FS_CONFIG" || echo 'config OK (no orphan_file)'
 
-# Then fix the apexer/mke2fs orphan_file issue (research in §6), then:
+# 2) Resume build (do not wipe out/)
 cd ~/android/lineage
 source build/envsetup.sh && lunch lineage_perry-userdebug
 m bacon 2>&1 | tee logs/brunch-perry-$(date +%Y%m%d-%H%M%S).log
 ```
 
-Do **not** re-run `apply-patches.sh` unless device/kernel/common repos were reset.
+Optional: `source ~/.bashrc` if the export is already there (setup-env installed it).
+
+Do **not** re-run `apply-patches.sh` unless perry/common/kernel were reset to upstream.
 
 ---
 
-## 3. CURRENT blocking error (must fix first)
+## 3. CURRENT blocker
 
-### ART APEX / `mke2fs` + `orphan_file` (Ubuntu 26.04)
+### ART APEX packaging — `orphan_file` (log `172106`)
 
-- **Log:** `~/android/lineage/logs/brunch-perry-20260719-172106.log`
-- **Progress at fail:** ~**94%** (9350+/9895 incremental graph)
-- **FAILED target:** `com.android.art.release.apex.unsigned` (`apexer` → image payload)
-- **Symptom:**
-  ```
-  Invalid filesystem option set: has_journal,extent,...,orphan_file
-  AssertionError: Failed to execute: out/soong/host/linux-x86/bin/mke2fs -O ^has_journal ...
-  ```
-- **Cause:** Host `/etc/mke2fs.conf` (e2fsprogs **1.47.2**) enables ext4 feature **`orphan_file`**. Lineage’s tree `mke2fs` is **1.45.4** and rejects that feature set when creating the APEX ext4 image.
-- **Not a perry device-tree bug** — host toolchain / LOS 18.1 vs new Ubuntu.
-
-**Likely fix directions to research (pick one, document in porting-log):**
-
-1. Point build at a config without `orphan_file`, e.g. copy `/etc/mke2fs.conf`, strip `orphan_file`, export `MKE2FS_CONFIG=/path/to/mke2fs-no-orphan.conf` before `m bacon`.
-2. Patch or wrap the soong `mke2fs` invocation / `apexer` (upstream LOS/Ubuntu 24+ threads often discuss this).
-3. Avoid wiping `out/` — only need APEX packaging to succeed after a config fix.
-
-After fix, resume `m bacon` (incremental should be fast to the APEX step).
+- **FAILED:** `com.android.art.release.apex.unsigned` via `apexer` → tree `mke2fs` 1.45.4
+- **Error:** `Invalid filesystem option set: ... orphan_file`
+- **Why:** `/etc/mke2fs.conf` on Ubuntu 26.04 enables `orphan_file`; LOS 18.1 mke2fs cannot use it
+- **Fix already landed in xylitol:** commit `9f13fcd`
+  - `config/mke2fs.conf` (ext4 features **without** `orphan_file`)
+  - copied to `$HOME/android/mke2fs.conf`
+  - `scripts/setup-env.sh` + `~/.bashrc` set `export MKE2FS_CONFIG=$HOME/android/mke2fs.conf`
+- **Why bacon still failed:** the `172106` job was started in a shell **without** `MKE2FS_CONFIG` set (wrapper did not source bashrc). Re-run with the export.
 
 ---
 
-## 4. Fixed this session (no longer blocking)
+## 4. Fixed earlier this session (cleared)
 
-| When (log) | Failure | Fix (xylitol patch / action) |
+| Log / stage | Failure | Fix |
 |---|---|---|
-| extract | Common APKs wiped | Restore `vendor/motorola` git; use `scripts/extract-perry.sh` |
-| early | `librecovery_updater_motorola` missing | `patches/.../msm8937-common/0001` (add perry to Android.mk filter) |
-| early | dtbtool `BUILD_HOST_EXECUTABLE` | `perry/0004` Soong |
-| `145405` ~40% | OMX `V4L2_QCOM_CMD_FLUSH` / `LEVEL_UNKNOWN` | `kernel/.../0002` uapi aliases |
-| `154117` ~36% | `hidl-gen` path `montana/interfaces` | `perry/0006` → perry interfaces |
-| `160541` ~85% | `fc_sort` / vendor `file_contexts` | `perry/0007` trailing newline on `sepolicy/vendor/file_contexts` |
-| sync | `clone-depth="0"` rejected | Dropped attribute; `sync.sh` unshallows four repos |
-
-Also: `perry_recovery_defconfig` added (`kernel/0001`); extract hardened (`perry/0005`).
+| extract | Common vendor wiped | git restore + `scripts/extract-perry.sh` |
+| makefile | recovery updater / perry filter | `msm8937-common/0001` |
+| Soong | dtbtool host rule | `perry/0004` |
+| `145405` | OMX V4L2 undeclared macros | `kernel/0002` |
+| `154117` | fingerprints HIDL → montana path | `perry/0006` |
+| `160541` | `fc_sort` on `file_contexts` | `perry/0007` (trailing newline) |
+| sync | `clone-depth="0"` | dropped; sync.sh unshallows |
 
 ---
 
-## 5. Still open (not today’s bacon stopper, but next)
+## 5. Still open after zip
 
-### A. `proprietary-files.txt` montana-contaminated
-
-- ~**26/99** blobs under `vendor/motorola/perry/proprietary/`
-- List still has FPC / montana touch / wrong chromatix names; device is stock Nougat (`NPNS26.118-22-1` seen on adb; CLAUDE.md also cites `NCQS26.69-64-21` — **reconcile**)
-- Can cause later copy-file failures or broken camera/FP at runtime even after zip builds
-- Re-extract only via `./scripts/extract-perry.sh adb` (never wipe common)
-
-### B. After first zip
-
-- `fastboot boot` TWRP; never wipe `persist` / `modemst1` / `modemst2`
-- Boot logcat / `last_kmsg`; SELinux denial loop → `sepolicy/vendor` patches
-
-### C. Meta
-
-- Push any unpushed xylitol commits (`git status -sb`)
-- Cursor `Co-authored-by` trailer: disable `attributeCommitsToAgent` in Cursor CLI config; contributors graph refreshed via main↔main1 rename earlier
+1. **Rewrite `proprietary-files.txt`** for XT1765 (montana leftovers; ~26/99 blobs). Reconcile stock build id (`NPNS26.118-22-1` on adb vs `NCQS26.69-64-21` in CLAUDE.md).
+2. Boot via `fastboot boot twrp.img`; SELinux denial loop.
+3. Push unpushed xylitol commits; keep Cursor co-author off (`attributeCommitsToAgent`).
 
 ---
 
-## 6. Research agenda (ordered)
+## 6. Patches (`patches/`)
 
-1. **Unblock APEX:** `orphan_file` / `MKE2FS_CONFIG` on Ubuntu 26.04 + LOS 18.1 (search Lineage/XDA/AOSP for “mke2fs orphan_file apexer”).
-2. **Finish bacon** → locate `out/target/product/perry/lineage-*.zip`.
-3. **Rewrite `proprietary-files.txt`** from live XT1765 stock inventory (egis FP, ov5695 `l5695fa0`, etc.).
-4. Optional: more `TARGET_KERNEL_VERSION=4.9` vs 3.18 uapi gaps beyond the two V4L2 macros already shimmed.
+**perry:** 0001 Treble sepolicy/recovery · 0002 BOARD_COMMON · 0003 sepolicy/vendor · 0004 dtbtool Soong · 0005 extract harden · 0006 fingerprints HIDL root · 0007 file_contexts newline  
 
----
+**msm8937-common:** 0001 Android.mk perry filter  
 
-## 7. Patch inventory (`patches/`)
+**kernel msm8953:** 0001 perry_recovery_defconfig · 0002 V4L2 uapi aliases  
 
-### `device/motorola/perry/`
-
-| # | Subject |
-|---|---|
-| 0001 | Treble vendor sepolicy + recovery config |
-| 0002 | `BOARD_COMMON` for extract |
-| 0003 | `sepolicy/` → `sepolicy/vendor/` |
-| 0004 | dtbtool → Soong |
-| 0005 | Harden extract for partial XT1765 sets |
-| 0006 | `com.fingerprints` HIDL root → perry interfaces |
-| 0007 | Trailing newline on `file_contexts` |
-
-### `device/motorola/msm8937-common/`
-
-| # | Subject |
-|---|---|
-| 0001 | Include perry in Android.mk device filter |
-
-### `kernel/motorola/msm8953/`
-
-| # | Subject |
-|---|---|
-| 0001 | `perry_recovery_defconfig` (WLAN stripped) |
-| 0002 | V4L2 uapi aliases for CAF OMX |
-
-Live tree already has these applied (detached HEADs). Re-apply only after reset.
+Plus meta: `config/mke2fs.conf` for apexer.
 
 ---
 
-## 8. Resume cheat sheet
+## 7. Cheat sheet
 
 ```bash
-. /etc/os-release; echo "$PRETTY_NAME"   # Ubuntu 26.04
+export MKE2FS_CONFIG=$HOME/android/mke2fs.conf
+cd ~/android/lineage && source build/envsetup.sh && lunch lineage_perry-userdebug && m bacon
 
-# Build
-cd ~/android/lineage
-source build/envsetup.sh && lunch lineage_perry-userdebug
-# AFTER fixing MKE2FS_CONFIG / orphan_file:
-m bacon 2>&1 | tee logs/brunch-perry-$(date +%Y%m%d-%H%M%S).log
+bash ~/GitHub/xylitol/scripts/extract-perry.sh adb   # phone in system mode
 
-# Perry-only blobs (phone in *system*, adb state=device)
-bash ~/GitHub/xylitol/scripts/extract-perry.sh adb
-
-# If common proprietary wiped
+# if common proprietary wiped:
 cd ~/android/lineage/vendor/motorola && git checkout HEAD -- msm8937-common/proprietary/
 ```
 
-| Task | Device mode |
-|---|---|
-| extract | System |
-| bacon | Host only |
-| flash / `fastboot boot twrp` | Fastboot |
+**Sacred:** never wipe `persist` / `modemst1` / `modemst2`. No blobs/`out/` in xylitol.
 
 ---
 
-## 9. Sacred
+## 8. Next-agent opener
 
-- Never wipe `persist`, `modemst1`, `modemst2`
-- Never commit Lineage tree / `out/` / blobs into xylitol
-- Prefer `fastboot boot twrp.img` until ROM stable
-- No Cursor/Claude co-author on pushed commits
-
----
-
-## 10. Suggested opener for next agent
-
-> Read `docs/handoff.md`. Latest bacon failed at 94% on `com.android.art.release` apexer/`mke2fs` with `orphan_file` (Ubuntu 26.04). Fix that host-side, resume `m bacon`, then update this handoff and porting-log.
+> Read `docs/handoff.md`. Export `MKE2FS_CONFIG=$HOME/android/mke2fs.conf`, resume `m bacon`, confirm zip under `out/target/product/perry/`. If APEX still fails, dig into whether apexer honors `MKE2FS_CONFIG`. Then update handoff/porting-log.
