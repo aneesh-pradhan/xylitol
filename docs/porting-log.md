@@ -377,3 +377,16 @@ msm8937-common sets `PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := true`
 (for a 4.9-oriented tree), but perry's built kernel is still 3.18.140 and
 Android 11 FCM level 4 does not define 3.18 kernel config requirements.
 Override to `false` in perry `device.mk` (patch `0009`).
+
+
+## 2026-07-19 — first successful `m bacon` for perry
+
+After the VINTF kernel-enforce override, bacon completed successfully
+(`BACON_RC=0`, ~6 min incremental):
+
+`out/target/product/perry/lineage-18.1-20260720-UNOFFICIAL-perry.zip`
+(~699 MB; also `lineage_perry-ota-eng.aneesh.zip`).
+
+Build host was Ubuntu 26.04 in this session. Next: flash via TWRP
+(`fastboot boot` preferred), expect bootloop, debug with `adb logcat` /
+`/proc/last_kmsg`. Do not wipe `persist` / EFS.
