@@ -15,7 +15,7 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 
 **TWRP side quest: local rebuild works.** Prefer `fastboot boot ~/android/recovery/twrp-perry-local-latest.img` (do **not** flash — image is ~17.4 MB, recovery partition is **16.1 MB** / `0x1019000`; same as official dl.twrp.me perry img).
 
-**LOS USB panic: root-caused and fixed in tree (2026-07-19).** Configfs userspace was a moto-msm89xx addition with no kernel support; reverted to legacy `android_usb` mirroring official LineageOS 18.1, as `patches/device/motorola/msm8937-common/0002`–`0003` (details §3 + porting-log). Applied in live common tree; series `git am`-verified on fresh upstream clone. **Next: `m installclean` + `m bacon`, flash zip via TWRP, expect `18d1:*` during boot.** The recovery half (0003) should also fix LOS recovery's dead adb.
+**LOS USB panic: root-caused and fixed in tree (2026-07-19).** Configfs userspace was a moto-msm89xx addition with no kernel support; reverted to legacy `android_usb` mirroring official LineageOS 18.1, as `patches/device/motorola/msm8937-common/0002`–`0003` (details §3 + porting-log). Applied in live common tree; series `git am`-verified on fresh upstream clone. **Outcome: CONFIRMED — ROM boots to UI with working adb** (see §1). Full blocker chain was 4 staging-4.9-isms, all reverted to official-LineageOS behavior: USB configfs (0002/0003), FBE (0004), vold sysfs paths (0005), eBPF claim (0006). Porting-log has the full trail.
 
 ### TWRP rebuild (verified 2026-07-19)
 
@@ -48,7 +48,7 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 | Full `m bacon` → zip | **Done** — `lineage-18.1-20260720-UNOFFICIAL-perry.zip` (~700 MB) |
 | Flash / first boot | **DONE — BOOTS TO UI** (0002–0006: USB legacy, FDE, vold paths, eBPF; SELinux enforcing, adb works) |
 | XT1765 proprietary rewrite | **Not done** |
-| SELinux denial loop | **Not started** (never reaches userspace far enough) |
+| SELinux denial loop | **Reachable now** — Enforcing, 0 avc denials in dmesg at first boot; audit properly next session |
 | Latest TWRP for perry | **Done** — local 3.7.0_9-0 rebuild boots via `fastboot boot` |
 
 **Goal (main):** LineageOS **18.1** for XT1765 perry only.  
@@ -56,23 +56,22 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 
 ---
 
-## 2. Do this first when resuming LOS boot
+## 2. Do this first next session (post-first-boot)
 
-1. Keep phone recoverable: **TWRP via `fastboot boot`**, never wipe `persist` / `modemst1` / `modemst2`.
-2. Fix USB panic (see §3) — pick one approach, patch, rebuild `boot.img` / zip, reflash boot (or full zip).
-3. Re-pull pstore after each attempt:
-   ```bash
-   adb pull /sys/fs/pstore/ ~/android/lineage/logs/boot/pstore-$(date +%Y%m%d-%H%M%S)/
-   ```
-4. Only after a panic-free boot: `adb logcat` + SELinux denial loop.
+ROM boots; device likely still running it. Hardware bring-up audit, roughly:
 
-Do **not** re-run `apply-patches.sh` unless perry/common/kernel were reset to upstream.
+1. `adb logcat` + `dmesg` sweep for avc denials / crashing HALs (Enforcing, 0 dmesg denials at first boot — verify with `logcat -b events` too).
+2. Check per-subsystem: RIL/data + IMEI (GSM only), Wi-Fi, BT, audio in/out, cameras, GPS, sensors, vibrator, LED, SD card + OTG (0005 should have fixed detection).
+3. XT1765 `proprietary-files.txt` rewrite (stock build id conflict: `NPNS26.118-22-1` on adb vs `NCQS26.69-64-21` in CLAUDE.md) — re-extract from device.
+4. Before any release/daily-drive: flip fstab `encryptable=` → `forceencrypt=` (patch 0004 note), and reconsider `TARGET_KERNEL_VERSION := 4.9` cleanup.
+
+Keep recoverable: TWRP via `fastboot boot`, never wipe `persist` / `modemst1` / `modemst2`. Do **not** re-run `apply-patches.sh` unless trees were reset to upstream.
 
 ---
 
-## 3. LOS blocker — kernel panic (USB) — **FIXED IN TREE, rebuild pending**
+## 3. LOS blocker — kernel panic (USB) — **FIXED & VERIFIED ON DEVICE**
 
-**Resolution (2026-07-19):** research answered §"Research topics" #1–3 — siblings do *not* enable configfs (all moto-msm89xx defconfigs are `G_ANDROID`-only, no branch ever enabled `CONFIG_USB_CONFIGFS`); the configfs userspace was moto-msm89xx commit `e8faebe` with no kernel counterpart; the cmdline flag comes from our boot.img, not the bootloader. Official LineageOS 18.1 msm8937-common ships the legacy path and boots this kernel family. Fix **B** implemented at common level as patches `msm8937-common/0002`–`0003` (legacy `init.mmi.usb.rc` from official, cmdline flag dropped, recovery `sys.usb.configfs=1` revert). Full detail in porting-log. Symptom/panic-chain sections kept below for reference until a panic-free boot confirms.
+**Resolution (2026-07-19):** research answered §"Research topics" #1–3 — siblings do *not* enable configfs (all moto-msm89xx defconfigs are `G_ANDROID`-only, no branch ever enabled `CONFIG_USB_CONFIGFS`); the configfs userspace was moto-msm89xx commit `e8faebe` with no kernel counterpart; the cmdline flag comes from our boot.img, not the bootloader. Official LineageOS 18.1 msm8937-common ships the legacy path and boots this kernel family. Fix **B** implemented at common level as patches `msm8937-common/0002`–`0003` (legacy `init.mmi.usb.rc` from official, cmdline flag dropped, recovery `sys.usb.configfs=1` revert). Full detail in porting-log. Confirmed on device 2026-07-19 evening: panic gone, ROM boots to UI, adb enumerates in-ROM. Historical symptom/panic-chain sections kept below for archaeology.
 
 ### Symptom
 
