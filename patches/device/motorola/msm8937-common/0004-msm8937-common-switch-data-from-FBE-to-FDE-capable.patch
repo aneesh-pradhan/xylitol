@@ -1,0 +1,66 @@
+From 485d98a31823997546c659e983c3814e14f2bcc2 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 19:53:54 -0700
+Subject: [PATCH 4/5] msm8937-common: switch /data from FBE to FDE-capable
+
+The fstabs request fileencryption=ice, but no branch of the 3.18
+kernel has CONFIG_F2FS_FS_ENCRYPTION (the FBE fstab, like the configfs
+USB userspace, targeted the unfinished staging 4.9 kernel). On boot
+init fails to set an encryption policy on /data (Operation not
+supported) and reboots straight to recovery.
+
+Official LineageOS 18.1 ships FDE (forceencrypt) on this same
+kernel. Use encryptable= with the same metadata key location instead
+of forceencrypt for bring-up, so /data stays readable from recovery
+while debugging; flip to forceencrypt before release. Also drop the
+FBE-only ro.crypto.volume.filenames_mode property.
+---
+ properties.mk                 | 4 ----
+ rootdir/etc/fstab.qcom        | 2 +-
+ rootdir/etc/fstab_legacy.qcom | 2 +-
+ 3 files changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/properties.mk b/properties.mk
+index edf5171..e2e247f 100644
+--- a/properties.mk
++++ b/properties.mk
+@@ -67,10 +67,6 @@ PRODUCT_PROPERTY_OVERRIDES += \
+ PRODUCT_SYSTEM_DEFAULT_PROPERTIES += \
+     persist.vendor.cne.feature=1
+ 
+-# Crypto
+-PRODUCT_PROPERTY_OVERRIDES += \
+-    ro.crypto.volume.filenames_mode=aes-256-cts
+-
+ # Dalvik
+ PRODUCT_PROPERTY_OVERRIDES += \
+     dalvik.vm.heapstartsize=16m \
+diff --git a/rootdir/etc/fstab.qcom b/rootdir/etc/fstab.qcom
+index b7de31c..5777b47 100644
+--- a/rootdir/etc/fstab.qcom
++++ b/rootdir/etc/fstab.qcom
+@@ -9,7 +9,7 @@
+ /dev/block/bootdevice/by-name/recovery               /recovery    emmc    defaults                                                                           defaults
+ /dev/block/platform/soc/7824900.sdhci/by-name/system /system      ext4    ro,barrier=1,discard                                                               wait,first_stage_mount
+ /dev/block/platform/soc/7824900.sdhci/by-name/vendor /vendor      ext4    ro,barrier=1,discard                                                               wait,first_stage_mount
+-/dev/block/bootdevice/by-name/userdata               /data        f2fs    rw,discard,nosuid,nodev,noatime,nodiratime,nobarrier,inline_xattr,inline_data      wait,check,latemount,formattable,fileencryption=ice,quota,encryptable=/dev/block/bootdevice/by-name/metadata,reservedsize=128M
++/dev/block/bootdevice/by-name/userdata               /data        f2fs    rw,discard,nosuid,nodev,noatime,nodiratime,nobarrier,inline_xattr,inline_data      wait,check,latemount,formattable,quota,encryptable=/dev/block/bootdevice/by-name/metadata,reservedsize=128M
+ /dev/block/bootdevice/by-name/cache                  /cache       ext4    rw,noatime,nosuid,nodev,barrier=1,data=ordered                                     wait,check,formattable
+ /dev/block/bootdevice/by-name/modem                  /vendor/firmware_mnt    ext4    ro,nosuid,nodev,barrier=0,context=u:object_r:firmware_file:s0                      wait
+ /dev/block/bootdevice/by-name/fsg                    /vendor/fsg         ext4    ro,nosuid,nodev,context=u:object_r:fsg_firmware_file:s0                            wait
+diff --git a/rootdir/etc/fstab_legacy.qcom b/rootdir/etc/fstab_legacy.qcom
+index 99f4cf4..af7628d 100644
+--- a/rootdir/etc/fstab_legacy.qcom
++++ b/rootdir/etc/fstab_legacy.qcom
+@@ -9,7 +9,7 @@
+ /dev/block/bootdevice/by-name/recovery               /recovery    emmc    defaults                                                                           defaults
+ /dev/block/platform/soc/7824900.sdhci/by-name/system /system      ext4    ro,barrier=1,discard                                                               wait,first_stage_mount
+ /dev/block/platform/soc/7824900.sdhci/by-name/oem    /vendor      ext4    ro,barrier=1,discard                                                               wait,first_stage_mount
+-/dev/block/bootdevice/by-name/userdata               /data        f2fs    rw,discard,nosuid,nodev,noatime,nodiratime,nobarrier,inline_xattr,inline_data      wait,check,latemount,formattable,fileencryption=ice,quota,encryptable=/dev/block/bootdevice/by-name/metadata,reservedsize=128M
++/dev/block/bootdevice/by-name/userdata               /data        f2fs    rw,discard,nosuid,nodev,noatime,nodiratime,nobarrier,inline_xattr,inline_data      wait,check,latemount,formattable,quota,encryptable=/dev/block/bootdevice/by-name/metadata,reservedsize=128M
+ /dev/block/bootdevice/by-name/cache                  /cache       ext4    rw,noatime,nosuid,nodev,barrier=1,data=ordered                                     wait,check,formattable
+ /dev/block/bootdevice/by-name/modem                  /vendor/firmware_mnt    ext4    ro,nosuid,nodev,barrier=0,context=u:object_r:firmware_file:s0                      wait
+ /dev/block/bootdevice/by-name/fsg                    /vendor/fsg         ext4    ro,nosuid,nodev,context=u:object_r:fsg_firmware_file:s0                            wait
+-- 
+2.53.0
+

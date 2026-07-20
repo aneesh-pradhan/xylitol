@@ -553,3 +553,41 @@ Next: `m installclean` (BoardConfig changed) + `m bacon`, flash zip via
 TWRP (`fastboot boot`, never flash recovery), expect `18d1:*`
 enumeration during boot; if still looping, pull pstore and check the
 audio_source BUG is gone.
+
+## 2026-07-19 — USB fix verified on device; FBE blocker → patches 0004/0005
+
+Flashed the rebuilt zip (kernel `#7`): **USB panic is gone** — pstore
+shows a clean run past 7.1s, no BUG, no panic. Boot now dies at ~9.4s in
+userspace: `init: /data is file encrypted` → `Failed to set encryption
+policy ... Operation not supported` → orderly `Rebooting into recovery`
+(device reappears in TWRP; earlier "reboot loop" symptom is now
+understood as this).
+
+Root cause, same disease as USB: fstabs request FBE
+(`fileencryption=ice`) but no branch of the kernel has
+`CONFIG_F2FS_FS_ENCRYPTION` (not even the `fbe` branch). **Key
+discovery:** moto-msm89xx's 18.1 common tree was written against
+`staging/lineage-18.1`, an unfinished **4.9** CAF kernel import (no
+device defconfigs, no perry DTS — dead end for perry); hence
+`TARGET_KERNEL_VERSION := 4.9`, configfs USB, FBE, and 4.9 sysfs paths
+against our actual 3.18 kernel. Standing strategy: stay on 3.18, align
+userspace to official LineageOS 18.1 (which shipped FDE +
+legacy-android_usb + 3.18 paths on this kernel).
+
+New patches (both `git am`-verified in series 0001–0005 on fresh clone):
+
+- **0004 `switch /data from FBE to FDE-capable`** — both fstabs: drop
+  `fileencryption=ice`, keep `encryptable=<metadata>` (official uses
+  `forceencrypt`; `encryptable` chosen for bring-up so TWRP can read
+  /data — flip before release). Drops FBE-only
+  `ro.crypto.volume.filenames_mode` prop.
+- **0005 `revert vold sysfs paths to 3.18`** — sdcard/OTG voldmanaged
+  paths back to `/devices/soc/...` (moto's `/devices/platform/soc/...`
+  is the 4.9 location; SD/OTG would never be detected).
+
+Also decided with user: format /data before next boot (half-initialized
+FBE state from the failed boot; persist/modemst untouched).
+
+Remaining known 4.9-isms to watch: `TARGET_KERNEL_VERSION := 4.9` in
+BoardConfigCommon.mk (kernel patch 0002 works around the V4L2 side) —
+audit for other sysfs-path assumptions if devices misbehave post-boot.

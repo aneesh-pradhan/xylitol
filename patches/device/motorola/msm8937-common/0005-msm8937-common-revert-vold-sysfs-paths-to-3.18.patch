@@ -1,0 +1,46 @@
+From 5c47e14f69bd485bb75d68bd93c41ff31e9cb883 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 19:53:54 -0700
+Subject: [PATCH 5/5] msm8937-common: revert vold sysfs paths to 3.18
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+d6312d8 moved the sdcard/USB-OTG voldmanaged device paths to their
+4.9-kernel locations (/devices/platform/soc/...), but the built kernel
+is 3.18, where these live at /devices/soc/... — vold would never
+detect SD cards or OTG storage. Match official LineageOS 18.1.
+---
+ rootdir/etc/fstab.qcom        | 4 ++--
+ rootdir/etc/fstab_legacy.qcom | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/rootdir/etc/fstab.qcom b/rootdir/etc/fstab.qcom
+index 5777b47..fbbe0a0 100644
+--- a/rootdir/etc/fstab.qcom
++++ b/rootdir/etc/fstab.qcom
+@@ -17,6 +17,6 @@
+ /dev/block/bootdevice/by-name/persist                /mnt/vendor/persist     ext4    nosuid,nodev,barrier=1,noatime,noauto_da_alloc,no_sehash_xattr                     wait
+ /dev/block/bootdevice/by-name/misc                   /misc        emmc    defaults                                                                           defaults
+ 
+-/devices/platform/soc/7864900.sdhci/mmc_host*        auto         auto    nosuid,nodev                                                                       wait,voldmanaged=sdcard1:auto,encryptable=userdata
+-/devices/platform/soc/78db000.usb/msm_hsusb_host*    auto         auto    defaults                                                                           voldmanaged=usb:auto
++/devices/soc/7864900.sdhci/mmc_host*                 auto         auto    nosuid,nodev                                                                       wait,voldmanaged=sdcard1:auto,encryptable=userdata
++/devices/soc/78db000.usb/msm_hsusb_host*             auto         auto    defaults                                                                           voldmanaged=usb:auto
+ /dev/block/zram0                                     none         swap    defaults                                                                           zramsize=1431655765,max_comp_streams=8
+diff --git a/rootdir/etc/fstab_legacy.qcom b/rootdir/etc/fstab_legacy.qcom
+index af7628d..88fb767 100644
+--- a/rootdir/etc/fstab_legacy.qcom
++++ b/rootdir/etc/fstab_legacy.qcom
+@@ -17,6 +17,6 @@
+ /dev/block/bootdevice/by-name/persist                /mnt/vendor/persist     ext4    nosuid,nodev,barrier=1,noatime,noauto_da_alloc,no_sehash_xattr                     wait
+ /dev/block/bootdevice/by-name/misc                   /misc        emmc    defaults                                                                           defaults
+ 
+-/devices/platform/soc/7864900.sdhci/mmc_host*        auto         auto    nosuid,nodev                                                                       wait,voldmanaged=sdcard1:auto,encryptable=userdata
+-/devices/platform/soc/78db000.usb/msm_hsusb_host*    auto         auto    defaults                                                                           voldmanaged=usb:auto
++/devices/soc/7864900.sdhci/mmc_host*                 auto         auto    nosuid,nodev                                                                       wait,voldmanaged=sdcard1:auto,encryptable=userdata
++/devices/soc/78db000.usb/msm_hsusb_host*             auto         auto    defaults                                                                           voldmanaged=usb:auto
+ /dev/block/zram0                                     none         swap    defaults                                                                           zramsize=1431655765,max_comp_streams=8
+-- 
+2.53.0
+
