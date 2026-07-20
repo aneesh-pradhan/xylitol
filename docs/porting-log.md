@@ -342,16 +342,20 @@ Patch `0007-sepolicy-ensure-file_contexts-ends-with-newline.patch` adds the
 EOF newline. Confirmed `fc_sort` succeeds on the regenerated m4 output.
 
 
-## 2026-07-19 — apexer mke2fs orphan_file on Ubuntu 24.04+
+## 2026-07-19 — apexer mke2fs orphan_file on Ubuntu 24.04+ / 26.04
 
 `m bacon` cleared sepolicy/`fc_sort`, then failed at ~94% packaging
-`com.android.art.release` APEX:
+`com.android.art.release` APEX (`logs/brunch-perry-20260719-172106.log`):
 
 `Invalid filesystem option set: ... orphan_file`
-(apexer → host `out/.../mke2fs` 1.45.4 reading `/etc/mke2fs.conf`)
+(apexer → tree `mke2fs` 1.45.4 reading `/etc/mke2fs.conf`)
 
-Ubuntu 24.04+ enables `orphan_file` in `/etc/mke2fs.conf`; Lineage 18.1's
-bundled mke2fs cannot apply that feature set. Fix: ship
-`config/mke2fs.conf` (ext4 features without `orphan_file`), install to
-`$HOME/android/mke2fs.conf`, and `export MKE2FS_CONFIG=...` from
-`scripts/setup-env.sh` / `~/.bashrc`.
+Ubuntu 24.04+/26.04 enable `orphan_file` in `/etc/mke2fs.conf`; Lineage 18.1's
+bundled mke2fs cannot apply that feature set. Fix committed as `9f13fcd`:
+`config/mke2fs.conf` (no `orphan_file`), install to `$HOME/android/mke2fs.conf`,
+`export MKE2FS_CONFIG=...` from `scripts/setup-env.sh` / `~/.bashrc`.
+
+**Handoff note:** the 172106 bacon process did not inherit `MKE2FS_CONFIG`
+(build shell never sourced bashrc). Next session must export it explicitly
+before `m bacon`. Handoff doc rewritten EOD 2026-07-19 for a clean pickup.
+
