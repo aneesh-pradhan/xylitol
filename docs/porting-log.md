@@ -390,3 +390,166 @@ After the VINTF kernel-enforce override, bacon completed successfully
 Build host was Ubuntu 26.04 in this session. Next: flash via TWRP
 (`fastboot boot` preferred), expect bootloop, debug with `adb logcat` /
 `/proc/last_kmsg`. Do not wipe `persist` / EFS.
+
+## 2026-07-19 — first flash: N/A loop = kernel panic (USB configfs)
+
+Flashed `lineage-18.1-20260720-UNOFFICIAL-perry.zip`. Symptom: screen
+shows "N/A" top-left, blanks, reboots. ROM never enumerated adb (USB
+watches only saw `22b8:2e80` fastboot flickers).
+
+**Fastboot UTAG (cleared):** early `getvar reason` was
+`UTAG "bootmode" configured as fastboot`. Cleared with
+`fastboot oem fb_mode_clear`. After that, real boot attempts happened
+(N/A loop) instead of forced fastboot.
+
+**LOS recovery.img** (`fastboot boot` from tree) also failed to bring up
+adb — same USB stack as the ROM kernel.
+
+**TWRP (omni_perry already on device)** had working adb. Pulled pstore
+(not `/proc/last_kmsg` — absent on this recovery):
+
+`~/android/lineage/logs/boot/twrp-20260719-185648.pstore/`
+(`annotate-ramoops-0`, `console-ramoops`, `dmesg-ramoops-0`)
+
+**Panic:** ~7.1s into boot, `init` runs `init.msm.usb.configfs.rc` while
+kernel has `# CONFIG_USB_CONFIGFS is not set` + `CONFIG_USB_G_ANDROID=y`,
+but cmdline has `androidboot.usbconfigfs=true` (from msm8937-common).
+Duplicate sysfs under `android_usb`/`f_audio_source/pcm` →
+`BUG_ON` in `sysfs_create_file_ns` → `Kernel panic - not syncing: Fatal
+exception`. Boot reason: `kernel_panic`.
+
+**Expected fix:** enable kernel USB configfs (and reconcile G_ANDROID),
+*or* perry override to legacy android_usb (drop configfs cmdline + init).
+Research how cedric/hannah 18.1 handled the same common cmdline.
+
+**Also downloaded** official `twrp-3.7.0_9-0-perry.img` to
+`~/android/recovery/` for the TWRP rebuild side quest. Handoff rewritten
+to pause LOS boot debug on this panic and shift to building latest TWRP.
+
+## 2026-07-19 — local TWRP 3.7.0_9-0 rebuild for perry
+
+Rebuilt official TeamWin perry TWRP matching Jenkins `perry-prod` /
+dl.twrp.me `twrp-3.7.0_9-0-perry.img`:
+
+- Tree: `~/android/twrp` — `minimal-manifest-twrp` branch `twrp-7.1`
+  (Omni 7.1.2), device `TeamWin/android_device_motorola_perry` @
+  `android-7.1` (prebuilt kernel/dt).
+- Xylitol: `manifests/twrp-perry.xml`, `scripts/sync-twrp.sh`,
+  `scripts/build-twrp.sh`.
+
+Ubuntu 26.04 host issues fixed:
+1. OpenJDK 8 for Omni.
+2. Python 2.7 via micromamba (`~/android/mamba/envs/py27`) — Omni
+   `build/tools` are py2; no system python2 on 26.04.
+3. Prebuilt `flex-2.5.39` aborts on glibc 2.43+ locales — wrapped to
+   system `/usr/bin/flex` (`flex-2.5.39.broken` kept).
+4. `make recoveryimage` size-assert fails: img 17412096 B vs recovery
+   partition `0x1019000` (16879616 B). Official download is the **same
+   size**; image is still produced. Use `fastboot boot` only (do not
+   flash until shrunk or partition story clarified).
+
+Verified: `fastboot boot ~/android/recovery/twrp-perry-local-latest.img`
+→ adb recovery, `ro.twrp.version=3.7.0_9-0`,
+`eng.aneesh.20260719.191216`, pstore accessible.
+
+## 2026-07-19 — USB panic research: siblings, official LOS, root cause confirmed
+
+Researched handoff §3 question ("do cedric/hannah 18.1 enable configfs or
+carry USB patches we missed?"). Answer: **neither — the configfs userspace
+itself is the bug, and official LineageOS never used it.**
+
+Findings, each verified in-tree or against GitHub:
+
+1. **Kernel (moto-msm89xx `lineage-18.1`):** every device defconfig —
+   perry, cedric, hannah, montana, jeter, owens, potter, sanders — has
+   `# CONFIG_USB_CONFIGFS is not set` + `CONFIG_USB_G_ANDROID=y`. Perry's
+   USB config is byte-identical to cedric's. `git log --all -S
+   "CONFIG_USB_CONFIGFS=y"` over `arch/arm64/configs/`: no moto-msm89xx
+   branch (incl. `staging/lineage-18.1`) ever enabled it. There is no
+   hidden sibling kernel fix.
+2. **The regression:** msm8937-common `e8faebe` ("Enable USB configfs and
+   add init script", Feb 2020, on 18.0/18.1 only — 17.1 never had it)
+   deleted legacy `init.mmi.usb.rc`, added `init.msm.usb.configfs.rc`, and
+   appended `androidboot.usbconfigfs=true` to `BOARD_KERNEL_CMDLINE` — with
+   no kernel counterpart, ever.
+3. **Panic mechanism:** in this QC 3.18 tree `configfs.o` is part of
+   `libcomposite` **unconditionally** (`drivers/usb/gadget/Makefile:10`),
+   so `/config/usb_gadget` exists even without `CONFIG_USB_CONFIGFS`.
+   `G_ANDROID`'s `android.c` instantiates functions at probe
+   (`usb_get_function_instance("audio_source")` → creates
+   `android0/f_audio_source` + `pcm` attr). The rc's unconditional
+   `on init` mkdirs then re-enter the same singleton allocators:
+   `mtp.gs0`/`accessory.gs2` → EBUSY; `audio_source.gs2` → duplicate sysfs
+   WARN; `audio_source.gs3` → `BUG_ON` in `sysfs_create_file_ns`
+   (NULL kobj) → panic. Confirmed against pstore `console-ramoops`
+   (mkdir at rc line 41 fails EINVAL between WARN and BUG).
+4. **`androidboot.usbconfigfs=true` comes from our boot.img**, not the
+   bootloader: in the pstore cmdline it sits inside the BoardConfig-derived
+   segment, before the bootloader-appended `androidboot.*` block.
+5. **Official LineageOS 18.1 (proven booting, shipped cedric builds):**
+   `LineageOS/android_device_motorola_msm8937-common` `lineage-18.1` has
+   **no** `usbconfigfs` in cmdline, ships legacy `init.mmi.usb.rc`
+   (functionfs adb: `mount functionfs adb`, `f_ffs/aliases adb`,
+   `sys.usb.ffs.aio_compat=1` — the Android 11 adbd compat knob), sets
+   `sys.usb.configfs 0`. Its kernel
+   (`LineageOS/android_kernel_motorola_msm8953` `lineage-18.1`,
+   cedric_defconfig) is likewise `G_ANDROID=y`, configfs unset. So
+   Android 11 + legacy android_usb is a shipped, working combination on
+   this exact SoC family/kernel.
+
+**Decision: fix B (legacy android_usb), implemented at msm8937-common
+level** — effectively revert `e8faebe`, preferring official LineageOS
+18.1's `init.mmi.usb.rc` verbatim over the pre-e8faebe 17.1-era file
+(official's is already 18.1-tuned, incl. `aio_compat`). Changes: drop
+`androidboot.usbconfigfs=true` from `BOARD_KERNEL_CMDLINE`; swap
+`init.msm.usb.configfs.rc` → `init.mmi.usb.rc` in `msm8937.mk`,
+`rootdir/Android.mk`, and the `init.mmi.rc` import; add the official rc
+file. Record as `patches/device/motorola/msm8937-common/0002`. Fix A
+(enable configfs) rejected: zero reference material in the family, and
+would fight `android.c`'s probe-time function instantiation. Side
+benefit: dropping the cmdline flag also flips recovery's
+`init.recovery.usb.rc` selection back to the legacy path, which should
+un-break adb in the LOS recovery image too.
+
+## 2026-07-19 — TWRP made flashable (shrink BoardConfig)
+
+Recovery partition is `0x1019000` (16879616). Unmodified TeamWin flags
+built a 17412096 image (~532KB over) — same as official download, fine for
+`fastboot boot`, not for `fastboot flash`.
+
+Fix in `device/motorola/perry/BoardConfig.mk` (xylitol patch
+`patches/twrp/device/motorola/perry/0001-BoardConfig-shrink-recovery-to-fit-partition.patch`):
+- `TW_EXTRA_LANGUAGES := false`
+- `TW_EXCLUDE_BASH := true` / `TW_EXCLUDE_NANO := true` (drops ~6.6MB terminfo)
+- omit `TW_INCLUDE_FB2PNG`, logcat/logd
+
+Result: ramdisk LZMA ~4.6MB, recovery.img **14219264** (fits). `make`
+size-assert passes. `fastboot flash recovery` OKAY on XT1765 (unsigned
+warning normal when unlocked).
+
+## 2026-07-19 — USB fix implemented: msm8937-common patches 0002/0003
+
+Implemented the fix-B decision from the research entry above, as two
+commits on the live msm8937-common tree, exported to
+`patches/device/motorola/msm8937-common/`:
+
+- **0002 `msm8937-common: switch USB init back to legacy android_usb`**
+  — drops `androidboot.usbconfigfs=true` from `BOARD_KERNEL_CMDLINE`;
+  deletes `init.msm.usb.configfs.rc`; adds `init.mmi.usb.rc` verbatim
+  from official `LineageOS/android_device_motorola_msm8937-common`
+  `lineage-18.1` (`ae102af`); rewires `msm8937.mk`,
+  `rootdir/Android.mk`, and the `init.mmi.rc` import. With the configfs
+  rc gone nothing sets `sys.usb.configfs=1`, so `init.usb.rc`'s default
+  `0` keeps init on the legacy `android_usb` sections.
+- **0003 `msm8937-common: don't force sys.usb.configfs in recovery`**
+  — reverts upstream `ee6f276` (`setprop sys.usb.configfs 1` in
+  `init.recovery.qcom.rc`), which is why the LOS recovery image never
+  enumerated adb.
+
+Verified: `git am` of the full 0001–0003 series applies clean on a
+fresh clone of moto-msm89xx `lineage-18.1`.
+
+Next: `m installclean` (BoardConfig changed) + `m bacon`, flash zip via
+TWRP (`fastboot boot`, never flash recovery), expect `18d1:*`
+enumeration during boot; if still looping, pull pstore and check the
+audio_source BUG is gone.
