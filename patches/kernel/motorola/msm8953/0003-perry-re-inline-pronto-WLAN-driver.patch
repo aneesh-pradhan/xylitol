@@ -1,0 +1,36 @@
+From 525e6770eb8cfe7ee5c6ca72c1c6ae2a4bf2f45c Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 20:43:15 -0700
+Subject: [PATCH] perry: re-inline pronto WLAN driver
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+perry_defconfig builds pronto as a module, but nothing in the 18.1
+userspace loads /vendor/lib/modules/wlan.ko (official trees expect the
+driver built in — see 612c0467 doing the same for cedric), so wlan0
+never exists and the Wi-Fi HAL fails to create its STA iface.
+
+Verified on device: manual insmod of the shipped wlan.ko brings up
+firmware and wlan0 immediately. Match cedric/official with =y so the
+driver is present before the HALs start.
+---
+ arch/arm64/configs/perry_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/configs/perry_defconfig b/arch/arm64/configs/perry_defconfig
+index 135332ccf1eb..1e0888227c87 100644
+--- a/arch/arm64/configs/perry_defconfig
++++ b/arch/arm64/configs/perry_defconfig
+@@ -3999,7 +3999,7 @@ CONFIG_ION_MSM=y
+ # Qualcomm Atheros Prima WLAN module
+ #
+ # CONFIG_PRIMA_WLAN is not set
+-CONFIG_PRONTO_WLAN=m
++CONFIG_PRONTO_WLAN=y
+ # CONFIG_PRIMA_WLAN_BTAMP is not set
+ CONFIG_PRIMA_WLAN_LFR=y
+ CONFIG_WLAN_FEATURE_SAE=y
+-- 
+2.53.0
+
