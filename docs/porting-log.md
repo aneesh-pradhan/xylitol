@@ -1047,3 +1047,47 @@ extract does not look for a non-existent stock blob.
 **Next camera:** fix montana `eeprom_process` SEGV (or kernel eeprom
 probe `2192` / GPIO_31 CCI) before restoring `<EepromName>`. Video
 smoke-test. Prefer RIL as next P1 unless continuing AF.
+
+## 2026-07-20 — FM radio FIXED (msm8937-common 0007)
+
+**Symptom (pre-fix):** FM2 launched but `mReceiver.enable` → false after
+~9s. AVC spam: `vendor_fm_app` read on `vendor_fm_prop` /
+`vendor.hw.fm.init`. Prop unset; no `vendor.fm` init service.
+
+**Root cause (live, Enforcing):**
+1. `libqcomfm_jni` (fm-commonsys) always `ctl.start`s `vendor.fm` for
+   pronto (not rome/hastings) and polls `vendor.hw.fm.init` until `1`.
+   msm8937-common never defined that service. `TARGET_QCOM_NO_FM_FIRMWARE
+   := true` only affects `libfmjni`, not commonsys JNI — and
+   `fm_qsoc_patches` is not packaged (correct for Iris).
+2. QCOM `fm_app.te` never `get_prop`/`set_prop` for `vendor_fm_app` on
+   `vendor_fm_prop` (only `system_app.te` had get_prop).
+3. `init.qcom.rc` property triggers still listened for legacy
+   `hw.fm.init`, not Treble `vendor.hw.fm.init`.
+
+**Hardware path OK before fix:** `/dev/radio0` opens; VIDIOC_QUERYCAP
+version `0x3128c` / `201356`; BT soc `pronto`;
+`radio_iris_transport` module present. Missing pieces were userspace
+bring-up only.
+
+**Fix (0007, msm8937-common `0a23ebb`):**
+- `rootdir/bin/init.qti.fm.sh` — NO_FM_FIRMWARE stub: enable
+  `fmsmd_set`, `setprop vendor.hw.fm.init 1` (file_contexts already
+  labels `init.qti.fm.sh` as `qti_init_shell_exec`).
+- `init.qcom.rc`: `service vendor.fm` + triggers on
+  `vendor.hw.fm.init={0,1}`.
+- `sepolicy/vendor/fm_app.te`: get/set_prop `vendor_fm_app` →
+  `vendor_fm_prop`.
+- Package script via `rootdir/Android.mk` + `msm8937.mk`.
+
+**Verified after TWRP oem flash of vendor-raw (Enforcing):**
+- `init: starting service 'vendor.fm'…` → exit 0 in ~64ms
+- `init_success:1 after 0.200000 seconds`
+- `mReceiver.enable done, Status :true`
+- Props: `vendor.hw.fm.init=1`, mode=normal, version=201356
+- Seek/tune works (e.g. 99700 above signal threshold; RDS fields
+  present). Wired headset required (antenna). Soft: recurring
+  `vendor_fm_app` find on `mediametrics_service` — non-blocking.
+
+**Next:** RIL (P1). Optional FM follow-up: allow mediametrics find;
+user ear-check that audio plays through headset.
