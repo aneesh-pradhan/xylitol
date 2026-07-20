@@ -1,0 +1,25 @@
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+index ac87870..b926b88 100644
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -87,11 +87,15 @@ TW_NEW_ION_HEAP := true
+ RECOVERY_GRAPHICS_USE_LINELENGTH := true
+ TW_SCREEN_BLANK_ON_BOOT := true
+ TW_THEME := portrait_hdpi
+-TW_EXTRA_LANGUAGES := true
+ TW_EXCLUDE_TWRPAPP := true
+-TW_INCLUDE_FB2PNG := true
+ TW_HAS_EDL_MODE := true
+ 
+-# Debug
+-TWRP_INCLUDE_LOGCAT := true
+-TARGET_USES_LOGD := true
++# Size: recovery partition is only 16879616 (0x1019000). Stock TeamWin
++# flags (EXTRA_LANGUAGES + bash/nano/terminfo + fb2png + logcat) produce a
++# ~17.4MB image that can fastboot-boot but cannot flash. Drop the heavy
++# optional bits so recovery.img fits with make's size reserve.
++TW_EXTRA_LANGUAGES := false
++TW_EXCLUDE_BASH := true
++TW_EXCLUDE_NANO := true
++# TW_INCLUDE_FB2PNG deliberately omitted
++# TWRP_INCLUDE_LOGCAT / TARGET_USES_LOGD omitted (debug only)

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Official TWRP (perry) — matches TeamWin Jenkins perry-prod / twrp-3.7.0_9-0.
+
+  Platform: minimal-manifest-twrp twrp-7.1 (Omni 7.1.2, same as Jenkins
+  /builds/omni-7.1). Device tree uses prebuilt kernel/dt unless
+  WITH_KERNEL_SOURCE=true.
+
+  Usage: scripts/sync-twrp.sh copies this into ~/android/twrp/.repo/local_manifests/
+-->
+<manifest>
+  <project name="TeamWin/android_device_motorola_perry"
+           path="device/motorola/perry"
+           remote="github"
+           revision="android-7.1" />
+</manifest>
