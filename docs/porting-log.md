@@ -359,3 +359,8 @@ bundled mke2fs cannot apply that feature set. Fix committed as `9f13fcd`:
 (build shell never sourced bashrc). Next session must export it explicitly
 before `m bacon`. Handoff doc rewritten EOD 2026-07-19 for a clean pickup.
 
+
+**Follow-up:** `MKE2FS_CONFIG` alone is not enough — `soong_ui` filters the
+ninja environment and drops it unless allowlisted. Perry
+`BoardConfig.mk` now has `BUILD_BROKEN_NINJA_USES_ENV_VARS += MKE2FS_CONFIG`
+(patch `0008`).

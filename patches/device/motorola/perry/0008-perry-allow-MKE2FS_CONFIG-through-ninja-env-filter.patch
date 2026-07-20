@@ -1,0 +1,26 @@
+From e36441b8d6eae7296ff316e4f4384352f9d160dd Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 17:56:43 -0700
+Subject: [PATCH] perry: allow MKE2FS_CONFIG through ninja env filter
+
+soong_ui strips unknown env vars from ninja unless listed in
+BUILD_BROKEN_NINJA_USES_ENV_VARS. Needed so apexer sees our
+orphan_file-free mke2fs.conf on Ubuntu 24.04+.
+---
+ BoardConfig.mk | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/BoardConfig.mk b/BoardConfig.mk
+index c51dfa8..9e2205b 100644
+--- a/BoardConfig.mk
++++ b/BoardConfig.mk
+@@ -36,3 +36,6 @@ BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
+ 
+ # Inherit from the proprietary version
+ include vendor/motorola/montana/BoardConfigVendor.mk
++
++# Allow MKE2FS_CONFIG through soong_ui's ninja env filter (Ubuntu 24.04+ apexer)
++BUILD_BROKEN_NINJA_USES_ENV_VARS += MKE2FS_CONFIG
+-- 
+2.53.0
+
