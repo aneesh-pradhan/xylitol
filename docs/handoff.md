@@ -21,27 +21,42 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 
 **User opener (use this verbatim):**
 
-> read the handoff; the stock firmware is at **[directory]**
+> Read docs/handoff.md end-to-end and continue perry camera bring-up.
+> Platform stack is verified (qcamerasvr `running`, patch 0011 committed
+> at `248f873`); the sole blocker is XT1765 sensor blobs. The stock
+> firmware dump is at **[directory]**. The staging-4.9 kernel side quest
+> is parked (docs/kernel-4.9-plan.md) — do not start it unprompted.
 
 **Agent checklist when you see that:**
 
 1. Read this file end-to-end, then skim camera entries in
-   [`porting-log.md`](porting-log.md) (2026-07-19 camera sections).
-2. Treat **`[directory]`** as the XT1765 stock 7.1.1 dump root (see §4).
-   Verify it exists; read any `README.txt` for build id (NPNS vs NCQS).
-3. Inventory camera blobs under the dump before extracting (§4 commands).
-4. Flash pending vendor if needed: **`/tmp/perry-camera-recon/vendor-raw.img`**
-   (or rebuild — §3). Confirm `vendor.qcamerasvr` stays **`running`**, not
-   `restarting`.
+   [`porting-log.md`](porting-log.md) (2026-07-19 → 07-20 camera
+   sections; 07-20 flash-verify entry is the current state).
+2. Sanity-check the device matches the handoff: `adb shell getprop
+   init.svc.vendor.qcamerasvr` → `running`; `dumpsys media.camera` →
+   0 devices. If it disagrees, re-triage before extracting anything.
+3. Treat **`[directory]`** as the XT1765 stock 7.1.1 dump root (see §4).
+   Verify it exists; read any `README.txt` for build id, and reconcile
+   the NPNS26.118-22-1 (live device) vs NCQS26.69-64-21 (CLAUDE.md)
+   question in the log.
+4. Inventory camera blobs under the dump before extracting (§4 commands):
+   imx219 / s5k4h8 / mot_ov5695 / dw9718s / chromatix.
 5. Run `bash ~/GitHub/xylitol/scripts/extract-perry.sh '[directory]'` for
    perry-only blobs; rewrite `proprietary-files.txt` camera section for
-   imx219/s5k4h8/mot_ov5695; regenerate `perry-vendor.mk` via
+   the real XT1765 sensor set; regenerate `perry-vendor.mk` via
    `setup-makefiles.sh` — never hand-edit dest paths.
-6. Rebuild (`m vendorimage` or `m bacon`), flash, test still + video
-   (front + back). Log decisions in `porting-log.md`; export new patches.
+6. Rebuild (`m vendorimage`), `simg2img` → TWRP `dd` to oem (§3 —
+   never raw-dd the sparse image), test still + video (front + back).
+   If capture dies with HAL loaded + daemon up, only then consider the
+   defensive `notifyDeviceStateChange` null-guard (§1a).
+7. Watch the known `msm_eeprom_platform_probe failed 2192` kernel lines
+   when sensors land (OTP/eeprom → AF/AWB calibration).
+8. Log decisions in `porting-log.md`; export new patches to `patches/`.
+   No AI co-author trailers on commits.
 
 If the user omits the stock path, ask for it before rewriting
-`proprietary-files.txt`.
+`proprietary-files.txt`. Camera done → next queue items: RIL (§1 P1#3),
+FM (§1 P2#4).
 
 ---
 
