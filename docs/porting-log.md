@@ -591,3 +591,25 @@ FBE state from the failed boot; persist/modemst untouched).
 Remaining known 4.9-isms to watch: `TARGET_KERNEL_VERSION := 4.9` in
 BoardConfigCommon.mk (kernel patch 0002 works around the V4L2 side) —
 audit for other sysfs-path assumptions if devices misbehave post-boot.
+
+## 2026-07-19 — FDE fix verified; bpfloader loop → patch 0006
+
+Flashed the FDE build after formatting /data. **Crypto blocker cleared**
+— boot now passes mount + encryption and runs to full userspace, but
+loops every ~30s: `bpfloader` exits 2 → init `reboot_on_failure` →
+`reboot,bpfloader-failed` (pstore). From the host, the loop is USB-
+silent (legacy gadget never configured before the reboot); the device
+eventually fell through fastboot into the flashed omni_perry TWRP.
+
+Root cause — 4.9-ism #4: `ro.kernel.ebpf.supported=true` in
+`properties.mk` (54e26d2) forces bpfloader past its support check onto
+a kernel with `CONFIG_BPF_SYSCALL` unset (`loadAllElfObjects` fails →
+exit 2). Official LineageOS 18.1 does not set the prop; its kernel is
+identically eBPF-less, and with `first_api_level=25` + kver<4.9,
+`BpfUtils.cpp` resolves `BpfLevel::NONE` and bpfloader exits 0.
+
+**0006 `don't claim eBPF support on 3.18`** — removes the prop.
+Verified in series 0001–0006 with `git am` on fresh clone.
+
+Score so far on the "staging-4.9 userspace vs real 3.18 kernel" theory:
+USB configfs, FBE, vold sysfs paths, eBPF — four for four.
