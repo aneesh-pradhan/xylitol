@@ -1,0 +1,31 @@
+From ad4f6338cc40dfd5db3f0969f5e6af1d2e93484a Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 21:24:04 -0700
+Subject: [PATCH] perry: force soft navigation bar (qemu.hw.mainkeys=0)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+msm8917 soc_id 303 is not in init.qcom.sh's mainkeys allowlist
+(317/318/324–327), so DisplayPolicy keeps mHasNavigationBar=false.
+Perry has no HW nav keys; stock uses an on-screen bar.
+---
+ vendor_prop.mk | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/vendor_prop.mk b/vendor_prop.mk
+index 43a8d1a..6117e81 100644
+--- a/vendor_prop.mk
++++ b/vendor_prop.mk
+@@ -13,3 +13,8 @@ PRODUCT_PROPERTY_OVERRIDES += \
+ # Sensors
+ PRODUCT_PROPERTY_OVERRIDES += \
+     ro.hardware.sensors=perry
++
++# Soft navbar — perry (msm8917 soc_id 303) is not in init.qcom.sh's
++# qemu.hw.mainkeys allowlist (317/318/324–327). E4 has no HW nav keys.
++PRODUCT_PROPERTY_OVERRIDES += \
++    qemu.hw.mainkeys=0
+-- 
+2.53.0
+
