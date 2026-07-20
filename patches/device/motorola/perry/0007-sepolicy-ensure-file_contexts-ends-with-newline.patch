@@ -1,0 +1,25 @@
+From 008b2baff1cb0adff5c2ae5ab03b7d7ccaf9f50b Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 17:20:58 -0700
+Subject: [PATCH] sepolicy: ensure file_contexts ends with newline
+
+Missing EOF newline made m4 glue the next file's "# Fingerprint HAL"
+onto the last context, crashing fc_sort (IndexError on context.split).
+---
+ sepolicy/vendor/file_contexts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sepolicy/vendor/file_contexts b/sepolicy/vendor/file_contexts
+index 515099b..628f5e3 100644
+--- a/sepolicy/vendor/file_contexts
++++ b/sepolicy/vendor/file_contexts
+@@ -2,4 +2,4 @@
+ /dev/esfp0                                               u:object_r:fingerprint_device:s0
+ /sys/devices/soc/0.et320/etspi_enable                    u:object_r:sysfs_devices_fingerprint:s0
+ /sys/devices/platform/egis_input(/.*)?                   u:object_r:sysfs_devices_fingerprint:s0
+-/(vendor|system/vendor)/bin/hw/android\.hardware\.biometrics\.fingerprint@2\.1-service-ets u:object_r:hal_fingerprint_default_exec:s0
+\ No newline at end of file
++/(vendor|system/vendor)/bin/hw/android\.hardware\.biometrics\.fingerprint@2\.1-service-ets u:object_r:hal_fingerprint_default_exec:s0
+-- 
+2.53.0
+
