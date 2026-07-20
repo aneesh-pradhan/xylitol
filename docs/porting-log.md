@@ -613,3 +613,22 @@ Verified in series 0001–0006 with `git am` on fresh clone.
 
 Score so far on the "staging-4.9 userspace vs real 3.18 kernel" theory:
 USB configfs, FBE, vold sysfs paths, eBPF — four for four.
+
+## 2026-07-19 — 🎉 FIRST BOOT: LineageOS 18.1 boots on perry
+
+Flashed the 0006 build: **full boot to UI**. `sys.boot_completed=1`,
+zygote up, Settings/SystemUI rendering, touch working, adb up in-ROM
+via the legacy gadget (`product:perry_retail`, `device` state — the
+0002 USB fix working end-to-end). SELinux **Enforcing** with zero avc
+denials in dmesg at 7 min uptime. Bootreason: plain `reboot`.
+
+The four staging-4.9 reverts (USB configfs → legacy android_usb, FBE →
+FDE-capable, vold sysfs paths → 3.18, eBPF claim removed) were the
+complete set of boot blockers after the already-fixed build issues.
+Series `patches/device/motorola/msm8937-common/0001–0006` +
+`perry/0001–0009` + `kernel/0001–0002` = bootable ROM from clean sync.
+
+Next phase — hardware bring-up audit: RIL/data (XT1765 GSM), Wi-Fi,
+BT, camera, audio, sensors, GPS; then the XT1765 proprietary-files
+rewrite (stock build id conflict note in handoff §research-5), then
+decide encryptable→forceencrypt before any daily-drive/release.
