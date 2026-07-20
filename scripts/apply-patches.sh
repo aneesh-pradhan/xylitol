@@ -15,6 +15,10 @@ fi
 
 find "$PATCHES_DIR" -mindepth 1 -type d | while read -r dir; do
   target_path="${dir#"$PATCHES_DIR"/}"
+  # TWRP patches live under patches/twrp/ and apply via apply-twrp-patches.sh
+  case "$target_path" in
+    twrp|twrp/*) continue ;;
+  esac
   target="$LINEAGE_DIR/$target_path"
   shopt -s nullglob
   patches=("$dir"/*.patch)
