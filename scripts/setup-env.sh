@@ -78,6 +78,8 @@ ccache -M "$CCACHE_SIZE"
 # Ubuntu 24.04+ ships e2fsprogs that enable orphan_file in /etc/mke2fs.conf.
 # Lineage 18.1's host mke2fs (1.45.x) rejects that feature when apexer builds
 # ART APEX images. Install a stripped config and force MKE2FS_CONFIG to it.
+# Also requires BoardConfig BUILD_BROKEN_NINJA_USES_ENV_VARS += MKE2FS_CONFIG
+# (soong_ui otherwise strips it from the ninja environment).
 META_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MKE2FS_CONF="$HOME/android/mke2fs.conf"
 echo "==> Installing Android-compatible mke2fs.conf -> $MKE2FS_CONF"
