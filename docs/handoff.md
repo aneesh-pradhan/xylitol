@@ -2,13 +2,14 @@
 
 **Date:** 2026-07-20  
 **Headline:** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb, Wi-Fi, soft
-navbar, **FM radio** (0007). SELinux Enforcing. Camera: **2 devices**;
-Snap open + still (0013). AF without eeprom; **RIL next**.  
-**Meta-repo:** `main`, ahead of origin — push when ready  
+navbar, **FM radio user-confirmed** (0007, RDS KMVQ-FM). SELinux Enforcing.
+Camera open/still (0013); **AF broken** (no eeprom — bugreport). **RIL next.**  
+**Meta-repo:** `main` — push after this docs commit  
 **Lineage tree:** `~/android/lineage` (patches applied live; series in `patches/`)  
 **Perry device tip:** `8c6bae3` — **0013** dw9718s_truly; **0012** sensors;
 **0011** platform  
 **msm8937-common tip:** `0a23ebb` — patch **0007** (vendor.fm Iris bring-up)  
+**Bugreport (AF+FM session):** `~/android/bugreports/perry/bugreport-perry_retail-RQ3A.211001.001-2026-07-20-13-20-02.zip`  
 **TWRP:** on-device + `~/android/twrp` local 3.7.0_9-0 rebuild  
 **Build host:** Ubuntu 26.04 LTS; `MKE2FS_CONFIG=$HOME/android/mke2fs.conf`
 every build; put `prebuilts/python/linux-x86/2.7.5/bin` first on `PATH`  
@@ -69,7 +70,7 @@ before shims. Eeprom still deferred.
 | # | Issue | State / next step |
 |---|---|---|
 | 1 | Soft navbar | **FIXED.** |
-| 2 | **Camera** | **Open/still DONE (0013).** AF/OTP need eeprom; video untested. See §1a. |
+| 2 | **Camera** | **Open/still DONE (0013).** User re-confirmed. AF broken: 463× `Invalid-region size=0` in bugreport; needs eeprom. Video untested. See §1a. |
 | 3 | **Mobile network / RIL** | Untouched. Stock NCQS26.69-64-21. GSM only; never touch `persist`/`modemst*`. |
 
 ### P1a — Camera (post-0013)
@@ -92,6 +93,11 @@ before shims. Eeprom still deferred.
 - AF: `msm_actuator_move_focus: Invalid-region size = 0` (no OTP) —
   expected with EepromName omitted; focus-distances stay Infinity.
 
+**User re-test + bugreport (2026-07-20 ~13:20)** — same AF failure mode
+while capturing `IMG_20260720_1319*.jpg`. Path:
+`~/android/bugreports/perry/bugreport-perry_retail-RQ3A.211001.001-2026-07-20-13-20-02.zip`
+(not in git). See porting-log entry.
+
 **Remaining camera**
 1. Restore EepromName safely (fix montana `eeprom_process` SEGV /
    kernel `msm_eeprom_platform_probe failed 2192` / GPIO_31 CCI claim).
@@ -110,7 +116,7 @@ before shims. Eeprom still deferred.
 
 | # | Issue | State |
 |---|---|---|
-| 4 | **FM radio** | **FIXED (0007).** Enable/tune verified; headset antenna. Soft mediametrics denial. |
+| 4 | **FM radio** | **FIXED (0007).** User-confirmed (audio + RDS KMVQ-FM). Soft mediametrics denial. |
 | 5 | Sepolicy pass | Enforcing; full `audit2allow` after camera AF/RIL/FM. |
 | 6 | Hardware audit | BT, audio, sensors, GPS, FP (**egis**), vibrator, LED, SD/OTG, hotspot, MTP. |
 | 7 | SystemUI one-off at first boot | Watch only if recurs. |
@@ -199,7 +205,8 @@ Unpack recipe (if wiping and redoing):
 
 ## 5. Next-agent one-liner
 
-Camera still (0013) + FM enable/tune (0007) work. Next: **RIL**.
+Camera still (0013) + FM user-confirmed (0007, RDS). AF needs eeprom
+(bugreport at ~/android/bugreports/perry/…13-20-02.zip). Next: **RIL**.
 Never raw-dd sparse vendor. Sacred: no persist/modemst wipes.
 
 ---
