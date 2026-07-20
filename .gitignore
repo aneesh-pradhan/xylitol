@@ -1,1 +1,30 @@
+# Agent / editor local config (not part of the public build recipe)
 CLAUDE.md
+.cursor/
+.claude/
+
+# Accidental Android tree / build artifacts (never belong in this meta-repo)
+out/
+.repo/
+ccache/
+*.img
+*.img.gz
+*.zip
+*.tar
+*.tar.gz
+*.sparseimage
+*.bin
+proprietary/
+vendor/motorola/
+
+# Stock dumps and device extracts
+stock-*/
+bugreport*/
+*.bugreport
+XT1765_*.xml
+
+# Host clutter
+*.log
+*.tmp
+.DS_Store
+*~
