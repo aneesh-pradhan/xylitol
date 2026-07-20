@@ -1,0 +1,143 @@
+From 0a23ebbb905d0ca3a99662eecbd6840ed1551036 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Mon, 20 Jul 2026 13:11:06 -0700
+Subject: [PATCH] msm8937-common: add vendor.fm Iris bring-up for FM2
+
+libqcomfm_jni ctl.start's vendor.fm and polls vendor.hw.fm.init; that
+service was missing. Ship init.qti.fm.sh (NO_FM_FIRMWARE stub: enable
+radio_iris_transport, set prop), Treble property triggers, and allow
+vendor_fm_app get/set of vendor_fm_prop.
+---
+ msm8937.mk                 |  3 ++-
+ rootdir/Android.mk         |  8 ++++++++
+ rootdir/bin/init.qti.fm.sh | 42 ++++++++++++++++++++++++++++++++++++++
+ rootdir/etc/init.qcom.rc   | 14 ++++++++++---
+ sepolicy/vendor/fm_app.te  |  5 +++++
+ 5 files changed, 68 insertions(+), 4 deletions(-)
+ create mode 100755 rootdir/bin/init.qti.fm.sh
+ create mode 100644 sepolicy/vendor/fm_app.te
+
+diff --git a/msm8937.mk b/msm8937.mk
+index 5ce2e03..b069060 100644
+--- a/msm8937.mk
++++ b/msm8937.mk
+@@ -318,7 +318,8 @@ PRODUCT_PACKAGES += \
+ PRODUCT_PACKAGES += \
+     init.qcom.early_boot.sh \
+     init.qcom.post_boot.sh \
+-    init.qcom.sh
++    init.qcom.sh \
++    init.qti.fm.sh
+ 
+ # Recovery
+ PRODUCT_PACKAGES += \
+diff --git a/rootdir/Android.mk b/rootdir/Android.mk
+index 2b18d97..dd78ab6 100644
+--- a/rootdir/Android.mk
++++ b/rootdir/Android.mk
+@@ -87,6 +87,14 @@ LOCAL_SRC_FILES := bin/init.qcom.sh
+ LOCAL_VENDOR_MODULE := true
+ include $(BUILD_PREBUILT)
+ 
++include $(CLEAR_VARS)
++LOCAL_MODULE := init.qti.fm.sh
++LOCAL_MODULE_TAGS := optional
++LOCAL_MODULE_CLASS := EXECUTABLES
++LOCAL_SRC_FILES := bin/init.qti.fm.sh
++LOCAL_VENDOR_MODULE := true
++include $(BUILD_PREBUILT)
++
+ include $(CLEAR_VARS)
+ LOCAL_MODULE := init.qcom.rc
+ LOCAL_MODULE_TAGS := optional
+diff --git a/rootdir/bin/init.qti.fm.sh b/rootdir/bin/init.qti.fm.sh
+new file mode 100755
+index 0000000..b7b110d
+--- /dev/null
++++ b/rootdir/bin/init.qti.fm.sh
+@@ -0,0 +1,42 @@
++#! /vendor/bin/sh
++# Copyright (c) 2009-2011, 2015, 2018-2019, The Linux Foundation. All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met:
++#     * Redistributions of source code must retain the above copyright
++#       notice, this list of conditions and the following disclaimer.
++#     * Redistributions in binary form must reproduce the above
++#       copyright notice, this list of conditions and the following
++#       disclaimer in the documentation and/or other materials provided
++#       with the distribution.
++#     * Neither the name of The Linux Foundation nor the names of its
++#       contributors may be used to endorse or promote products derived
++#       from this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
++# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
++# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
++# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
++# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
++# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++# Pronto / Iris FM bring-up for TARGET_QCOM_NO_FM_FIRMWARE devices.
++# libqcomfm_jni ctl.start's vendor.fm and polls vendor.hw.fm.init until 1.
++# No fm_qsoc_patches binary — enable the iris transport module and signal
++# success. (Stock Nougat used init.qcom.fm.sh + fm_qsoc_patches; 18.1
++# BoardConfig sets TARGET_QCOM_NO_FM_FIRMWARE := true.)
++
++setprop vendor.hw.fm.init 0
++
++echo 1 > /sys/module/radio_iris_transport/parameters/fmsmd_set
++
++setprop vendor.hw.fm.init 1
++
++exit 0
+diff --git a/rootdir/etc/init.qcom.rc b/rootdir/etc/init.qcom.rc
+index 9841c36..2d9c266 100644
+--- a/rootdir/etc/init.qcom.rc
++++ b/rootdir/etc/init.qcom.rc
+@@ -334,13 +334,21 @@ service vendor.tftp_server /vendor/bin/tftp_server
+    class core
+    user root
+ 
+-# FM
+-on property:hw.fm.init=0
++# FM (libqcomfm_jni uses vendor.hw.fm.* under Treble; hw.fm.* is legacy)
++on property:vendor.hw.fm.init=0
+     write /sys/module/radio_iris_transport/parameters/fmsmd_set 0
+ 
+-on property:hw.fm.init=1
++on property:vendor.hw.fm.init=1
+     write /sys/module/radio_iris_transport/parameters/fmsmd_set 1
+ 
++# Started by FM JNI via ctl.start — sets vendor.hw.fm.init=1 (NO_FM_FIRMWARE)
++service vendor.fm /vendor/bin/init.qti.fm.sh
++    class late_start
++    user root
++    group system
++    disabled
++    oneshot
++
+ # Adjust socket buffer to enlarge TCP receive window for high bandwidth
+ # but only if ro.data.large_tcp_window_size property is set.
+ on property:ro.data.large_tcp_window_size=true
+diff --git a/sepolicy/vendor/fm_app.te b/sepolicy/vendor/fm_app.te
+new file mode 100644
+index 0000000..973f86f
+--- /dev/null
++++ b/sepolicy/vendor/fm_app.te
+@@ -0,0 +1,5 @@
++# FM2 (com.caf.fmradio) runs as vendor_fm_app. QCOM sepolicy only grants
++# system_app get_prop(vendor_fm_prop); the app domain needs it too so
++# libqcomfm_jni can read/write vendor.hw.fm.init|mode|version.
++get_prop(vendor_fm_app, vendor_fm_prop)
++set_prop(vendor_fm_app, vendor_fm_prop)
+-- 
+2.53.0
+

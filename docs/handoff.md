@@ -2,13 +2,13 @@
 
 **Date:** 2026-07-20  
 **Headline:** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb, Wi-Fi, soft
-navbar. SELinux Enforcing. Camera: **2 devices**; Snap **open + still
-capture work** (front + back) after patch **0013**. AF noisy without
-eeprom; RIL next.  
-**Meta-repo:** `main`, ahead of origin (local docs dirty) — push when ready  
+navbar, **FM radio** (0007). SELinux Enforcing. Camera: **2 devices**;
+Snap open + still (0013). AF without eeprom; **RIL next**.  
+**Meta-repo:** `main`, ahead of origin — push when ready  
 **Lineage tree:** `~/android/lineage` (patches applied live; series in `patches/`)  
-**Perry device tip:** `8c6bae3` — patch **0013** (dw9718s_truly alias);
-**0012** sensors + vendor camera conf; **0011** platform stack  
+**Perry device tip:** `8c6bae3` — **0013** dw9718s_truly; **0012** sensors;
+**0011** platform  
+**msm8937-common tip:** `0a23ebb` — patch **0007** (vendor.fm Iris bring-up)  
 **TWRP:** on-device + `~/android/twrp` local 3.7.0_9-0 rebuild  
 **Build host:** Ubuntu 26.04 LTS; `MKE2FS_CONFIG=$HOME/android/mke2fs.conf`
 every build; put `prebuilts/python/linux-x86/2.7.5/bin` first on `PATH`  
@@ -28,19 +28,18 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 **User opener (use this verbatim):**
 
 > Read docs/handoff.md end-to-end and continue perry bring-up. Camera
-> open/still works (0013); AF needs eeprom path fixed. Prefer RIL next
-> unless chasing camera AF/OTP. Stock dump at
+> open/still works (0013); FM enable/tune works (msm8937-common 0007).
+> Prefer RIL next. Stock dump at
 > ~/XT1765_PERRY_TMO_7.1.1_NCQS26.69-64-21_cid21_subsidy-TMO_RSU_regulatory-DEFAULT_CFC.xml
 > (unpacked under ~/android/stock-perry-NCQS26.69-64-21/). Staging-4.9
 > is parked — do not start it unprompted.
 
 **Agent checklist:**
 
-1. Read this file + porting-log 2026-07-20 camera entries (0012/0013).
+1. Read this file + porting-log 2026-07-20 camera (0012/0013) + FM (0007).
 2. Sanity: `qcamerasvr=running`, `dumpsys media.camera` → 2 devices;
-   Snap still works front+back.
-3. Next P1: **RIL / mobile network** (§1 #3), or camera AF via eeprom
-   (`eeprom_process` SEGV / kernel `2192` / GPIO_31) if continuing camera.
+   FM: `vendor.hw.fm.init=1` after opening FM2 with headset.
+3. Next P1: **RIL / mobile network** (§1 #3). Camera AF/eeprom optional.
 4. No AI co-author trailers. Sacred: no persist/modemst wipes. Never
    raw-dd sparse `vendor.img`.
 
@@ -56,6 +55,7 @@ stabilized qcamerasvr. **0012** XT1765 sensors + vendor camera conf →
 2 devices (EepromName omitted: montana `eeprom_process` SEGV). Open then
 failed on `libactuator_dw9718s_truly.so`; **0013** aliases stock
 `dw9718s` under that name → **preview + still capture work** (front+back).
+FM needed missing `vendor.fm` + `vendor_fm_app` prop allows (**0007**).
 
 **Working assumption:** check staging-4.9-isms first; for camera, packaging
 before shims. Eeprom still deferred.
@@ -110,7 +110,7 @@ before shims. Eeprom still deferred.
 
 | # | Issue | State |
 |---|---|---|
-| 4 | **FM radio** | Sepolicy + missing `vendor.fm` init service. |
+| 4 | **FM radio** | **FIXED (0007).** Enable/tune verified; headset antenna. Soft mediametrics denial. |
 | 5 | Sepolicy pass | Enforcing; full `audit2allow` after camera AF/RIL/FM. |
 | 6 | Hardware audit | BT, audio, sensors, GPS, FP (**egis**), vibrator, LED, SD/OTG, hotspot, MTP. |
 | 7 | SystemUI one-off at first boot | Watch only if recurs. |
@@ -132,11 +132,11 @@ before shims. Eeprom still deferred.
 **perry (17.1 base):** 0001–0009 · **0010** soft navbar · **0011** camera
 platform · **0012** XT1765 sensors + vendor camera conf · **0013**
 dw9718s_truly alias  
-**msm8937-common (18.1):** 0001–0006  
+**msm8937-common (18.1):** 0001–0006 · **0007** vendor.fm Iris / FM2  
 **kernel msm8953 (18.1):** 0001–0003  
 Meta: `config/mke2fs.conf`
 
-0013 applied live at perry `8c6bae3`.
+0013 at perry `8c6bae3`; 0007 at msm8937-common `0a23ebb`.
 
 **Key paths:**
 
@@ -146,6 +146,7 @@ Meta: `config/mke2fs.conf`
 | Camera 0011 | `patches/device/motorola/perry/0011-perry-ship-msm8937-camera-platform-stack-from-montana.patch` |
 | Camera 0012 | `patches/device/motorola/perry/0012-perry-ship-XT1765-camera-sensors-and-vendor-camera-conf.patch` |
 | Camera 0013 | `patches/device/motorola/perry/0013-perry-alias-dw9718s-actuator-as-dw9718s_truly-for-open.patch` |
+| FM 0007 | `patches/device/motorola/msm8937-common/0007-msm8937-common-add-vendor.fm-Iris-bring-up-for-FM2.patch` |
 | Perry device tree | `~/android/lineage/device/motorola/perry/` |
 | Stock unpack | `~/android/stock-perry-NCQS26.69-64-21/` |
 | Extract wrapper | `~/GitHub/xylitol/scripts/extract-perry.sh` |
@@ -198,9 +199,8 @@ Unpack recipe (if wiping and redoing):
 
 ## 5. Next-agent one-liner
 
-Camera still capture works (0013). Next: **RIL**, or camera eeprom/AF
-(`eeprom_process` SEGV). Never raw-dd sparse vendor. Sacred: no
-persist/modemst wipes.
+Camera still (0013) + FM enable/tune (0007) work. Next: **RIL**.
+Never raw-dd sparse vendor. Sacred: no persist/modemst wipes.
 
 ---
 
