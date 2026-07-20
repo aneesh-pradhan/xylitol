@@ -707,3 +707,52 @@ forced a large host/tooling rebuild on the next `m vendorimage`. Prefer
 letting one bacon finish. On Ubuntu 26.04, raw ninja without
 `prebuilts/python/linux-x86/2.7.5/bin` first on `PATH` fails
 `insertkeys.py` (`ConfigParser` / py2).
+
+## 2026-07-19 — msm89x7-mainline org research (side-quest recon; nothing to integrate into 18.1)
+
+Surveyed github.com/msm89x7-mainline on request. Five repos:
+
+| Repo | What it is | Relevance |
+|---|---|---|
+| `linux` | Active mainline fork for MSM8917/37/40, SDM429/439, QM215; branches track upstream to 7.1 (default `msm89x7/7.1.3`, pushed same day) | Side quest only |
+| `lk2nd` | **Archived** fork — live lk2nd is `msm8916-mainline/lk2nd`, which lists perry (MSM8917 *and* MSM8920 variants) as supported | Side quest only |
+| `msm-4.9` | CodeLinaro downstream `LA.UM.9.8.c26`, kept "for reference" | Reference only |
+| `linux-panel-drivers` | Generated DSI panel drivers (no perry config; nora/cedric/hannah/montana present) | Side quest only |
+| `alsa-ucm-conf` | UCM profiles for the mainline audio path | Side quest only |
+
+Headline: **perry mainline support exists as open PR
+msm89x7-mainline/linux#48** ("arm64: add support for MSM8920, add support
+for motorola-perry", opened 2026-04-18, updated 2026-07-13, author
+agrecascino). Adds `msm8917-motorola-perry.dts` +
+`msm8920-motorola-perry.dts` over a 533-line common dtsi: Tianma 499v1
+panel, Synaptics RMI4 touch (blsp1_i2c3), WCN3660B iris (Wi-Fi/BT), modem +
+ADSP/APR audio, GPU, venus, PMI8950 smbcharger/fg/WLED, BMA253 on i2c-gpio.
+Only public perry mainline DTS anywhere on GitHub (global code search for
+`msm8917-motorola-perry` hits lk2nd + this PR only).
+
+pmOS wiki (Motorola Moto E4 (motorola-perry)): boots via the **generic
+`qcom-msm89x7` device package** — there is deliberately no
+`device-motorola-perry` package, which is why naive pmaports searches come
+up empty. Kernel 6.19.5, lk2nd flashed to boot. Working:
+screen/touch/Wi-Fi/BT/audio/3D/battery/USB/OTG. Partial: calls/SMS/mobile
+data. Broken: camera. Caveat: PR #48 unmerged → the packaged
+`linux-postmarketos-qcom-msm89x7` may not ship the perry DTB yet; verify
+before flashing. Wiki page describes the MSM8920 SKU; ours (XT1765) is the
+MSM8917 DTS in the same PR.
+
+**Integration verdict for the LineageOS 18.1 port: none.**
+- Mainline kernel under LineageOS is infeasible: the 32-bit Nougat blob
+  stack needs downstream 3.18 interfaces (ION, mdss, KGSL + Adreno
+  userspace, prima/pronto WCNSS). Mainline replaces all of those with
+  DRM/freedreno/wcn36xx — open drivers no HAL in our tree can talk to.
+- `msm-4.9` as a 3.18→4.9 uplift is a trap: same-family silicon support
+  exists (QM215/SDM429), but no moto-msm89xx device ever made the jump,
+  Moto-specific drivers would need forward-porting, and camera/sensor blobs
+  are kernel-ABI fragile. Months of work, zero 18.1 benefit. Use it the way
+  the org does: as a reference when downstream driver behavior is unclear.
+- lk2nd is orthogonal (stock aboot already does `fastboot boot`; lk2nd would
+  occupy the boot partition and complicate ROM flashing).
+
+Kept: CLAUDE.md side-quest section rewritten with the above; PR #48's DTS
+noted as the best public hardware map of perry (part numbers + buses) for
+future HAL/sepolicy debugging.
