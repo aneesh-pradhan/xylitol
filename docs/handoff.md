@@ -1,6 +1,6 @@
 # Session handoff — perry / xylitol
 
-**Date:** 2026-07-19 (evening; TWRP side quest **done for rebuild**; LOS USB panic **fix in tree, rebuild pending**)  
+**Date:** 2026-07-19 (evening; TWRP side quest **done for rebuild**; **LOS 18.1 BOOTS** (first boot 2026-07-19 evening))  
 **Meta-repo:** `main` — check `git status` (likely ahead of origin; push when ready)  
 **Lineage tree:** `~/android/lineage`  
 **TWRP tree:** `~/android/twrp` (Omni 7.1 / TeamWin perry)  
@@ -46,7 +46,7 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 | LOS 18.1 ceiling / manifest / sync / env | **Done** |
 | Perry device + kernel patches | **Done** (applied in live tree; see §6) |
 | Full `m bacon` → zip | **Done** — `lineage-18.1-20260720-UNOFFICIAL-perry.zip` (~700 MB) |
-| Flash / first boot | **Fix in tree, rebuild pending** — USB panic root-caused, legacy-android_usb patches 0002/0003 applied; needs `m bacon` + reflash |
+| Flash / first boot | **DONE — BOOTS TO UI** (0002–0006: USB legacy, FDE, vold paths, eBPF; SELinux enforcing, adb works) |
 | XT1765 proprietary rewrite | **Not done** |
 | SELinux denial loop | **Not started** (never reaches userspace far enough) |
 | Latest TWRP for perry | **Done** — local 3.7.0_9-0 rebuild boots via `fastboot boot` |
