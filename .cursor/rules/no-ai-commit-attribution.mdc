@@ -1,0 +1,21 @@
+---
+description: Never attribute commits to Cursor or any AI as author/co-author
+alwaysApply: true
+---
+
+# No AI commit attribution
+
+Never add yourself (or any AI) as a git author, committer, or co-author on this repo.
+
+## Rules
+
+- Do **not** add `Co-authored-by: Cursor <cursoragent@cursor.com>` (or any other Cursor/AI trailer).
+- Do **not** add `Co-authored-by` for Claude, Copilot, ChatGPT, Gemini, or any other AI.
+- Do **not** set `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` / committer identity to Cursor, Claude, or any AI account.
+- Commits must use the human user's configured git identity only.
+- When drafting commit messages, omit all AI co-author trailers — even if a tool or template suggests adding them.
+- If the environment auto-appends a Cursor trailer on `git commit` / `git merge`, strip it before pushing (rewrite with `git commit-tree`, or amend the message without going through the injecting path). Never leave it in history that reaches GitHub.
+
+## Why
+
+GitHub maps `cursoragent@cursor.com` to the public [`cursoragent`](https://github.com/cursoragent) account and lists it as a repo contributor. That happened on the old `615140ac` tip (rewritten away).
