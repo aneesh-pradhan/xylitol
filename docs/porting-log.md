@@ -323,3 +323,20 @@ After the OMX uapi fix, `m bacon` failed at ~35% on:
 `device/motorola/perry/interfaces/Android.bp` still had montana's path
 (montana leftover). HALs are under perry. Patch
 `patches/device/motorola/perry/0006-...` retargets the package root.
+
+
+## 2026-07-19 — fc_sort IndexError on vendor_file_contexts
+
+`m bacon` reached ~85% then failed in `fc_sort` on
+`vendor_file_contexts` (`IndexError: list index out of range` at
+`context.split(":")[2]`).
+
+Root cause: `device/motorola/perry/sepolicy/vendor/file_contexts` had no
+trailing newline. With `m4 -s` concatenating inputs, the next file
+(`device/lineage/sepolicy/common/vendor/file_contexts`, starting with
+`# Fingerprint HAL`) was glued onto the last context token:
+
+`...hal_fingerprint_default_exec:s0# Fingerprint HAL`
+
+Patch `0007-sepolicy-ensure-file_contexts-ends-with-newline.patch` adds the
+EOF newline. Confirmed `fc_sort` succeeds on the regenerated m4 output.
