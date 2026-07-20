@@ -1,0 +1,275 @@
+From 565193c9cd7c780ff6023de46c8c8a266cf20fc0 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Mon, 20 Jul 2026 11:11:38 -0700
+Subject: [PATCH] perry: ship XT1765 camera sensors and vendor camera conf
+
+Extract imx219/s5k4h8/mot_ov5695_l5695fa0/dw9718s from stock
+NCQS26.69-64-21; drop montana s5k3p3/s5k3p8sp leftovers. Install
+camera XMLs to /vendor/etc/camera/ as msm8937_mot_camera_conf.xml
+(montana sensor_modules path). Omit EepromName to avoid montana
+eeprom_process SEGV (fault 0x1) until eeprom path is fixed.
+---
+ camera-vendor.mk                            |   2 +-
+ configs/camera/msm8917_mot_perry_camera.xml |   5 +-
+ device.mk                                   |   8 +-
+ proprietary-files.txt                       | 164 ++++++++------------
+ 4 files changed, 74 insertions(+), 105 deletions(-)
+
+diff --git a/camera-vendor.mk b/camera-vendor.mk
+index f433a2e..1f9a686 100644
+--- a/camera-vendor.mk
++++ b/camera-vendor.mk
+@@ -5,7 +5,7 @@
+ # msm8937 camera platform stack. Perry has no perry-specific copy of these
+ # blobs; source them from the montana proprietary tree (same SoC family).
+ # Sensor/chromatix libs stay in perry-vendor.mk / proprietary-files.txt
+-# (XT1765 uses imx219/s5k4h8/mot_ov5695 — still need a stock re-extract).
++# (XT1765 imx219/s5k4h8/mot_ov5695_l5695fa0 from NCQS26.69-64-21 stock).
+ #
+ # Phase 0 (2026-07-19): confirmed hw_get_module looks up camera.msm8937.so
+ # and opens it once SELinux labels it vendor_file.
+diff --git a/configs/camera/msm8917_mot_perry_camera.xml b/configs/camera/msm8917_mot_perry_camera.xml
+index 48226c5..a737754 100644
+--- a/configs/camera/msm8917_mot_perry_camera.xml
++++ b/configs/camera/msm8917_mot_perry_camera.xml
+@@ -87,7 +87,8 @@ LensInfo : Information of the lens present in the module.
+   <CameraModuleConfig>
+     <CameraId>0</CameraId>
+     <SensorName>s5k4h8</SensorName>
+-    <EepromName>s5k4h8</EepromName>
++    <!-- EepromName omitted: montana libmmcamera2_sensor_modules eeprom_process
++         SEGV (fault 0x1) with XT1765 eeprom libs; sensors still probe. -->
+     <ActuatorName>dw9718s</ActuatorName>
+     <FlashName>pmic</FlashName>
+     <ChromatixName>s5k4h8_chromatix</ChromatixName>
+@@ -136,7 +137,7 @@ LensInfo : Information of the lens present in the module.
+   <CameraModuleConfig>
+     <CameraId>1</CameraId>
+     <SensorName>mot_ov5695</SensorName>
+-    <EepromName>ov5695</EepromName>
++    <!-- EepromName omitted: same montana eeprom_process SEGV as back camera. -->
+     <FlashName>pmic</FlashName>
+     <ChromatixName>mot_ov5695_l5695fa0_chromatix</ChromatixName>
+     <ModesSupported>1</ModesSupported>
+diff --git a/device.mk b/device.mk
+index 59a4e5d..b61d43e 100644
+--- a/device.mk
++++ b/device.mk
+@@ -41,10 +41,10 @@ PRODUCT_PACKAGES += \
+     libppeiscore_shim
+ 
+ PRODUCT_COPY_FILES += \
+-    $(LOCAL_PATH)/configs/camera/msm8917_mot_perry_camera.xml:system/etc/camera/msm8917_mot_perry_camera.xml \
+-    $(LOCAL_PATH)/configs/camera/imx219_chromatix.xml:system/etc/camera/imx219_chromatix.xml \
+-    $(LOCAL_PATH)/configs/camera/s5k4h8_chromatix.xml:system/etc/camera/s5k4h8_chromatix.xml \
+-	$(LOCAL_PATH)/configs/camera/mot_ov5695_l5695fa0_chromatix.xml:system/etc/camera/mot_ov5695_l5695fa0_chromatix.xml
++    $(LOCAL_PATH)/configs/camera/msm8917_mot_perry_camera.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/msm8937_mot_camera_conf.xml \
++    $(LOCAL_PATH)/configs/camera/imx219_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/imx219_chromatix.xml \
++    $(LOCAL_PATH)/configs/camera/s5k4h8_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/s5k4h8_chromatix.xml \
++    $(LOCAL_PATH)/configs/camera/mot_ov5695_l5695fa0_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/mot_ov5695_l5695fa0_chromatix.xml
+ 
+ # Gatekeeper
+ PRODUCT_PACKAGES += \
+diff --git a/proprietary-files.txt b/proprietary-files.txt
+index 827f3cb..afe0e45 100644
+--- a/proprietary-files.txt
++++ b/proprietary-files.txt
+@@ -1,5 +1,7 @@
+-### All blobs from this list, unless pinned and noted as otherwise,
+-##  are from montana_retail 8.1.0 OPPS28.65-37-7-12
++### Camera sensor/chromatix blobs: XT1765 stock 7.1.1 NCQS26.69-64-21
++### (perry_tmo). Platform HAL/daemon/MCT/ISP stack is in camera-vendor.mk
++### (montana) — do not list those here.
++### Other sections below may still carry montana/deen pins until RIL/FP rewrite.
+ 
+ # Audio ACDB
+ etc/acdbdata/Bluetooth_cal.acdb:vendor/etc/acdbdata/Bluetooth_cal.acdb
+@@ -10,123 +12,89 @@ etc/acdbdata/Hdmi_cal.acdb:vendor/etc/acdbdata/Hdmi_cal.acdb
+ etc/acdbdata/Headset_cal.acdb:vendor/etc/acdbdata/Headset_cal.acdb
+ etc/acdbdata/Speaker_cal.acdb:vendor/etc/acdbdata/Speaker_cal.acdb
+ 
+-# Camera
+-# Platform HAL stack (camera.msm8937.so, mm-qcamera-daemon, libmmcamera2_*,
+-# ISP modules, etc.) is pulled from montana via camera-vendor.mk — do not
+-# list those here. XT1765 stock sensors are imx219 / s5k4h8 / mot_ov5695
+-# (see configs/camera/msm8917_mot_perry_camera.xml); chromatix/sensor libs
+-# below still need a stock rewrite (many montana leftovers).
++# Camera - perry helpers / effects (NCQS26.69-64-21)
++# Skip gralloc1 / qomx_core / jpegdmahw / qomx_jpegenc_pipe — camera-vendor.mk
+ lib/libmot_lux_standardization.so:vendor/lib/libmot_lux_standardization.so
+ vendor/lib/libchromaflash.so
+-vendor/lib/libflash_wd3100.so
+-vendor/lib/libgralloc1.so
++vendor/lib/libflash_pmic.so
+ vendor/lib/libjpegdhw.so
+-vendor/lib/libjpegdmahw.so
+ vendor/lib/libjpegehw.so
+ vendor/lib/libllvd_smore.so
+ vendor/lib/libmmcamera_cac3_lib.so
+-vendor/lib/libmmcamera_ppeiscore.so|61bc1cd130ca4c9f7cd31a8d6cd4bd5e19e989d0
++vendor/lib/libmmcamera_ppeiscore.so
+ vendor/lib/liboptizoom.so
+-vendor/lib/libqomx_core.so
+ vendor/lib/libqomx_jpegenc.so
+-vendor/lib/libqomx_jpegenc_pipe.so
+ vendor/lib/libremosaic_daemon.so
+ vendor/lib/libseemore.so
+ vendor/lib/libtrueportrait.so
+ vendor/lib/libubifocus.so
+ 
+-# Camera chromatix
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_common.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_cpp_hfr_120.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_cpp_liveshot.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_cpp_snapshot.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_cpp_video.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_default_video.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_default_video_3a.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_hfr_120.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_hfr_120_3a.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_postproc.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_snapshot.so
+-vendor/lib/libchromatix_mot_ov5695_l5695f60_snapshot_3a.so
+-vendor/lib/libchromatix_s5k3p3_common.so
+-vendor/lib/libchromatix_s5k3p3_cpp_hfr_120.so
+-vendor/lib/libchromatix_s5k3p3_cpp_liveshot.so
+-vendor/lib/libchromatix_s5k3p3_cpp_preview.so
+-vendor/lib/libchromatix_s5k3p3_cpp_snapshot.so
+-vendor/lib/libchromatix_s5k3p3_cpp_video.so
+-vendor/lib/libchromatix_s5k3p3_hfr_120.so
+-vendor/lib/libchromatix_s5k3p3_hfr_120_3a.so
+-vendor/lib/libchromatix_s5k3p3_ihdr_video.so
+-vendor/lib/libchromatix_s5k3p3_ihdr_video_3a.so
+-vendor/lib/libchromatix_s5k3p3_postproc.so
+-vendor/lib/libchromatix_s5k3p3_snapshot.so
+-vendor/lib/libchromatix_s5k3p3_zsl_preview_3a.so
+-vendor/lib/libchromatix_s5k3p3_zsl_video_3a.so
+-
+-# Camera chromatix - from montana - NZS26.68-117-10
+-vendor/lib/libchromatix_mot_s5k3p8sp_4m_cpp_snapshot.so|04c76258351addd57fdadd4f15477f80571ce75f
+-vendor/lib/libchromatix_mot_s5k3p8sp_common.so|aa8c264ec03c13a62d940b06397f40991363c341
+-vendor/lib/libchromatix_mot_s5k3p8sp_cpp_hfr_120.so|0c8ed472404c77c16aa399332dda3523d0877702
+-vendor/lib/libchromatix_mot_s5k3p8sp_cpp_liveshot.so|cf78e7be45a054c46cc1ca87abeb215e185bd686
+-vendor/lib/libchromatix_mot_s5k3p8sp_cpp_preview.so|738dbacb93377800f9abdd2b3df5d5c1fe17b95c
+-vendor/lib/libchromatix_mot_s5k3p8sp_cpp_snapshot.so|9738c56b73a1d9b914b55a591b0e9ae712565e2e
+-vendor/lib/libchromatix_mot_s5k3p8sp_cpp_video.so|675cd1a12b5aaa5361764fcd17d6c6885474f014
+-vendor/lib/libchromatix_mot_s5k3p8sp_default_preview_3a.so|723e4b7c0300dbd7ad30df45dbe634eba191d4a3
+-vendor/lib/libchromatix_mot_s5k3p8sp_default_video_3a.so|5edf88ff5e26c9cd74a0ecff47cb927424a5a1da
+-vendor/lib/libchromatix_mot_s5k3p8sp_hfr_120_3a.so|f04e3899f37f0027d9d197a55210cb84a0deb507
+-vendor/lib/libchromatix_mot_s5k3p8sp_hfr_120.so|b8141010948948b780410d1e39c520dd9c92b933
+-vendor/lib/libchromatix_mot_s5k3p8sp_postproc.so|88ddf3f4bd6d214bbb0a8c505d516272512433e9
+-vendor/lib/libchromatix_mot_s5k3p8sp_preview.so|9c36d7d815d2557d8a7df29d170d5b883c8a009a
+-vendor/lib/libchromatix_mot_s5k3p8sp_snapshot.so|20b29d687113bb53374b63a09477dee32d38cbe7
++# Camera actuator / eeprom (msm8917_mot_perry_camera.xml)
++vendor/lib/libactuator_dw9718s.so
++vendor/lib/libmmcamera_s5k4h8_eeprom.so
++vendor/lib/libmmcamera_ov5695_eeprom.so
+ 
+ # Camera sensors
++vendor/lib/libmmcamera_imx219.so
++vendor/lib/libmmcamera_s5k4h8.so
+ vendor/lib/libmmcamera_mot_ov5695.so
+-vendor/lib/libmmcamera_s5k3p3.so
+ 
+-# Camera sensors - from montana - NZS26.68-117-10
+-vendor/lib/libmmcamera_mot_s5k3p8sp.so|480025a93fef3fc4d47d0a75bc4b3382b478a175
++# Camera chromatix - imx219 (back SKU)
++vendor/lib/libchromatix_imx219_common.so
++vendor/lib/libchromatix_imx219_cpp_hfr_120.so
++vendor/lib/libchromatix_imx219_cpp_liveshot.so
++vendor/lib/libchromatix_imx219_cpp_preview.so
++vendor/lib/libchromatix_imx219_cpp_snapshot.so
++vendor/lib/libchromatix_imx219_cpp_video_full.so
++vendor/lib/libchromatix_imx219_hfr_120.so
++vendor/lib/libchromatix_imx219_hfr_120_3a.so
++vendor/lib/libchromatix_imx219_postproc.so
++vendor/lib/libchromatix_imx219_snapshot.so
++vendor/lib/libchromatix_imx219_video_full.so
++vendor/lib/libchromatix_imx219_zsl_preview_3a.so
++vendor/lib/libchromatix_imx219_zsl_video_3a.so
+ 
+-# Display calibration
+-vendor/etc/qdcm_calib_data_mipi_mot_vid_inx_1080p_521.xml|c93373787c79884ce8274dcd9813f84daf08c081
+-vendor/etc/qdcm_calib_data_mipi_mot_vid_tianma_1080p_521.xml|48d6c41c1533041b50e3e45649dcf60fc2bd6243
++# Camera chromatix - s5k4h8 (back SKU)
++vendor/lib/libchromatix_s5k4h8_common.so
++vendor/lib/libchromatix_s5k4h8_cpp_hfr_120.so
++vendor/lib/libchromatix_s5k4h8_cpp_liveshot.so
++vendor/lib/libchromatix_s5k4h8_cpp_preview.so
++vendor/lib/libchromatix_s5k4h8_cpp_snapshot.so
++vendor/lib/libchromatix_s5k4h8_cpp_video_full.so
++vendor/lib/libchromatix_s5k4h8_hfr_120.so
++vendor/lib/libchromatix_s5k4h8_hfr_120_3a.so
++vendor/lib/libchromatix_s5k4h8_postproc.so
++vendor/lib/libchromatix_s5k4h8_snapshot.so
++vendor/lib/libchromatix_s5k4h8_video_full.so
++vendor/lib/libchromatix_s5k4h8_zsl_preview_3a.so
++vendor/lib/libchromatix_s5k4h8_zsl_video_3a.so
+ 
+-# Fingerprint
+-vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-fpcservice|ff12185a0dee8e760acf1fa75f21a4cb85d81337
+-vendor/etc/init/android.hardware.biometrics.fingerprint@2.1-service.rc|7bf008f50446da90bcbfdf19b0e44af48335d45d
+-vendor/framework/com.fingerprints.extension.jar
+-vendor/lib/com.fingerprints.extension@1.0_vendor.so|17c2c6728b9088a0a788369903a1a180efd431f4
++# Camera chromatix - mot_ov5695_l5695fa0 (front; NOT l5695f60)
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_common.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_cpp_liveshot.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_cpp_snapshot.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_cpp_video.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_default_video.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_default_video_3a.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_postproc.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_snapshot.so
++vendor/lib/libchromatix_mot_ov5695_l5695fa0_snapshot_3a.so
+ 
+-# NFC
++# NFC (present on XT1765 stock; pn553 was montana-only — dropped)
+ vendor/firmware/libpn548ad_fw.so:vendor/lib/libpn548ad_fw.so
+ 
+-# NFC - from montana - NZS26.68-117-10
+-vendor/firmware/libpn553_fw.so:vendor/lib/libpn553_fw.so|79435a8077d05c9f1865860e97b157029e834a63
+-
+-# Opalum firmware
+-etc/firmware/opalum.rx.ext.config.0:vendor/firmware/opalum.rx.ext.config.0
+-etc/firmware/opalum.rx.ext.config.1:vendor/firmware/opalum.rx.ext.config.1
+-etc/firmware/opalum.rx.ext.config.2:vendor/firmware/opalum.rx.ext.config.2
+-etc/firmware/opalum.rx.ext.config.3:vendor/firmware/opalum.rx.ext.config.3
+-etc/firmware/opalum.tx.ext.config.0:vendor/firmware/opalum.tx.ext.config.0
+-etc/firmware/opalum.tx.ext.config.1:vendor/firmware/opalum.tx.ext.config.1
+-etc/firmware/opalum.tx.ext.config.2:vendor/firmware/opalum.tx.ext.config.2
+-etc/firmware/opalum.tx.ext.config.3:vendor/firmware/opalum.tx.ext.config.3
++# Sensors (subset present on XT1765 stock; deen_sprout extras deferred)
++vendor/lib/libsensor1.so
++vendor/lib/libsensor_reg.so
++vendor/lib/sensor_calibrate.so
++vendor/lib/sensors.ssc.so
+ 
+-# Sensors - from deen_sprout - QPKS30.54-22-11
+-vendor/bin/sensors.qti|5f43a818c4c682956bed031b4fc9583d42b7f70a
+-vendor/lib/libsensor1.so|637aa4ec588533a3dcddb6ed95a7434f1f6b7d59
+-vendor/lib/libsensor_reg.so|f81737c08759acc8add3ce87160f1ae24263546d
+-vendor/lib/sensor_calibrate.so|53353469aa930cd298d6ff4a1981cc7cebb03d5e
+-vendor/lib/sensors.rp.so|e35005a9a8e0aa574bb116490ff0240eb8b9a094
+-vendor/lib/sensors.ssc.so|e69b474fd6e94e93b6684935455cc6c9ef5c2192
+-vendor/lib/vendor.qti.hardware.sensorscalibrate@1.0.so|82fae4500ad96d42ef48f9c0c9d00368c34480c5
+-vendor/lib64/libsensor1.so|74faeeb9d8679fa1260bbc0cd7aa32cc859204cd
+-vendor/lib64/libsensor_reg.so|fc6d0f4021f01ba0d0c2406e7a58dd1af4d21b19
+-vendor/lib64/sensor_calibrate.so|47f475a83d6eb59f45a810299116893c91acf79e
+-vendor/lib64/sensors.rp.so|c792a29071b6e8521e205b0d0e87a96401407618
+-vendor/lib64/sensors.ssc.so|761d2b907b60176a8ef77e7f9296337b936a5351
+-vendor/lib64/vendor.qti.hardware.sensorscalibrate@1.0.so|4ca1d6dbe9acfbc762234b622ab2e7fa3328275d
++# Touchscreen firmware — perry stock (not montana inx/tianma names)
++etc/firmware/synaptics-ofilm-s3603r-17082401-2701E5-perry.tdat:vendor/firmware/synaptics-ofilm-s3603r-17082401-2701E5-perry.tdat
++etc/firmware/synaptics-tianma-s3603r-17082401-27030E-perry.tdat:vendor/firmware/synaptics-tianma-s3603r-17082401-27030E-perry.tdat
+ 
+-# Touchscreen firmware
+-etc/firmware/synaptics-inx-s3603r-17042001-27111d-montana.tdat:vendor/firmware/synaptics-inx-s3603r-17042001-27111d-montana.tdat
+-etc/firmware/synaptics-tianma-s3603r-17041102-27111d-montana.tdat:vendor/firmware/synaptics-tianma-s3603r-17041102-27111d-montana.tdat
++# Deferred until dedicated bring-up (not on this stock extract / wrong SKU):
++# - Fingerprint: perry is egis, not FPC (montana fpcservice pins were wrong)
++# - Display qdcm montana 1080p panels
++# - Opalum BT firmware (montana paths)
++# - deen sensors.qti / sensors.rp / lib64 / sensorscalibrate HIDL
+-- 
+2.53.0
+
