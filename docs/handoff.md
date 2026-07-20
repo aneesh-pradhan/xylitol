@@ -1,13 +1,17 @@
 # Session handoff — perry / xylitol
 
+> **Public build guide:** [`../README.md`](../README.md) ·
+> [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
+> [`known-good.md`](known-good.md). This file is maintainer session state.
+
 **Date:** 2026-07-20  
 **Headline:** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb, Wi-Fi, soft
 navbar, **FM radio user-confirmed** (0007, RDS KMVQ-FM). SELinux Enforcing.
 Camera open/still (0013); **AF broken** (no eeprom — bugreport). **RIL next.**  
-**Meta-repo:** `main` — push after this docs commit  
+**Meta-repo:** `main`  
 **Lineage tree:** `~/android/lineage` (patches applied live; series in `patches/`)  
 **Perry device tip:** `8c6bae3` — **0013** dw9718s_truly; **0012** sensors;
-**0011** platform  
+    **0011** platform  
 **msm8937-common tip:** `0a23ebb` — patch **0007** (vendor.fm Iris bring-up)  
 **Bugreport (AF+FM session):** `~/android/bugreports/perry/bugreport-perry_retail-RQ3A.211001.001-2026-07-20-13-20-02.zip`  
 **TWRP:** on-device + `~/android/twrp` local 3.7.0_9-0 rebuild  
@@ -18,7 +22,7 @@ every build; put `prebuilts/python/linux-x86/2.7.5/bin` first on `PATH`
 **Stock firmware (user-provided):**  
 `~/XT1765_PERRY_TMO_7.1.1_NCQS26.69-64-21_cid21_subsidy-TMO_RSU_regulatory-DEFAULT_CFC.xml`  
 **Unpacked tree:** `~/android/stock-perry-NCQS26.69-64-21/`  
-(`mnt-system/`, `mnt-oem/`, `tree/` for extract-files; see §4)
+(`mnt-system/`, `mnt-oem/`, `tree/` for extract-files; see [`blobs.md`](blobs.md))
 
 Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUDE.md).
 
@@ -196,10 +200,12 @@ No blobs / `out/` / Lineage tree in xylitol git. No AI co-author trailers.
 **Build:** `perry_tmo-user 7.1.1 NCQS26.69-64-21` (reconciled — CLAUDE.md correct).  
 **Unpacked:** `~/android/stock-perry-NCQS26.69-64-21/` (`mnt-system` / `tree/system`).
 
-Unpack recipe (if wiping and redoing):
-1. `simg2img system.img_sparsechunk.* system.raw.img` (+ oem.img → oem.raw.img)
-2. Strip **131072** bytes (`MOT_PIV_FULL256` → ext4 at 128 KiB)
-3. `mount -o ro,loop` → `tree/system` symlink for extract-files
+Public notes: [`blobs.md`](blobs.md). Re-unpack:
+
+```bash
+./scripts/unpack-stock.sh \
+  ~/XT1765_PERRY_TMO_7.1.1_NCQS26.69-64-21_cid21_subsidy-TMO_RSU_regulatory-DEFAULT_CFC.xml
+```
 
 ---
 
