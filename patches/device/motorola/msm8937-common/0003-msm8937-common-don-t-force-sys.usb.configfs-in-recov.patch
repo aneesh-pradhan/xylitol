@@ -1,0 +1,29 @@
+From 6e8730e13c97c0d55b71c23155817450c8461ac9 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 19:28:33 -0700
+Subject: [PATCH 3/3] msm8937-common: don't force sys.usb.configfs in recovery
+
+Revert ee6f276. The kernel has no CONFIG_USB_CONFIGFS; forcing
+sys.usb.configfs=1 sends Android 11 recovery's init.recovery.usb.rc
+down the configfs path, so the LOS recovery image never enumerates
+adb. Official LineageOS 18.1 msm8937-common ships this file with only
+the on-fs block; with the prop at its default 0, recovery uses the
+legacy android_usb path (same mechanism working TWRP builds use).
+---
+ rootdir/etc/init.recovery.qcom.rc | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/rootdir/etc/init.recovery.qcom.rc b/rootdir/etc/init.recovery.qcom.rc
+index 6fa5c0a..4094627 100644
+--- a/rootdir/etc/init.recovery.qcom.rc
++++ b/rootdir/etc/init.recovery.qcom.rc
+@@ -1,6 +1,3 @@
+-on init
+-    setprop sys.usb.configfs 1
+-
+ on fs
+     wait /dev/block/platform/soc/${ro.boot.bootdevice}
+     symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+-- 
+2.53.0
+
