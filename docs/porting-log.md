@@ -340,3 +340,18 @@ trailing newline. With `m4 -s` concatenating inputs, the next file
 
 Patch `0007-sepolicy-ensure-file_contexts-ends-with-newline.patch` adds the
 EOF newline. Confirmed `fc_sort` succeeds on the regenerated m4 output.
+
+
+## 2026-07-19 — apexer mke2fs orphan_file on Ubuntu 24.04+
+
+`m bacon` cleared sepolicy/`fc_sort`, then failed at ~94% packaging
+`com.android.art.release` APEX:
+
+`Invalid filesystem option set: ... orphan_file`
+(apexer → host `out/.../mke2fs` 1.45.4 reading `/etc/mke2fs.conf`)
+
+Ubuntu 24.04+ enables `orphan_file` in `/etc/mke2fs.conf`; Lineage 18.1's
+bundled mke2fs cannot apply that feature set. Fix: ship
+`config/mke2fs.conf` (ext4 features without `orphan_file`), install to
+`$HOME/android/mke2fs.conf`, and `export MKE2FS_CONFIG=...` from
+`scripts/setup-env.sh` / `~/.bashrc`.
