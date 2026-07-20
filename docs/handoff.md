@@ -107,3 +107,15 @@ bash ~/GitHub/xylitol/scripts/extract-perry.sh adb
 > bug against official LineageOS 18.1 first — staging-4.9 mismatch is
 > 5-for-5 so far. Log every fix in porting-log; export tree changes to
 > `patches/`.
+
+---
+
+## 5. Parked — mainline side quest (do not start unprompted)
+
+2026-07-19 recon of the `msm89x7-mainline` org: perry mainline DTS exists as
+**open PR msm89x7-mainline/linux#48**; pmOS boots perry via the generic
+`qcom-msm89x7` package + lk2nd (`msm8916-mainline/lk2nd` — the org's fork is
+archived). **Nothing usable in the LineageOS port** (blobs need
+ION/mdss/KGSL/prima; mainline is DRM/freedreno/wcn36xx). PR #48's DTS is the
+best public map of perry hardware — handy for HAL/sepolicy debugging.
+Details: porting-log same date + CLAUDE.md side-quest section.
