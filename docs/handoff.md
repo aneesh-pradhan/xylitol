@@ -316,8 +316,14 @@ Sacred: no persist/modemst wipes.
 
 ---
 
-## 6. Parked — mainline side quest (do not start unprompted)
+## 6. Parked — side quests (do not start unprompted)
 
-[msm89x7-mainline](https://github.com/msm89x7-mainline) / perry DTS PR
-[#48](https://github.com/msm89x7-mainline/linux/pull/48) — hardware map
-only (WCN3660B Iris, etc.). Nothing to port into 18.1 blob stack.
+- **Mainline:** [msm89x7-mainline](https://github.com/msm89x7-mainline) /
+  perry DTS PR [#48](https://github.com/msm89x7-mainline/linux/pull/48) —
+  hardware map only (WCN3660B Iris, etc.). Nothing to port into 18.1
+  blob stack.
+- **staging-4.9 kernel port:** recon 2026-07-20 says feasible (surfna
+  4.9.112 + LOS xiaomi msm8937 4.9.337 as templates; camera blobs are
+  the big risk). Phased plan: [`kernel-4.9-plan.md`](kernel-4.9-plan.md);
+  recon + Gemini-doc fact-check in porting-log 2026-07-20. Gate:
+  18.1 camera + RIL done first.

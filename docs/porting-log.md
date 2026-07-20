@@ -862,3 +862,88 @@ so it is the gralloc1-inclusive image). Flashed per cheat sheet (TWRP
 
 Camera bring-up now blocks solely on the stock 7.1.1 dump.
 
+## 2026-07-20 — Side quest recon: the staging-4.9 kernel is viable (parked; plan written)
+
+Asked: can we patch `staging/lineage-18.1` (the unfinished 4.9 kernel the
+18.1 platform branches were written for) to work with our current build?
+Recon verdict: **yes, feasibly — weeks-scale, not months** — the earlier
+"dead end for perry" note was true only of the *Motorola layer*, not the
+platform. Full plan: `docs/kernel-4.9-plan.md`. Parked behind camera/RIL.
+
+**What the staging branch actually is** (verified via GitHub API):
+CAF msm-4.9.**227**, current to mid-2021 (QBG uapi era), in
+`moto-msm89xx/android_kernel_motorola_msm8953`. Not a stub: complete
+generic MSM8917/8937 support — `msm8937`/`msm8937go` defconfigs (arm +
+arm64), full msm8917 CDP/MTP/QRD DTS stack (cpu/gpu/mdss/ion/bus/camera/
+pinctrl) — plus org-added `drivers/staging/prima` (our WCN3660B),
+`techpack/audio`, sdfat, and CAF `synaptics_dsx`/`_2.6` touch.
+
+**What's missing = Motorola only.** From our 3.18 tree, perry's Moto
+kernel surface: DTS chain `msm8917-perry-p0.dts` → `msm8917-perry.dtsi` +
+`msm8917-moto-common.dtsi` (500 L) + `msm8917-perry-common.dtsi` (315 L)
++ `msm8917-camera-sensor-mot-perry.dtsi` (351 L) + tianma/ofilm-499
+panel dtsis + gk40 batterydata ≈ **1.7–2k lines to translate**; drivers:
+`drivers/misc/utag` (`mmi,utags`), Egis `et320` fingerprint,
+`mmi,alsa-to-h2w` / `mmi,sys-temp` glue; Moto `synaptics_dsx_i2c` vs CAF
+dsx to reconcile. Sensor compatibles (bma253/ak09911/epl8802/sx9310) are
+likely ADSP-side config — verify. Note perry builds an **arm64 kernel**
+(defconfig lives in `arch/arm64/configs`) with 32-bit userspace — matches
+the staging tree's arm64 msm8937go defconfigs.
+
+**Templates found (the big news):**
+- **Motorola shipped this SoC family on 4.9**: MSM8917/8937 requalified
+  as QM215/SDM429 for Android Go; Moto E6 "surfna" runs Moto's own
+  **4.9.112** (mirror: `klabit87/android_kernel_motorola_surfna`,
+  branch `surfna_9`). Verified it carries `utag`, `mmi_sys_temp`, and
+  `dsi-panel-mot-*` conventions ported to 4.9 → first-party Rosetta
+  stone for every Moto-ism we need to translate.
+- **Official LineageOS runs this SoC on 4.9 in production**:
+  `LineageOS/android_kernel_xiaomi_msm8937`, branches lineage-19.1/20/21
+  = **4.9.337** (final 4.9 LTS; EOL 2023-01), same generic
+  `msm8937-perf_defconfig` layout. Production proof of Android 12–14-era
+  userspace on MSM89x7 + 4.9, and our "mirror official LineageOS"
+  reference (the 5-for-5 strategy) for every kernel-config question.
+  No lineage-18.1 branch there (they jumped 3.18→4.9 at 19.1).
+- `samsung-msm8917` org (and its mirror org `msm8917-dev`): Galaxy
+  J-series A11/18.1 on **3.18.124** — corroborates that 18.1 does not
+  need 4.9 (they did what we did).
+
+**Gemini research doc fact-check** (`gemini-code-1784568301149.md`,
+logged here because we'll reuse the corrected version in the plan):
+repo table was directionally right, wrong in detail — "LineageOS
+android_kernel_xiaomi_msm8917" doesn't exist (real: `..._msm8937`
+above); "samsung-msm8917 = 4.9 + A11" wrong (3.18.124); `msm8917-dev`
+is a mirror of the same Samsung org, not a distinct project. Its
+"mandatory backports for A11 on 4.9" list is mostly **not applicable**:
+memfd_create has been in-kernel since 3.17 (nothing to backport);
+binderfs is optional for A11 (we boot 18.1 on 3.18 with static binder
+nodes); FSCrypt v2 not required (CAF 4.9 fscrypt v1+ICE is exactly what
+msm8937-common's native `fileencryption=ice` fstab targets); FUSE
+passthrough is a perf option, not a requirement; cgroup-v2 freezer has
+a v1 fallback in A11. The **one real item is eBPF**: on kver ≥ 4.9,
+`BpfUtils` demands eBPF (the inverse of our 0006 fix) — but CAF 4.9.227
+already contains the code; it's defconfig-enable work, not backporting.
+Several of the doc's "required kernel commits" appear fabricated;
+treat that section as a checklist of *topics*, not patches.
+
+**Blob-ABI risk (the real gamble, per subsystem):** Wi-Fi low (same
+prima family); display/GPU medium (KGSL ABI fairly stable; QM215 shipped
+this exact Adreno 308 on 4.9 → Pie blob fallback exists); RIL medium
+(rmnet_data in both; Nougat netmgrd vs 4.9 untested); audio medium
+(techpack DAI renames); **camera worst** — msm_camera ioctl ABI moved
+3.18→4.9; Nougat mm-qcamera daemon + chromatix likely need replacing
+with QM215 Pie-era stack (no perry tuning exists) → a 4.9 switch would
+probably re-break camera right after 0011 lands. Xiaomi msm8937 devices
+(also shipped-on-3.18, old-blob) have working cameras on 4.9 LOS via
+newer-BSP camera stacks — encouraging precedent, not a guarantee.
+
+**What we get back on 4.9:** our staging-4.9 reverts become unnecessary
+and flip to the tree's native config — msm8937-common 0004 (FBE stays),
+0005 (4.9 vold paths correct), 0006 (eBPF prop correct), kernel 0002
+(V4L2 uapi native), perry 0009 (FCM level 4 defines 4.9 → VINTF enforce
+can stay on). USB configfs replaces the legacy-gadget dance.
+
+**Payoff if it works:** security (LTS merge 4.9.227→4.9.337 is ~110
+mechanical releases), and it reopens lineage-19.1/20 as a discussable
+target (xiaomi precedent) — the one path that raises the documented
+18.1 ceiling. Android 14+ remains off-limits (32-bit blobs).
