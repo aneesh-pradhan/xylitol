@@ -364,3 +364,16 @@ before `m bacon`. Handoff doc rewritten EOD 2026-07-19 for a clean pickup.
 ninja environment and drops it unless allowlisted. Perry
 `BoardConfig.mk` now has `BUILD_BROKEN_NINJA_USES_ENV_VARS += MKE2FS_CONFIG`
 (patch `0008`).
+
+
+## 2026-07-19 — OTA VINTF: no kernel entry for 3.18 at FCM 4
+
+ART APEX packaging succeeded after the mke2fs allowlist. `m bacon` then
+failed at `ota_from_target_files` / `checkvintf`:
+
+`No kernel entry found for kernel version 3.18 at kernel FCM version 4`
+
+msm8937-common sets `PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := true`
+(for a 4.9-oriented tree), but perry's built kernel is still 3.18.140 and
+Android 11 FCM level 4 does not define 3.18 kernel config requirements.
+Override to `false` in perry `device.mk` (patch `0009`).
