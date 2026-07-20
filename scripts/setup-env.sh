@@ -4,6 +4,8 @@
 # supported device's build page, since perry has no wiki page of its own).
 set -euo pipefail
 
+# Only used if git user.* is unset globally. Public rebuilds should pass their own:
+#   GIT_USER_NAME='Your Name' GIT_USER_EMAIL='you@example.com' ./scripts/setup-env.sh
 GIT_USER_NAME="${GIT_USER_NAME:-aneesh-pradhan}"
 GIT_USER_EMAIL="${GIT_USER_EMAIL:-zen7370@outlook.com}"
 CCACHE_SIZE="${CCACHE_SIZE:-25G}"
@@ -23,7 +25,8 @@ sudo apt-get install -y \
   git-lfs gnupg gperf imagemagick protobuf-compiler python3-protobuf \
   lib32readline-dev lib32z1-dev libdw-dev libelf-dev libgnutls28-dev lz4 \
   libsdl1.2-dev libssl-dev libxml2-dev libxml2-utils lzop pngcrush rsync \
-  schedtool squashfs-tools xsltproc xxd zip zlib1g-dev python-is-python3
+  schedtool squashfs-tools xsltproc xxd zip zlib1g-dev python-is-python3 \
+  android-sdk-libsparse-utils
 
 # libtinfo5/libncurses5 were dropped from Ubuntu repos after 23.04; LineageOS
 # 18.1's prebuilts still need them. Pull the mantic .debs directly.
