@@ -686,27 +686,25 @@ E4 stock uses an on-screen navbar. (Alternative: add soc_id 303 to the
 init.qcom.sh case; prop is simpler and boot-order-safe.) Not yet
 patched — queued for next session's batch.
 
-## 2026-07-19 — Navbar fix patched (0010); flash verify pending
+## 2026-07-19 — Navbar fix patched (0010); verified on device
 
 Added `qemu.hw.mainkeys=0` to `device/motorola/perry/vendor_prop.mk`
 via patch `0010-perry-force-soft-navigation-bar-qemu.hw.mainkeys-0.patch`.
 Full perry series `0001`–`0010` `git am`-verified clean against a fresh
-`lineage-17.1` clone. Applied live to `~/android/lineage`
-(`ad4f633`); staged `out/.../vendor/build.prop` already contains the
-prop. Flash verify still pending (see below).
+`lineage-17.1` clone. Applied live (`ad4f633`).
 
-Live notes: as root, `setprop qemu.hw.mainkeys 0` succeeds (non-root
-shell denied by property context). Soft `stop`/`start` wedged adb
-shell — don't use that path. Remount/overlayfs inject of
-`/vendor/build.prop` was attempted but remount timed out; needs a
-normal flash of a zip/`vendor.img` that ships the prop. Confirmed on
-device earlier: soc_id **303**, `threebutton` overlay enabled.
+**On-device verify:** perry has no GPT `vendor` — Lineage mounts
+`oem` as `/vendor` (TWRP fstab). Injected the prop into
+`/vendor/build.prop` from TWRP; also rebuilt `vendor.img` (contains
+`qemu.hw.mainkeys=0`; flash as `oem` if needed). After reboot:
+`getprop qemu.hw.mainkeys` → `0`, `NavigationBar0` present,
+`ITYPE_NAVIGATION_BAR ... visible=true`. Threebutton overlay was
+already enabled on /data.
 
-Build note: interrupting an in-flight `m bacon` dirtied `out/` and
-forced a large host/tooling rebuild on the next `m vendorimage`. Prefer
-letting one bacon finish. On Ubuntu 26.04, raw ninja without
-`prebuilts/python/linux-x86/2.7.5/bin` first on `PATH` fails
-`insertkeys.py` (`ConfigParser` / py2).
+Build notes: interrupting bacon dirties `out/` heavily. On Ubuntu
+26.04 put `prebuilts/python/linux-x86/2.7.5/bin` first on `PATH` or
+`insertkeys.py` fails (`ConfigParser`). Fastboot `flash vendor`
+fails (Invalid partition name); use `oem` or TWRP.
 
 ## 2026-07-19 — msm89x7-mainline org research (side-quest recon; nothing to integrate into 18.1)
 
@@ -756,3 +754,111 @@ MSM8917 DTS in the same PR.
 Kept: CLAUDE.md side-quest section rewritten with the above; PR #48's DTS
 noted as the best public hardware map of perry (part numbers + buses) for
 future HAL/sepolicy debugging.
+
+## 2026-07-19 — FM radio dead: sepolicy + unset init prop
+
+User confirmed soft navbar works. New report: FM app does nothing.
+
+Recon: msm8937-common already packages `FM2` / `libqcomfm_jni` /
+`qcom.fmradio`; perry `mixer_paths.xml` has full `play-fm` /
+`capture-fm` paths; props `ro.fm.transmitter=false`,
+`ro.vendor.fm.use_audio_session=true`. Hardware is expected — mainline
+perry DTS ([msm89x7-mainline/linux#48](https://github.com/msm89x7-mainline/linux/pull/48))
+sets `&wcnss_iris { compatible = "qcom,wcn3660b"; ... }` (Iris FM path
+shared with Wi-Fi/BT).
+
+Launching `com.caf.fmradio/.FMRadio` under Enforcing spam-denies:
+`vendor_fm_app` read on `vendor_fm_prop` / `vendor.hw.fm.init`. Prop is
+unset. `device/qcom/sepolicy-legacy-um/legacy/vendor/common/fm_app.te`
+never `get_prop(vendor_fm_app, vendor_fm_prop)` — only `system_app.te`
+has that allow. Fix candidate: perry or common sepolicy patch adding
+the get_prop (and ensure qti_init_shell still sets the prop). Retest
+with wired headset (antenna). Queued as handoff P2-#4.
+
+## 2026-07-19 — Camera crash: missing HAL (not notifyDeviceStateChange)
+
+**Symptom:** `camera.provider@2.5-service` SEGV in
+`CameraModule::notifyDeviceStateChange` (fault addr `0x8`) every few
+seconds; cameraserver aborts with it.
+
+**Root cause (Phase 0 live probe):** primary failure is
+`CamPrvdr@2.4-legacy: Could not load camera HAL module: -2` —
+`/vendor/lib/hw/camera.msm8937.so` was never packaged. The SEGV is
+secondary: `@2.5-service` still `registerAsService` when init fails
+(unlike 2.4 `HIDL_FETCH`), then cameraserver calls
+`notifyDeviceStateChange` on a null `mModule`.
+
+**Phase 0:** Injected montana `camera.msm8937.so` (+
+`libmmcamera_interface` / `libmmjpeg_interface`) via TWRP onto oem.
+TWRP-pushed files landed as `u:object_r:system_file:s0` →
+`hal_camera_default` getattr denial still surfaced as ENOENT. After
+`chcon u:object_r:vendor_file:s0`, provider opened the HAL
+(`/proc/<pid>/fd → camera.msm8937.so`). Path/name confirmed.
+
+**Packaging bugs found:**
+1. `device.mk` never inherited `montana-vendor.mk` (only empty
+   `BoardConfigVendor.mk`).
+2. Hand-trimmed `perry-vendor.mk` used dest
+   `$(TARGET_COPY_OUT_VENDOR)/vendor/...` → `/vendor/vendor/lib/`
+   (fixed locally: strip the extra `vendor/`).
+3. XT1765 sensors are **imx219 / s5k4h8 / mot_ov5695** (device XML);
+   montana chromatix leftovers remain in `proprietary-files.txt`.
+   No stock dump on host — sensor libs still need stock re-extract.
+
+**Phase 2:** Added `camera-vendor.mk` (87 SoC platform blobs from
+montana proprietary) + inherit from `device.mk`. Exported
+`patches/.../0011-perry-ship-msm8937-camera-platform-stack-from-montana.patch`.
+Vendorimage rebuild in flight; flash next, then stock sensor extract.
+
+## 2026-07-19 — Camera Phase 2: platform stack packaging + first flash
+
+**0011** `camera-vendor.mk`: pulls 90+ msm8937 camera platform blobs from
+montana proprietary (HAL, mm-qcamera-daemon, MCT/ISP, jpeg). Applied live
+on perry tree (`6e32be2`).
+
+**Flash lesson:** `out/.../vendor.img` is Android **sparse**. Raw `dd` to
+oem corrupts the FS (TWRP "Invalid argument"); convert with `simg2img`
+first, then `dd` the raw ext4 image. Documented for cheat sheet.
+
+**After correct flash:**
+- `camera.msm8937.so` present, labeled `vendor_file` by packaging
+- `provider@2.5-service` + `cameraserver` stay up (no more
+  notifyDeviceStateChange SEGV loop)
+- Provider blocks in `msm_sensor_init_subdev_ioctl` (kernel contact!)
+- `dumpsys media.camera`: still **0 devices** — daemon not healthy yet
+- Dep whack-a-mole on `mm-qcamera-daemon`: fixed `lib_mot_app6_metadata`
+  via live inject; next `libgralloc1.so` (via `libmot_gpu_mapper.so`)
+- XT1765 sensor libs (imx219/s5k4h8) still absent — stock extract needed
+  for actual capture even after daemon links
+
+Also fixed hand-trimmed `perry-vendor.mk` double `/vendor/vendor/` dest
+paths locally (regenerate via setup-makefiles when rewriting
+proprietary-files).
+
+## 2026-07-20 — Camera: gralloc1-inclusive vendor flashed — daemon STABLE ✅
+
+The pending `/tmp/perry-camera-recon/vendor-raw.img` was lost to a host
+reboot; regenerated with `simg2img` from `out/.../vendor.img` (Jul 19
+23:21 build — confirmed newer than the staged `libgralloc1.so`, 23:09,
+so it is the gralloc1-inclusive image). Flashed per cheat sheet (TWRP
+`dd` to oem); verified on-partition before reboot: `camera.msm8937.so`,
+`mm-qcamera-daemon`, `libgralloc1.so` all present.
+
+**After boot (~60 s):**
+- `init.svc.vendor.qcamerasvr` = **`running`** (was `restarting` —
+  baseline re-confirmed pre-flash). Provider@2.5 + cameraserver also
+  running; `mm-qcamera-daemon` steady in `do_select`, not looping.
+- **Zero `CANNOT LINK` / dlopen failures** in logcat (only unrelated
+  `libjni_latinimegoogle`). The link-dep whack-a-mole is done — patch
+  **0011** is verified end-to-end on device.
+- `dumpsys media.camera`: still **0 devices — expected.** XT1765 sensor
+  libs (imx219 / s5k4h8 / mot_ov5695 + dw9718s actuator + chromatix)
+  aren't packaged; that's the stock-dump ingest (handoff §4). Notably
+  the provider now exports **97 qcamera3 vendor tags** — the HAL is
+  genuinely initialized, not stubbed.
+- Kernel-side: two early-boot `msm_eeprom_platform_probe failed 2192`
+  lines. Watch when sensor libs land — eeprom/OTP may matter for AF/AWB
+  calibration data.
+
+Camera bring-up now blocks solely on the stock 7.1.1 dump.
+
