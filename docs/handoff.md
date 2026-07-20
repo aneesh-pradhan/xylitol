@@ -35,7 +35,7 @@ lineage-18.1` when needed).
 
 | # | Issue | State / next step |
 |---|---|---|
-| 1 | **No back/home/recents (no navigation at all)** | **Root-caused, fix drafted-in-head, not yet patched.** Two layers: (a) all `navbar.*` RRO overlays were off — `threebutton` now enabled via `cmd overlay enable-exclusive`, persists on /data; (b) framework thinks perry has hw keys: `init.qcom.sh` only sets `qemu.hw.mainkeys 0` for soc_ids 317/318/324–327, perry msm8917 = **303**, and no tree sets `config_showNavigationBar`. **Fix:** add `qemu.hw.mainkeys=0` to perry `PRODUCT_PROPERTY_OVERRIDES` (new perry patch), rebuild. Navbar should then appear (overlay already enabled). |
+| 1 | **No back/home/recents (no navigation at all)** | **Patched (perry 0010); flash verify pending.** `qemu.hw.mainkeys=0` in `vendor_prop.mk` (live tree `ad4f633`). Overlay `threebutton` already on /data. Finish/rebuild zip with py2 on PATH (`prebuilts/python/.../2.7.5/bin`), flash, confirm `getprop qemu.hw.mainkeys` → `0` + navbar visible. |
 | 2 | **Camera stack crash-loops every boot** | Vendor `camera.provider@2.5-service` SEGVs (null deref) in `CameraModule::notifyDeviceStateChange` (2.5→2.4 legacy wrapper over Nougat HAL1 blobs); cameraserver aborts with it. Known issue class — needs the null-guard/shim on `notifyDeviceStateChange`. Check Lineage Gerrit / sibling trees for the standard fix; then actually test capture. |
 | 3 | **Mobile network greyed out (no RIL)** | Expected — untouched phase. XT1765 `proprietary-files.txt` rewrite + blob re-extraction from device (`scripts/extract-perry.sh adb`). Stock build id conflict to resolve first: device reports `NPNS26.118-22-1`, CLAUDE.md says `NCQS26.69-64-21`. GSM only, IMEI must survive (sacred partitions). |
 
@@ -61,7 +61,7 @@ lineage-18.1` when needed).
 
 ## 2. Patches (`patches/`) — all `git am`-verified against fresh upstream clones
 
-**perry (17.1 base):** 0001 Treble sepolicy/recovery · 0002 BOARD_COMMON · 0003 sepolicy/vendor · 0004 dtbtool Soong · 0005 extract harden · 0006 fingerprints HIDL root · 0007 file_contexts newline · 0008 MKE2FS ninja allowlist · 0009 VINTF kernel enforce false  
+**perry (17.1 base):** 0001 Treble sepolicy/recovery · 0002 BOARD_COMMON · 0003 sepolicy/vendor · 0004 dtbtool Soong · 0005 extract harden · 0006 fingerprints HIDL root · 0007 file_contexts newline · 0008 MKE2FS ninja allowlist · 0009 VINTF kernel enforce false · **0010 soft navbar (`qemu.hw.mainkeys=0`)**  
 **msm8937-common (18.1):** 0001 Android.mk perry filter · **0002/0003 USB → legacy android_usb (+recovery)** · **0004 FBE → FDE-capable fstab** · **0005 vold sysfs paths → 3.18** · **0006 drop eBPF claim**  
 **kernel msm8953 (18.1):** 0001 perry_recovery_defconfig · 0002 V4L2 uapi aliases · **0003 pronto WLAN `=y`**  
 Meta: `config/mke2fs.conf` (apexer).
@@ -102,9 +102,8 @@ bash ~/GitHub/xylitol/scripts/extract-perry.sh adb
 
 ## 4. Next-agent opener
 
-> Read `docs/handoff.md` §1. Start with P1-#1 (navbar): add
-> `qemu.hw.mainkeys=0` to perry props as a new perry patch, rebuild, flash,
-> verify navigation; then P1-#2 (camera notifyDeviceStateChange shim).
-> Check every new bug against official LineageOS 18.1 first — the
-> staging-4.9 mismatch pattern is 5-for-5 so far. Log every fix in
-> porting-log; export every tree change to `patches/`.
+> Flash the 0010 navbar build when `m bacon` finishes; verify soft nav.
+> Then P1-#2 (camera `notifyDeviceStateChange` shim). Check every new
+> bug against official LineageOS 18.1 first — staging-4.9 mismatch is
+> 5-for-5 so far. Log every fix in porting-log; export tree changes to
+> `patches/`.

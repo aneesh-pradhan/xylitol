@@ -685,3 +685,25 @@ User report: no navigation at all. Two stacked causes:
 E4 stock uses an on-screen navbar. (Alternative: add soc_id 303 to the
 init.qcom.sh case; prop is simpler and boot-order-safe.) Not yet
 patched — queued for next session's batch.
+
+## 2026-07-19 — Navbar fix patched (0010); flash verify pending
+
+Added `qemu.hw.mainkeys=0` to `device/motorola/perry/vendor_prop.mk`
+via patch `0010-perry-force-soft-navigation-bar-qemu.hw.mainkeys-0.patch`.
+Full perry series `0001`–`0010` `git am`-verified clean against a fresh
+`lineage-17.1` clone. Applied live to `~/android/lineage`
+(`ad4f633`); staged `out/.../vendor/build.prop` already contains the
+prop. Flash verify still pending (see below).
+
+Live notes: as root, `setprop qemu.hw.mainkeys 0` succeeds (non-root
+shell denied by property context). Soft `stop`/`start` wedged adb
+shell — don't use that path. Remount/overlayfs inject of
+`/vendor/build.prop` was attempted but remount timed out; needs a
+normal flash of a zip/`vendor.img` that ships the prop. Confirmed on
+device earlier: soc_id **303**, `threebutton` overlay enabled.
+
+Build note: interrupting an in-flight `m bacon` dirtied `out/` and
+forced a large host/tooling rebuild on the next `m vendorimage`. Prefer
+letting one bacon finish. On Ubuntu 26.04, raw ninja without
+`prebuilts/python/linux-x86/2.7.5/bin` first on `PATH` fails
+`insertkeys.py` (`ConfigParser` / py2).
