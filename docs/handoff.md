@@ -1,31 +1,60 @@
 # Session handoff — perry / xylitol
 
-**Date:** 2026-07-19 (late evening)  
-**Headline:** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb, **Wi-Fi working** (connects + browses on 2.4/5 GHz). SELinux Enforcing. Now in hardware bring-up / bug-fix phase.  
-**Meta-repo:** `main`, many commits ahead of origin — push when ready  
-**Lineage tree:** `~/android/lineage` (patches applied live; series mirrored in `patches/`)  
-**TWRP tree:** `~/android/twrp` (local 3.7.0_9-0 rebuild works; shrunk img fits partition)  
-**Build host:** Ubuntu 26.04 LTS; `MKE2FS_CONFIG=$HOME/android/mke2fs.conf` required for every build  
-**Device:** XT1765 / `ZY224TB8KZ` — running current build, user actively using it
+**Date:** 2026-07-20  
+**Headline:** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb, Wi-Fi, soft
+navbar. SELinux Enforcing. Camera platform stack **verified**: qcamerasvr
+`running`, zero link errors. 0 devices until XT1765 sensor blobs (stock dump).  
+**Meta-repo:** `main`, ahead of origin (local docs dirty) — push when ready  
+**Lineage tree:** `~/android/lineage` (patches applied live; series in `patches/`)  
+**Perry device tip:** `fb53f4e` — `perry: ship msm8937 camera platform stack
+from montana` (patch **0011**)  
+**TWRP:** on-device + `~/android/twrp` local 3.7.0_9-0 rebuild  
+**Build host:** Ubuntu 26.04 LTS; `MKE2FS_CONFIG=$HOME/android/mke2fs.conf`
+every build; put `prebuilts/python/linux-x86/2.7.5/bin` first on `PATH`  
+**Device:** XT1765 / `ZY224TB8KZ` — booted, USB debugging on
 
-Chronology & full root-cause write-ups: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUDE.md).
+Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUDE.md).
+
+---
+
+## How to start the next session
+
+**User opener (use this verbatim):**
+
+> read the handoff; the stock firmware is at **[directory]**
+
+**Agent checklist when you see that:**
+
+1. Read this file end-to-end, then skim camera entries in
+   [`porting-log.md`](porting-log.md) (2026-07-19 camera sections).
+2. Treat **`[directory]`** as the XT1765 stock 7.1.1 dump root (see §4).
+   Verify it exists; read any `README.txt` for build id (NPNS vs NCQS).
+3. Inventory camera blobs under the dump before extracting (§4 commands).
+4. Flash pending vendor if needed: **`/tmp/perry-camera-recon/vendor-raw.img`**
+   (or rebuild — §3). Confirm `vendor.qcamerasvr` stays **`running`**, not
+   `restarting`.
+5. Run `bash ~/GitHub/xylitol/scripts/extract-perry.sh '[directory]'` for
+   perry-only blobs; rewrite `proprietary-files.txt` camera section for
+   imx219/s5k4h8/mot_ov5695; regenerate `perry-vendor.mk` via
+   `setup-makefiles.sh` — never hand-edit dest paths.
+6. Rebuild (`m vendorimage` or `m bacon`), flash, test still + video
+   (front + back). Log decisions in `porting-log.md`; export new patches.
+
+If the user omits the stock path, ask for it before rewriting
+`proprietary-files.txt`.
 
 ---
 
 ## 0. How we got here (one paragraph)
 
-After the first zip built, boot was blocked by four userspace features that
-the moto-msm89xx 18.1 tree wrote for its **unfinished staging-4.9 kernel**
-while our real kernel is 3.18: configfs USB (kernel BUG panic at 7 s), FBE
-(init reboot at 9.4 s), 4.9 vold sysfs paths, and a forced eBPF claim
-(bpfloader reboot loop). Reverting each to what **official LineageOS 18.1**
-ships (patches `msm8937-common/0002–0006`) produced a full boot. Wi-Fi was
-then dead because `perry_defconfig` built pronto as a module nothing loads —
-`kernel/0003` re-inlines it (`=y`, matching cedric); verified working.
-**Working assumption for every new bug: check for a staging-4.9-ism first,
-and mirror official LineageOS 18.1** (reference clones live in the session
-scratchpad; re-clone `LineageOS/android_device_motorola_msm8937-common
-lineage-18.1` when needed).
+Boot was blocked by staging-4.9 userspace vs real 3.18 kernel (USB configfs,
+FBE, vold sysfs, eBPF claim) — fixed in `msm8937-common/0002–0006`. Wi-Fi
+needed `perry_defconfig` pronto `=y` (`kernel/0003`). Soft navbar needed
+`qemu.hw.mainkeys=0` (`perry/0010`; soc_id 303 not in init.qcom.sh allowlist).
+Camera “SEGV in notifyDeviceStateChange” was a **red herring**: primary
+failure was missing `camera.msm8937.so`; SEGV was null `mModule` after init
+fail because `@2.5-service` still registers. **Working assumption:** check
+staging-4.9-isms first; for camera, check packaging/blobs before shims.
 
 ---
 
@@ -35,38 +64,122 @@ lineage-18.1` when needed).
 
 | # | Issue | State / next step |
 |---|---|---|
-| 1 | **No back/home/recents (no navigation at all)** | **Patched (perry 0010); flash verify pending.** `qemu.hw.mainkeys=0` in `vendor_prop.mk` (live tree `ad4f633`). Overlay `threebutton` already on /data. Finish/rebuild zip with py2 on PATH (`prebuilts/python/.../2.7.5/bin`), flash, confirm `getprop qemu.hw.mainkeys` → `0` + navbar visible. |
-| 2 | **Camera stack crash-loops every boot** | Vendor `camera.provider@2.5-service` SEGVs (null deref) in `CameraModule::notifyDeviceStateChange` (2.5→2.4 legacy wrapper over Nougat HAL1 blobs); cameraserver aborts with it. Known issue class — needs the null-guard/shim on `notifyDeviceStateChange`. Check Lineage Gerrit / sibling trees for the standard fix; then actually test capture. |
-| 3 | **Mobile network greyed out (no RIL)** | Expected — untouched phase. XT1765 `proprietary-files.txt` rewrite + blob re-extraction from device (`scripts/extract-perry.sh adb`). Stock build id conflict to resolve first: device reports `NPNS26.118-22-1`, CLAUDE.md says `NCQS26.69-64-21`. GSM only, IMEI must survive (sacred partitions). |
+| 1 | Soft navbar | **FIXED.** `qemu.hw.mainkeys=0`, threebutton overlay on. |
+| 2 | **Camera** | **Platform stack verified 07-20 — see §1a.** qcamerasvr `running`, no link errors, 97 vendor tags exported. Blocks solely on stock 7.1.1 dump for imx219/s5k4h8/mot_ov5695. Then capture test. |
+| 3 | **Mobile network / RIL** | Untouched for bring-up. `rild` runs; `gsm.sim.state` was ABSENT last check (confirm SIM). XT1765 `proprietary-files.txt` rewrite + stock extract. Build-id note: live device has reported `NPNS26.118-22-1`; CLAUDE.md cites `NCQS26.69-64-21` — reconcile against the stock dump. GSM only; never touch `persist`/`modemst*`. |
+
+### P1a — Camera detail (read this)
+
+**Done**
+- Phase 0: injected montana `camera.msm8937.so`; ENOENT was also SELinux
+  (`system_file` from TWRP push → getattr denied). After `vendor_file`,
+  provider opened the HAL FD.
+- Phase 2: `device/motorola/perry/camera-vendor.mk` + inherit from
+  `device.mk` — ~94 SoC platform blobs from montana (HAL, mm-qcamera,
+  MCT/ISP, jpeg, moto metadata, gralloc1, …). Patch **0011**.
+- Fixed hand-trimmed `vendor/motorola/perry/perry-vendor.mk` dests:
+  was `$(TARGET_COPY_OUT_VENDOR)/vendor/...` → `/vendor/vendor/lib/`
+  (strip extra `vendor/`). Local only; regenerate properly when rewriting
+  proprietary-files.
+- **2026-07-20: gralloc1-inclusive vendor FLASHED and verified.**
+  (`/tmp` raw was lost to host reboot; regenerate any time via
+  `simg2img out/.../vendor.img` — the 07-19 23:21 build includes
+  gralloc1.)
+
+**Live device right now (post gralloc1 flash, 07-20)**
+- `camera.msm8937.so`, `mm-qcamera-daemon`, `libgralloc1.so` on /vendor
+- `init.svc.vendor.camera-provider-2-5=running`, `cameraserver=running`
+- `vendor.qcamerasvr=running` — **stable**, daemon steady in `do_select`;
+  zero `CANNOT LINK` in logcat. Link-dep chase is DONE.
+- `dumpsys media.camera`: **0 devices** (expected — no sensor libs);
+  provider exports 97 qcamera3 vendor tags
+- Kernel early-boot: `msm_eeprom_platform_probe failed 2192` ×2 — watch
+  when sensor libs land (OTP/eeprom → AF/AWB calibration)
+
+**Perry sensors (from `msm8917_mot_perry_camera.xml`)**
+- Back: `s5k4h8` or `imx219` (+ actuator `dw9718s` on device XML)
+- Front: `mot_ov5695` / chromatix `mot_ov5695_l5695fa0`
+- **Not in any moto-msm89xx vendor tree** except partial `mot_ov5695`.
+  Montana leftovers (s5k3p3/s5k3p8sp) are the wrong SKU.
+
+**Packaging architecture (do not confuse these):**
+
+| Makefile | Role |
+|---|---|
+| `camera-vendor.mk` | SoC platform stack from montana (HAL, daemon, MCT/ISP, jpeg, gralloc1, …) — patch **0011** |
+| `perry-vendor.mk` | Generated from `proprietary-files.txt` via `setup-makefiles.sh` — sensor/chromatix + perry-specific blobs |
+| `montana-vendor.mk` | Never inherited on perry; `BoardConfigVendor.mk` include is empty |
+
+**Packaging bugs (fixed locally or pending stock rewrite):**
+1. Missing HAL: `camera.msm8937.so` never packaged → **0011** / `camera-vendor.mk`.
+2. Double vendor path: hand-trimmed `perry-vendor.mk` dest
+   `$(TARGET_COPY_OUT_VENDOR)/vendor/...` → **`/vendor/vendor/lib/`** — regenerate via
+   `setup-makefiles.sh`, do not hand-edit.
+3. Wrong sensor SKU in `proprietary-files.txt` — only **26/99** paths matched live
+   XT1765 stock (porting-log). Stock dump rewrite is required for capture.
+
+**Root cause chain (for debugging — SEGV was not primary):**
+1. Primary: `hw_get_module` → `-2` because `camera.msm8937.so` missing.
+2. Secondary: `@2.5-service` registers even when init fails → null `mModule` →
+   SEGV at `notifyDeviceStateChange` (fault addr `0x8`).
+3. TWRP inject: files as `system_file` → SELinux getattr denial → still looks
+   like ENOENT until `chcon u:object_r:vendor_file:s0`.
+
+**Next camera steps (ordered)**
+1. ~~Flash latest vendor raw~~ **DONE 07-20.**
+2. ~~Confirm `vendor.qcamerasvr` stays `running`~~ **DONE 07-20** — no
+   further link deps.
+3. Ingest stock dump from user-provided **`[directory]`** (§4): extract
+   imx219/s5k4h8/dw9718s/chromatix; rewrite `proprietary-files.txt` camera
+   section; regenerate `perry-vendor.mk` via `setup-makefiles.sh`.
+4. Only if HAL loads and daemon is up but capture still dies: consider
+   null-guard on `notifyDeviceStateChange` / don't register when
+   `isInitFailed` — defensive, not the bring-up fix.
+5. Test still + video, front + back.
 
 ### P2 — after P1 / opportunistic
 
 | # | Issue | State |
 |---|---|---|
-| 4 | Sepolicy pass | Enforcing already; first known denial: `hal_health_default` read on sysfs `type` files, fires every ~20 s (benign, noisy). Do a full `audit2allow` sweep once camera/RIL HALs are in their final shape. |
-| 5 | Hardware audit (unverified subsystems) | BT (icon appears; untested), audio in/out, sensors, GPS, fingerprint, vibrator, LED, SD card + USB-OTG (patch 0005 should have fixed detection — verify), hotspot, MTP/file transfer. |
-| 6 | SystemUI one-off crash (keyguard skipped → "boots to home screen") | Crashed once at first-boot/setup, zero deaths since; stack lost to buffer rotation. Watch on future reboots; investigate only if it recurs. |
-| 7 | Early-boot cpuset write errors (`No space left on device`) | Still in logs, apparently harmless noise — revisit only if scheduling/perf problems appear. |
+| 4 | **FM radio** | Sepolicy: `get_prop(vendor_fm_app, vendor_fm_prop)`. Also live: `ctl.start` can't find `vendor.fm` service; `vendor.hw.fm.init` unset; app ANR. Fix init service + prop + sepolicy; headset as antenna. |
+| 5 | Sepolicy pass | Enforcing; `hal_health` sysfs noise + FM. Full `audit2allow` after camera/RIL/FM. |
+| 6 | Hardware audit | BT, audio, sensors, GPS, FP (egis, not FPC), vibrator, LED, SD/OTG, hotspot, MTP. |
+| 7 | SystemUI one-off at first boot | Watch only if recurs. |
+| 8 | Early-boot cpuset "No space left" | Harmless unless perf issues. |
 
-### P3 — before any release / daily-drive
+### P3 — before release / daily-drive
 
 | # | Item |
 |---|---|
-| 8 | Flip fstab `encryptable=` → `forceencrypt=` (bring-up choice in patch 0004; official ships forceencrypt) |
-| 9 | `TARGET_KERNEL_VERSION := 4.9` in `BoardConfigCommon.mk` — cosmetic lie that kernel/0002 works around; clean up and audit for remaining 4.9-isms |
-| 10 | Push xylitol to origin; consider forking moto-msm89xx repos if the patch stack keeps growing (per CLAUDE.md) |
-| 11 | TWRP follow-ups (optional): newer TWRP base port, build from kernel source, automate flex wrapper |
+| 9 | fstab `encryptable=` → `forceencrypt=` |
+| 10 | Drop `TARGET_KERNEL_VERSION := 4.9` lie; audit leftover 4.9-isms |
+| 11 | Push xylitol; consider forking moto-msm89xx if patches keep growing |
+| 12 | TWRP follow-ups (optional) |
 
 ---
 
-## 2. Patches (`patches/`) — all `git am`-verified against fresh upstream clones
+## 2. Patches (`patches/`)
 
-**perry (17.1 base):** 0001 Treble sepolicy/recovery · 0002 BOARD_COMMON · 0003 sepolicy/vendor · 0004 dtbtool Soong · 0005 extract harden · 0006 fingerprints HIDL root · 0007 file_contexts newline · 0008 MKE2FS ninja allowlist · 0009 VINTF kernel enforce false · **0010 soft navbar (`qemu.hw.mainkeys=0`)**  
-**msm8937-common (18.1):** 0001 Android.mk perry filter · **0002/0003 USB → legacy android_usb (+recovery)** · **0004 FBE → FDE-capable fstab** · **0005 vold sysfs paths → 3.18** · **0006 drop eBPF claim**  
-**kernel msm8953 (18.1):** 0001 perry_recovery_defconfig · 0002 V4L2 uapi aliases · **0003 pronto WLAN `=y`**  
-Meta: `config/mke2fs.conf` (apexer).
+**perry (17.1 base):** 0001–0009 as before · **0010** soft navbar ·
+**0011** camera platform stack from montana (`camera-vendor.mk`)  
+**msm8937-common (18.1):** 0001–0006 (USB/FBE/vold/eBPF)  
+**kernel msm8953 (18.1):** 0001–0003 (recovery defconfig, V4L2, pronto `=y`)  
+Meta: `config/mke2fs.conf`
 
-Earlier build-path fixes (apexer, VINTF, fc_sort, …): table in porting-log, all cleared.
+0011 applied live at perry `fb53f4e`. Re-verify `git am` on fresh clone
+when convenient.
+
+**Key paths:**
+
+| Item | Path |
+|---|---|
+| Handoff | `docs/handoff.md` |
+| Camera patch 0011 | `patches/device/motorola/perry/0011-perry-ship-msm8937-camera-platform-stack-from-montana.patch` |
+| Perry device tree | `~/android/lineage/device/motorola/perry/` |
+| `camera-vendor.mk` | `~/android/lineage/device/motorola/perry/camera-vendor.mk` |
+| Perry camera XML | `device/motorola/perry/configs/camera/msm8917_mot_perry_camera.xml` |
+| Extract wrapper | `~/GitHub/xylitol/scripts/extract-perry.sh` |
+| Vendor raw | flashed 07-20; regenerate: `simg2img out/.../vendor.img <raw>` |
 
 ---
 
@@ -74,48 +187,137 @@ Earlier build-path fixes (apexer, VINTF, fc_sort, …): table in porting-log, al
 
 ```bash
 export MKE2FS_CONFIG=$HOME/android/mke2fs.conf
-cd ~/android/lineage && source build/envsetup.sh && lunch lineage_perry-userdebug && m bacon
+export PATH="$HOME/android/lineage/prebuilts/python/linux-x86/2.7.5/bin:$PATH"
+cd ~/android/lineage && source build/envsetup.sh && lunch lineage_perry-userdebug
 
-# Flash cycle (device usually in ROM with adb):
-adb reboot recovery        # → TWRP (flashed on device)
+# Full ROM
+m bacon
+
+# Vendor-only (camera packaging iterates here)
+m vendorimage -j$(nproc)
+
+# CRITICAL: vendor.img is Android SPARSE — never raw-dd it to oem
+simg2img out/target/product/perry/vendor.img /tmp/vendor-raw.img
+# Flash via TWRP (oem == /vendor on perry; do NOT touch persist/modemst*):
+adb reboot recovery
+adb push /tmp/vendor-raw.img /sdcard/vendor-raw.img
+adb shell 'umount /vendor 2>/dev/null; dd if=/sdcard/vendor-raw.img of=/dev/block/bootdevice/by-name/oem bs=1M; sync'
+adb shell 'twrp mount vendor; ls /vendor/lib/hw/camera.msm8937.so /vendor/bin/mm-qcamera-daemon'
+adb reboot
+
+# Full zip flash
+adb reboot recovery
 adb push out/target/product/perry/lineage-18.1-*-perry.zip /sdcard/lineage.zip
 adb shell twrp install /sdcard/lineage.zip && adb reboot
-until adb shell getprop sys.boot_completed 2>/dev/null | grep -q 1; do sleep 3; done
 
-# Local TWRP (shrunk img fits 16.1MB partition):
-fastboot boot ~/android/recovery/twrp-perry-local-latest.img
-# Rebuild: scripts/sync-twrp.sh && scripts/build-twrp.sh (py27 + flex wrapper)
-
-# Crash forensics from TWRP:
-adb pull /sys/fs/pstore/ ~/android/lineage/logs/boot/pstore-$(date +%Y%m%d-%H%M%S)/
-
-# If stuck in fastboot:
+# If stuck in fastboot ("Reboot mode set to fastboot"):
 fastboot getvar reason && fastboot oem fb_mode_clear && fastboot reboot
 
-# Blob extraction (phone in system mode):
-bash ~/GitHub/xylitol/scripts/extract-perry.sh adb
+# Camera triage
+adb shell getprop init.svc.vendor.camera-provider-2-5 \
+                 init.svc.cameraserver init.svc.vendor.qcamerasvr
+adb logcat -d | grep -iE 'CamPrvdr|CANNOT LINK|mm-qcamera|Loaded .* camera'
+adb shell dumpsys media.camera | head -40
+
+# Perry-only blob extract (does NOT wipe msm8937-common):
+bash ~/GitHub/xylitol/scripts/extract-perry.sh /path/to/stock-dump
+# or: bash ~/GitHub/xylitol/scripts/extract-perry.sh adb   # from running ROM only
 ```
 
-**Sacred:** never wipe/repartition `persist` / `modemst1` / `modemst2`. No blobs / `out/` / Lineage tree in xylitol git. No Claude co-author trailers on commits.
+**Sacred:** never wipe/repartition `persist` / `modemst1` / `modemst2`.  
+No blobs / `out/` / Lineage tree in xylitol git. No AI co-author trailers.
 
 ---
 
-## 4. Next-agent opener
+## 4. Stock firmware dump — user provides path at session start
 
-> Flash the 0010 navbar build when `m bacon` finishes; verify soft nav.
-> Then P1-#2 (camera `notifyDeviceStateChange` shim). Check every new
-> bug against official LineageOS 18.1 first — staging-4.9 mismatch is
-> 5-for-5 so far. Log every fix in porting-log; export tree changes to
-> `patches/`.
+When the user says **"read the handoff; the stock firmware is at `[directory]`"**,
+use that path as `STOCK=...` below. This is the main input for finishing camera
+(and later RIL / FP / proprietary-files rewrite).
+
+**Expected layout (any of these is fine — discover with `find`):**
+
+```text
+[directory]/
+  README.txt          # build id, source URL, date fetched (user should add)
+  boot.img            # optional
+  system/             # unpacked system.img
+  system/vendor/      # Nougat often nests vendor here
+  vendor/             # if firmware ships a separate vendor.img extract
+```
+
+**Build-id conflict to reconcile:** live device reported `NPNS26.118-22-1`;
+CLAUDE.md cites `NCQS26.69-64-21`. Record the dump's actual build id in
+README and note which base the extracted blobs came from.
+
+**Step 1 — inventory (before extract):**
+
+```bash
+STOCK='[directory]'   # replace with user path
+
+# Camera HAL + daemon + sensor/chromatix (priority)
+find "$STOCK" \( -path '*lib/hw/camera*' -o -path '*mm-qcamera*' \
+  -o -iname '*imx219*' -o -iname '*s5k4h8*' -o -iname '*mot_ov5695*' \
+  -o -iname '*dw9718*' -o -path '*etc/camera*' \) -type f 2>/dev/null | sort
+
+# Later: RIL / fingerprint (do not block camera on these)
+find "$STOCK" \( -iname '*ril*' -o -iname '*qcril*' \
+  -o -iname '*egis*' -o -iname '*fingerprint*' \) -type f 2>/dev/null | sort
+```
+
+**Blobs we need from stock (camera-first):**
+
+```text
+**/lib/hw/camera*.so
+**/lib/libmmcamera*
+**/lib/libchromatix_imx219*
+**/lib/libchromatix_s5k4h8*
+**/lib/libchromatix_mot_ov5695*
+**/lib/libactuator_dw9718*
+**/lib/libmmcamera_imx219*
+**/lib/libmmcamera_s5k4h8*
+**/bin/mm-qcamera*
+**/etc/camera/*          # if present; perry XMLs already in device tree
+```
+
+**Step 2 — extract into Lineage tree (perry-only; does not wipe common):**
+
+```bash
+bash ~/GitHub/xylitol/scripts/extract-perry.sh "$STOCK"
+# or from running ROM only: bash ~/GitHub/xylitol/scripts/extract-perry.sh adb
+```
+
+**Step 3 — rewrite packaging (in `device/motorola/perry/`):**
+1. Update `proprietary-files.txt` camera section for XT1765 paths found in
+   `$STOCK` (drop montana s5k3p3/s5k3p8sp entries).
+2. Run `./setup-makefiles.sh` to regenerate `vendor/motorola/perry/perry-vendor.mk`.
+3. Keep platform stack in `camera-vendor.mk` (0011) — do not duplicate HAL/daemon
+   blobs into perry-vendor unless stock differs from montana.
+4. Export patch(es) to `patches/device/motorola/perry/`; log in porting-log.
+
+**Step 4 — rebuild and flash:** `m vendorimage` (iterate) or `m bacon`; flash
+vendor raw via TWRP oem (§3), then test capture.
+
+Perry has **no GPT `vendor` partition** — Lineage mounts **oem as `/vendor`**.
+Fastboot `flash vendor` fails; use oem/TWRP only.
 
 ---
 
-## 5. Parked — mainline side quest (do not start unprompted)
+## 5. Next-agent one-liner
 
-2026-07-19 recon of the `msm89x7-mainline` org: perry mainline DTS exists as
-**open PR msm89x7-mainline/linux#48**; pmOS boots perry via the generic
-`qcom-msm89x7` package + lk2nd (`msm8916-mainline/lk2nd` — the org's fork is
-archived). **Nothing usable in the LineageOS port** (blobs need
-ION/mdss/KGSL/prima; mainline is DRM/freedreno/wcn36xx). PR #48's DTS is the
-best public map of perry hardware — handy for HAL/sepolicy debugging.
-Details: porting-log same date + CLAUDE.md side-quest section.
+User will open with: **read the handoff; the stock firmware is at `[directory]`.**
+
+Then (vendor flash + qcamerasvr verify DONE 07-20): inventory + extract from
+`[directory]` → rewrite `proprietary-files.txt` camera section →
+`setup-makefiles.sh` → rebuild/flash → test capture. Chase any new
+`CANNOT LINK` into `camera-vendor.mk` / 0011. Opportunistic: FM init+sepolicy,
+RIL stock paths. Never raw-dd sparse `vendor.img`. Log + export patches.
+Sacred: no persist/modemst wipes.
+
+---
+
+## 6. Parked — mainline side quest (do not start unprompted)
+
+[msm89x7-mainline](https://github.com/msm89x7-mainline) / perry DTS PR
+[#48](https://github.com/msm89x7-mainline/linux/pull/48) — hardware map
+only (WCN3660B Iris, etc.). Nothing to port into 18.1 blob stack.
