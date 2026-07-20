@@ -75,4 +75,20 @@ EOF
 fi
 ccache -M "$CCACHE_SIZE"
 
+# Ubuntu 24.04+ ships e2fsprogs that enable orphan_file in /etc/mke2fs.conf.
+# Lineage 18.1's host mke2fs (1.45.x) rejects that feature when apexer builds
+# ART APEX images. Install a stripped config and force MKE2FS_CONFIG to it.
+META_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MKE2FS_CONF="$HOME/android/mke2fs.conf"
+echo "==> Installing Android-compatible mke2fs.conf -> $MKE2FS_CONF"
+mkdir -p "$(dirname "$MKE2FS_CONF")"
+cp "$META_DIR/config/mke2fs.conf" "$MKE2FS_CONF"
+if ! grep -qF 'MKE2FS_CONFIG=' "$HOME/.bashrc" 2>/dev/null; then
+  cat >> "$HOME/.bashrc" <<EOF
+
+# LineageOS 18.1 apexer + host mke2fs on Ubuntu 24.04+
+export MKE2FS_CONFIG=\$HOME/android/mke2fs.conf
+EOF
+fi
+
 echo "==> Done. Run 'source ~/.profile && source ~/.bashrc' or start a new shell."
