@@ -947,3 +947,103 @@ can stay on). USB configfs replaces the legacy-gadget dance.
 mechanical releases), and it reopens lineage-19.1/20 as a discussable
 target (xiaomi precedent) — the one path that raises the documented
 18.1 ceiling. Android 14+ remains off-limits (32-bit blobs).
+
+## 2026-07-20 — Camera: XT1765 sensor ingest — 2 devices enumerate ✅; open still broken
+
+Stock path (user-provided / corrected from handoff placeholder):
+`~/XT1765_PERRY_TMO_7.1.1_NCQS26.69-64-21_cid21_subsidy-TMO_RSU_regulatory-DEFAULT_CFC.xml`
+(also mirrored under `~/Downloads/…` — prefer the `~/XT1765_…` path).
+Build id **NCQS26.69-64-21** — matches CLAUDE.md (final Nougat); reconciles
+the earlier NPNS26.118-22-1 / NPQS26.69-64-17 notes (those were live/older
+fingerprints, not this dump). Unpacked to
+`~/android/stock-perry-NCQS26.69-64-21/`: simg2img sparsechunks, then strip
+**131072-byte** `MOT_PIV_FULL256` header (**128 KiB**, not 256) to get ext4;
+mount ro at `mnt-system` / `mnt-oem`; extract-files root `tree/`.
+
+**Sensor inventory (stock XML + chromatix XMLs under `mnt-system/etc/camera/`):**
+- Back: `s5k4h8` + `<EepromName>s5k4h8</EepromName>` + `<ActuatorName>dw9718s</ActuatorName>`
+  / alt `imx219` (+ `dw9718s`, no eeprom node on stock for imx219)
+- Front: `mot_ov5695` + `<EepromName>ov5695</EepromName>` / chromatix
+  **`l5695fa0`** (NOT the old `l5695f60` typo in pre-0012 proprietary-files)
+- Stock actuator libs present: `libactuator_dw9718s.so` (no `*_truly.so` for
+  dw9718s). Montana has `libactuator_dw9767_truly.so` (different chip) — naming
+  pattern only.
+- Extracted via `scripts/extract-perry.sh` + `setup-makefiles.sh`; dropped
+  montana s5k3p3/s5k3p8sp; trimmed missing FP/opalum/montana-touch pins.
+  Perry touch fw from stock: `synaptics-{ofilm,tianma}-*-perry.tdat`.
+
+**Packaging bugs fixed this session:**
+1. Montana `libmmcamera2_sensor_modules.so` hardcodes
+   `/vendor/etc/camera/msm8937_mot_camera_conf.xml`. Perry XMLs were on
+   `/system/etc/camera/` under the old name → daemon logged
+   `Cannot read file ... msm8937_mot_camera_conf.xml` and probed 0 cams.
+   Fix: `device.mk` installs perry camera XML as that vendor path + chromatix
+   XMLs alongside.
+2. With EepromName set, daemon got cameras then **SEGV** in montana
+   `eeprom_process+470` (fault addr `0x1`). Tombstone:
+   `/data/tombstones/tombstone_29` (2026-07-20 10:05), thread `CAM_sensor`,
+   `mm-qcamera-daemon`; nearby memory shows `s5k4h8` + `/dev/v4l-subdev0`.
+   Workaround shipped: omit `<EepromName>` nodes (AF/OTP deferred).
+3. Kernel still has early `msm_eeprom_platform_probe failed 2192`. On open,
+   CCI also logs `GPIO_31 already requested by 2-0028; cannot claim for
+   1b0c000.qcom,cci` — suspected related to eeprom/CCI; not chased yet.
+
+**Patch 0012** (`565193c` on perry device tree; xylitol patch file uncommitted
+until asked): proprietary-files rewrite + vendor camera conf path +
+EepromName omit.
+
+**Live verified after flash:** `dumpsys media.camera` → **2 devices**
+(back+front); `vendor.qcamerasvr=running`.
+
+## 2026-07-20 — Camera open blocker refined (docs handoff for research agent)
+
+Post-0012 Snap open of camera 0 fails. Framework: `openSession` `-2` then
+`initializeImpl` `-19`. Latest daemon chain (session-stream link **succeeds**;
+earlier “Null module / mct_stream_start_link failed” was an intermediate
+state, not the current hard fail):
+
+```text
+EEPROM MODULE NOT DETECTED! Unable to get module info!
+actuator_load_lib: dlopen() failed to load libactuator_dw9718s_truly.so
+actuator_load_bin: fopen /data/vendor/camera/actuator_dw9718s_truly.bin failed
+module_sensor_actuator_init_calibrate: ACTUATOR_INIT failed
+```
+
+We ship `libactuator_dw9718s.so` (stock); open asks for `…_dw9718s_truly.so`,
+which **does not exist on XT1765 stock**. `_truly` is a string inside stock
+`libmmcamera_s5k4h8_eeprom.so` (module-info vendor suffix). Omitting
+EepromName avoids the montana `eeprom_process` SEGV but leaves actuator
+init without module info — and something still resolves the actuator name
+to `dw9718s_truly`.
+
+Soft noise (not primary): `libmmcamera_sw_tnr.so` missing on both stock and
+montana.
+
+**Full attempt log:** earlier `docs/handoff.md` §1a (superseded by 0013
+fix below). Staging-4.9 remains parked.
+
+## 2026-07-20 — Camera open/still FIXED (patch 0013)
+
+**Root cause:** With `<EepromName>` omitted, montana
+`libmmcamera2_sensor_modules.so` defaults the actuator vendor suffix to
+`_truly` and dlopens `libactuator_dw9718s_truly.so`. XT1765 stock only
+ships `libactuator_dw9718s.so` (no `_truly` variant; stock’s own
+sensor_modules lacks that default). ACTUATOR_INIT failed → framework
+`initializeImpl -19`. (Earlier “mct_stream_start_link failed” was an
+intermediate state; latest opens already linked the session stream.)
+
+**Fix (0013, perry `8c6bae3`):** `device.mk` PRODUCT_COPY_FILES installs
+the same stock `libactuator_dw9718s.so` also as
+`libactuator_dw9718s_truly.so`. Comment in `proprietary-files.txt` so
+extract does not look for a non-existent stock blob.
+
+**Verified after TWRP oem flash of vendor-raw:**
+- Back: Snap open + still (`IMG_20260720_102724.jpg` ~2.5 MB, 3264×2448).
+- Front: `mot_ov5695` open + still (`IMG_20260720_102739.jpg`+).
+- Soft: first connect per camera often REJECT `-2` then CONNECT succeeds.
+- AF still broken without OTP: `msm_actuator_move_focus Invalid-region
+  size = 0` / ringing_params NULL — expected until EepromName restored.
+
+**Next camera:** fix montana `eeprom_process` SEGV (or kernel eeprom
+probe `2192` / GPIO_31 CCI) before restoring `<EepromName>`. Video
+smoke-test. Prefer RIL as next P1 unless continuing AF.

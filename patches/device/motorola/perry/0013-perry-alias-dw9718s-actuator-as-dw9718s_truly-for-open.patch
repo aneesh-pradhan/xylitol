@@ -1,0 +1,46 @@
+From 8c6bae34161c9a4b2c7473f4c05ec17a7f2ae3d8 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Mon, 20 Jul 2026 11:28:21 -0700
+Subject: [PATCH] perry: alias dw9718s actuator as dw9718s_truly for open
+
+Montana sensor_modules dlopens libactuator_<name>_truly.so when
+EepromName is omitted (default vendor "truly"). Stock only ships
+plain dw9718s - install the same blob under the _truly name so
+ACTUATOR_INIT succeeds and preview/capture can proceed.
+---
+ device.mk             | 3 ++-
+ proprietary-files.txt | 4 ++++
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/device.mk b/device.mk
+index b61d43e..bdcda46 100644
+--- a/device.mk
++++ b/device.mk
+@@ -44,7 +44,8 @@ PRODUCT_COPY_FILES += \
+     $(LOCAL_PATH)/configs/camera/msm8917_mot_perry_camera.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/msm8937_mot_camera_conf.xml \
+     $(LOCAL_PATH)/configs/camera/imx219_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/imx219_chromatix.xml \
+     $(LOCAL_PATH)/configs/camera/s5k4h8_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/s5k4h8_chromatix.xml \
+-    $(LOCAL_PATH)/configs/camera/mot_ov5695_l5695fa0_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/mot_ov5695_l5695fa0_chromatix.xml
++    $(LOCAL_PATH)/configs/camera/mot_ov5695_l5695fa0_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/mot_ov5695_l5695fa0_chromatix.xml \
++    vendor/motorola/perry/proprietary/vendor/lib/libactuator_dw9718s.so:$(TARGET_COPY_OUT_VENDOR)/lib/libactuator_dw9718s_truly.so
+ 
+ # Gatekeeper
+ PRODUCT_PACKAGES += \
+diff --git a/proprietary-files.txt b/proprietary-files.txt
+index afe0e45..7583255 100644
+--- a/proprietary-files.txt
++++ b/proprietary-files.txt
+@@ -33,6 +33,10 @@ vendor/lib/libubifocus.so
+ vendor/lib/libactuator_dw9718s.so
+ vendor/lib/libmmcamera_s5k4h8_eeprom.so
+ vendor/lib/libmmcamera_ov5695_eeprom.so
++# Note: montana sensor_modules loads libactuator_<name>_truly.so when
++# EepromName is omitted. device.mk installs dw9718s under that alias —
++# do not list a separate _truly blob here (stock has none).
++
+ 
+ # Camera sensors
+ vendor/lib/libmmcamera_imx219.so
+-- 
+2.53.0
+
