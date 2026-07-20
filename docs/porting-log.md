@@ -632,3 +632,35 @@ Next phase — hardware bring-up audit: RIL/data (XT1765 GSM), Wi-Fi,
 BT, camera, audio, sensors, GPS; then the XT1765 proprietary-files
 rewrite (stock build id conflict note in handoff §research-5), then
 decide encryptable→forceencrypt before any daily-drive/release.
+
+## 2026-07-19 — Wi-Fi fixed (kernel 0003); first-boot triage notes
+
+**Wi-Fi:** dead because `perry_defconfig` had `CONFIG_PRONTO_WLAN=m` and
+nothing in 18.1 userspace loads wlan.ko — official/cedric build it in
+(`=y`, kernel commit 612c0467 did exactly this for cedric; perry's
+defconfig missed it). Verified by manual insmod on the live device
+(firmware + wlan0 came up instantly; HAL still failed with
+`configureChip error: 9` from stale driverless state — runtime load
+isn't viable, built-in is required). **Kernel patch 0003
+`perry: re-inline pronto WLAN driver`** (=y). After rebuild+flash:
+wlan0 up at boot, framework enabled, 2.4+5 GHz scan works, associates
+to AP with status-bar signal. FIXED.
+
+**"Boots to home screen" (user report):** no PIN set
+(`CredentialType: None`) and SystemUI crashed once right at
+first-boot/setup time (KeyguardService DeadObjectException, stack
+rotated out of buffer), skipping the swipe keyguard. On the next clean
+boot SystemUI had zero deaths. Treat as one-off unless it recurs —
+re-check on future reboots.
+
+**Standing issues found in triage (next session):**
+1. **Camera stack crash-loop** (recurs every boot): vendor
+   `camera.provider@2.5-service` SEGV (null deref) in
+   `CameraModule::notifyDeviceStateChange` via 2.5→2.4 legacy wrapper;
+   takes cameraserver down (abort in `assertOk`). Known old-blob issue
+   class — needs the notifyDeviceStateChange guard/shim.
+2. **hal_health sepolicy denial** (benign but noisy, every ~20 s):
+   `hal_health_default` read on sysfs `type` files — first entry for
+   the sepolicy pass.
+3. RIL/mobile network: untouched (Settings shows it greyed) — XT1765
+   proprietary rewrite phase.
