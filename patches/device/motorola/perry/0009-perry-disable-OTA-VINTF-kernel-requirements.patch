@@ -1,0 +1,30 @@
+From 06e9ec79bdcb96b1d6922dfd507336b81d3c3031 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Sun, 19 Jul 2026 18:04:12 -0700
+Subject: [PATCH] perry: disable OTA VINTF kernel requirements
+
+Kernel remains 3.18.140; FCM level 4 has no 3.18 entries, so checkvintf
+fails at ota_from_target_files despite common enabling enforcement.
+---
+ device.mk | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/device.mk b/device.mk
+index f3df737..9747e4a 100644
+--- a/device.mk
++++ b/device.mk
+@@ -7,6 +7,11 @@
+ # Inherit from msm8937-common
+ $(call inherit-product, device/motorola/msm8937-common/msm8937.mk)
+ 
++# Kernel is still 3.18.140; Android 11 FCM level 4 has no 3.18 kernel
++# config entries, so OTA checkvintf fails with "No kernel entry found for
++# kernel version 3.18". Common sets this true for a 4.9-oriented tree.
++PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
++
+ # Get non-open-source specific aspects
+ $(call inherit-product-if-exists, vendor/motorola/perry/perry-vendor.mk)
+ 
+-- 
+2.53.0
+
