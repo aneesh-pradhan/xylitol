@@ -1089,5 +1089,28 @@ bring-up only.
   present). Wired headset required (antenna). Soft: recurring
   `vendor_fm_app` find on `mediametrics_service` — non-blocking.
 
-**Next:** RIL (P1). Optional FM follow-up: allow mediametrics find;
-user ear-check that audio plays through headset.
+## 2026-07-20 — User confirm: FM OK; camera AF still broken (bugreport)
+
+User ear-tested FM and confirmed it works end-to-end. Also re-tested
+Snap (open + stills with focus attempts); AF still broken as expected.
+
+**Bugreport (kept local, not in xylitol git):**
+`~/android/bugreports/perry/bugreport-perry_retail-RQ3A.211001.001-2026-07-20-13-20-02.zip`
+(on-device: `/data/user_de/0/com.android.shell/files/bugreports/` same name;
+dumpstate window ~13:20 local).
+
+**FM evidence in bugreport**
+- `vendor.fm` start → exit 0; `vendor.hw.fm.init` 0→1 triggers fire.
+- Live RDS while listening: `PS: [KMVQ-FM ]`, stereo lock, PI/PTY
+  present — confirms RF + audio path, not just enable/tune.
+
+**Camera / AF evidence in same bugreport**
+- Open + still OK: `PROFILE_OPEN_CAMERA camera id 0, rc: 0`; JPEGs
+  `IMG_20260720_1319{35,38,46,46_1,50,51}.jpg` (~2.3–3.3 MB, 3264×2448).
+- AF: **463×** `msm_actuator_move_focus: Invalid-region size = 0,
+  ringing_params = NULL` → `move focus failed -14` during the session.
+- Daemon: `EEPROM MODULE NOT DETECTED! Unable to get module info!`
+  (EepromName still omitted — intentional until montana `eeprom_process`
+  SEGV / kernel probe `2192` fixed).
+
+**Next:** RIL (P1). Camera AF = restore EepromName safely.
