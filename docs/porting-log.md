@@ -664,3 +664,24 @@ re-check on future reboots.
    the sepolicy pass.
 3. RIL/mobile network: untouched (Settings shows it greyed) — XT1765
    proprietary rewrite phase.
+
+## 2026-07-19 — Navbar missing (no back/home/recents): root-caused
+
+User report: no navigation at all. Two stacked causes:
+
+1. All `com.android.internal.systemui.navbar.*` RRO overlays were
+   disabled (even `threebutton`, normally default-on). Enabled
+   `threebutton` via `cmd overlay enable-exclusive` — persists in the
+   /data overlay store.
+2. Deeper: framework thinks perry has hardware keys.
+   `init.qcom.sh` sets `qemu.hw.mainkeys 0` only for soc_ids
+   317/318/324–327 (msm8937/8940 family) — perry's msm8917 is
+   **soc_id 303**, not in the list, and no device tree sets
+   `config_showNavigationBar`. So `mHasNavigationBar=false` and no
+   navbar (and no gesture nav either) regardless of overlay.
+
+**Fix for next build:** add `qemu.hw.mainkeys=0` to perry's
+`PRODUCT_PROPERTY_OVERRIDES` (device/motorola/perry) — perry-specific,
+E4 stock uses an on-screen navbar. (Alternative: add soc_id 303 to the
+init.qcom.sh case; prop is simpler and boot-order-safe.) Not yet
+patched — queued for next session's batch.
