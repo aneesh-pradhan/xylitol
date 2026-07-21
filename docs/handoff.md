@@ -4,11 +4,17 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-**Date:** 2026-07-20  
-**Headline:** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb, Wi-Fi, soft
-navbar, **FM radio user-confirmed** (0007), **camera open/still** (0011–0013;
-**0015** keeps montana `sensor_modules`). **AF still broken.** SELinux
-Enforcing. **RIL next** (or AF retry with a non-preview-breaking approach).  
+**Date:** 2026-07-20 (updated late — post fdt/lk2nd work)  
+**⚑ Next session: see [▶ Next session — start here](#-next-session--start-here-2026-07-20-late).**  
+**Headline (Android):** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb,
+Wi-Fi, soft navbar, **FM radio user-confirmed** (0007), **camera open/still**
+(0011–0013; **0015** keeps montana `sensor_modules`). **AF still broken.**
+SELinux Enforcing. **RIL is the standing priority** (or AF retry with a
+non-preview-breaking approach).  
+**Headline (pmOS):** boots to edge userspace (`7.0.9-msm89x7`); Wi-Fi, Ofilm
+display, USB-net/SSH all up. **Boot chain now durable + validated:** extlinux
+`fdt` deviceinfo pin **and** lk2nd perry device node (both hardware-validated
+this session). Next pmOS gaps: audio UCM, modem/ModemManager, sensors.  
 **pmOS side quest — NOW THE ACTIVE WORK (2026-07-20):** Phase E
 **FLASHED** and **BOOTING**. **Blocker B is CLEARED** — the kernel that was
 "blind & mute" now boots to a full postmarketOS edge userspace
@@ -56,7 +62,47 @@ Two parallel tracks on the same device. **pmOS is the recently-active track**
 (this session); **Lineage/Android is the primary long-term track** (its own
 work queue is [§1 below](#1-open-issues--the-work-queue)).
 
+### ▶ Next session — start here (2026-07-20 late)
+
+Boot chain is now solid on pmOS (durable `fdt` + upstream-matching lk2nd
+identity, both hardware-validated). Pick **one** track to resume:
+
+- **pmOS bring-up (continues this session's momentum).** Top functional gaps
+  from the feature matrix, by value:
+  1. **Audio — perry UCM profile** (highest value; card `motorola-perry` +
+     Q6/WCD up but `alsaucm` → `-2`, `speaker-test` "no backend DAIs". Needs a
+     perry/msm89x7 UCM; siblings only ship montana/hannah/potter). Without it
+     the phone is mute.
+  2. **Modem / data — install & test ModemManager** (AT responds on
+     `/dev/wwan0at0`; no MM package; needs a SIM to test calls/SMS/data).
+  3. Sensors: **vibrator**, **prox/ALS** (missing nodes) — smaller wins.
+  4. Long tail / low priority: **cameras** (camss/cci disabled in DT — big
+     effort, wiki says broken), **GPS** (not present).
+  5. Cosmetics/minor: initramfs splash timeout (#6), USB-net autosuspend (#7).
+- **LineageOS/Android (the project's north-star goal).** **RIL / mobile
+  network** is the standing PRIORITY (untouched); then camera AF; then
+  sepolicy/hardware-audit/release hygiene. Board: [§1](#1-open-issues--the-work-queue).
+
+**Recommendation:** if the aim is a usable pmOS Linux phone, do **audio UCM**
+next. If the aim is the daily-driver Android ROM (CLAUDE.md's actual goal),
+switch back to **Lineage RIL** — pmOS is explicitly a side quest.
+
+**Housekeeping (no action now):** drop `pmos/lk2nd/0001-*` + the lk2nd
+`pkgrel` bump once pmaports bumps lk2nd past `d9ce4e70` (perry is already in
+lk2nd `main`; our carry is a backport onto the pinned 22.0).
+
 ### Done this session (pmOS) — for context
+
+- ✅ **lk2nd perry device node** — built (r3), flashed, hardware-validated:
+  lk2nd now IDs `Motorola Moto E4 (perry)` (no FIXME/`-1`), pmOS boots through
+  it. Already upstream (`d9ce4e70`); our patch is a temporary backport.
+  [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md).
+- ✅ **Solution-2 DTB hacks (`fb=okay`/`usb=peripheral`) RETIRED** — evidence
+  (all siblings ship simplefb disabled + `dr_mode=otg`); no overlay change.
+- ✅ **fdt installer hardened** — `pmos-install-perry-deviceinfo.sh` now
+  asserts an explicit `fdt` (fails on `fdtdir`/wrong DTB count).
+
+### Done earlier this session (pmOS) — for context
 
 - ✅ **Blocker B cleared** — pmOS boots to a full userspace (`7.0.9-msm89x7`
   aarch64), reachable over USB-net + SSH.
@@ -89,7 +135,7 @@ work queue is [§1 below](#1-open-issues--the-work-queue)).
 | 6 | **Cosmetic: initramfs splash timeout** | `/dev/fb0` appears ~27 s (DPU/DSI bind), past the 10 s initramfs wait → no splash. Bump the wait or get the panel probing earlier. Non-blocking. |
 | 7 | **USB-net stability** | Gadget auto-suspends, wiping the host IP. If iterating a lot: pin a NetworkManager profile for the cdc_ncm iface and/or disable device autosuspend. |
 | 8 | **(optional) Device-exact NV in the pmaport** | Mirror NV (`3076c1a0…`) ≠ this unit's stock NV (`4f88c4c5…`, in backups). RF/regulatory cal only; MAC is SoC-derived. Bake stock in if you want this exact XT1765's cal — see [`pmos.md`](pmos.md) step 6. |
-| 9 | **(optional) Upstream contributions** | Report Ofilm-v0 panel detection to linux-panel-drivers#6 / linux#48; the pmaports NV path mismatch is worth a note too. |
+| 9 | **(optional) Upstream contributions** | lk2nd perry node is **already upstream** (`d9ce4e70`) — no PR needed. Still worth reporting: Ofilm-v0 panel detection to linux-panel-drivers#6 / linux#48, and the pmaports NV path mismatch. |
 
 ### Lineage/Android — next (unchanged priority)
 
