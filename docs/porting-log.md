@@ -2175,3 +2175,64 @@ verified the built apks/rootfs contents at each step rather than trusting
 "up to date" / exit-code-0 alone — this is what caught gotchas 3 and 4 above.
 **Not yet confirmed on hardware** — flash is still parked; next flash should
 visually confirm a splash appears instead of a black screen for ~27s.
+
+## 2026-07-21 (later) — flash checkpoint: fresh P1/P1.5 image flashed to hardware
+
+User asked for a "sanity check checkpoint": push today's build (P1 kernel
+scrub + P1.5 framebuffer-wait fix) to the device for them to verify, after
+the [P1.5 PR (#14)](https://github.com/aneesh-pradhan/xylitol/pull/14) was
+merged. Device was already sitting in stock fastboot (`product: perry`,
+serial `ZY224TB8KZ`) when the session started — no physical interaction
+needed to begin.
+
+**Gotcha found before flashing:** `scripts/pmos-flash-phase-b-force.sh`
+(the proven-working path, per handoff.md history of two prior hangs on the
+plain `fastboot flash userdata` path) reads
+`artifacts/pmos-phase-b/motorola-perry-phosh.sparse.img`, but
+`scripts/pmos-build-phase-b.sh` only ever produces the **raw**
+`motorola-perry-phosh.img` — it never regenerates the sparse variant. The
+`.sparse.img` sitting in `artifacts/` was stale from an early session
+(00:36 timestamp, hours before *any* of today's P1/P1.5 work). Flashing it
+as-is would have silently pushed old content and defeated the entire point
+of the checkpoint. Fixed by regenerating fresh before every flash:
+```bash
+img2simg motorola-perry-phosh.img motorola-perry-phosh.sparse.img
+```
+(`lk2nd-force-fastboot.img` did **not** need regenerating — lk2nd itself
+was untouched this session, confirmed via the build logs showing
+"Package 'lk2nd' is up to date" throughout.)
+
+**Flash sequence (all via `pmos-flash-phase-b-force.sh`), full log kept at
+session scratchpad `flash-phase-b.log`:**
+1. Stock fastboot → `fastboot flash boot lk2nd-msm8952-perry.img` (normal
+   lk2nd written to `boot`) → `fastboot boot lk2nd-force-fastboot.img`
+   (RAM-only boot of the force-fastboot variant, no flash).
+2. Waited for `product=lk2nd-msm8952` (succeeded on the first check, `t=1`).
+3. `fastboot flash -S 100M userdata motorola-perry-phosh.sparse.img` — 12
+   chunks of ~100MB each. Chunks 1–11 each completed in 2.5–4.6s. **Chunk
+   12/12 (the last one) took 187.1 seconds to write** — no host-side CPU
+   activity during that window (`ps` showed the `fastboot` process in `D`
+   state, i.e. genuinely blocked on device I/O, not spinning or crashed).
+   This *looked* exactly like the historical "hung on chunk 3/3" failure
+   mode from handoff.md while it was happening — the distinguishing signal
+   that it wasn't actually stuck was the process state (`D`, alive, blocked
+   on I/O) rather than a dead/zombie process, plus the fact it eventually
+   completed on its own without any intervention. **Do not assume a
+   long-sitting final chunk is a hang — check `ps aux | grep fastboot` for
+   process state before considering any recovery action.** Total flash
+   time: 306.5s (~5 min), matching the script's own "5–10 minutes" estimate.
+4. `fastboot flash boot lk2nd-msm8952-perry.img` again (restore normal
+   lk2nd so the device boots pmOS normally afterward, not straight back
+   into force-fastboot).
+5. `fastboot continue` → `FLASH_COMPLETE`.
+
+**Sacred partitions:** never touched — only `boot` (lk2nd, twice, both
+non-destructive/reversible) and `userdata` (destructive there, expected and
+documented). No `persist`/`modemst1`/`modemst2` interaction at any point.
+
+**Outcome:** flash completed cleanly, device resumed boot via
+`fastboot continue`. **On-device visual/SSH confirmation is the user's to
+do** (they explicitly asked to verify themselves) — specifically whether
+Phosh boots normally and whether the P1.5 splash now renders instead of the
+~27s black screen. See handoff.md "Next session — start here (post-flash
+checkpoint)" for the follow-up.

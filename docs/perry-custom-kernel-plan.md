@@ -4,11 +4,11 @@
 **Track:** postmarketOS (primary). Lineage 3.18 / staging-4.9 stay out of
 scope here — different ABI, different goals.  
 **Status:** In-repo **device + custom kernel packages are the active work**.
-Phase B image was built (P0 included); **hardware flash is parked** (lk2nd
-userdata write hung / device wedged — do not resume unless asked). **P1
-repo-side work is done** (defconfig scrub, eMMC udev, cpufreq audit, P1.5
-framebuffer-wait fix); only **P1.3 waits on device measurement** (needs a
-flash + on-device baselines).
+Phase B image built (P0 included), **flashed to hardware 2026-07-21**
+(see porting-log "flash checkpoint"). **P1 repo-side work is done**
+(defconfig scrub, eMMC udev, cpufreq audit, P1.5 framebuffer-wait fix);
+**P1.3 is now unblocked** — device is flashed, so on-device
+`mangohud`/`govstat` baselines can be captured whenever someone picks it up.
 
 ---
 
@@ -133,7 +133,7 @@ expected win, risk, and deps.
 |---|---|---|---|---|
 | P1.1 | **Production defconfig scrub** | ✅ 2026-07-21 | kernel config | Dropped function tracer / dynamic ftrace (kept `FTRACE`/tracepoints), `DYNAMIC_DEBUG`, `FW_LOADER_DEBUG`, `CIFS_DEBUG*`, `BLK_DEBUG_FS`; disabled non-perry Motorola/Xiaomi panel modules (kept Ofilm + Tianma). Alpine/clang options preserved (no host `olddefconfig`). `linux-motorola-perry` **pkgrel=1**. |
 | P1.2 | CPUFreq / schedutil tuning | ✅ audited | DT + config | `msm8917.dtsi` already has OPPs 960 / 1094.4 / 1248 / 1401.6 MHz + cooling-cells; perry enables `&gpu`; default gov **schedutil**. No DT patch until on-device baselines. |
-| P1.3 | GPU opp / cooling | ⏳ needs device | DT + mesa | Profile after flash resumes; reserved `0101` in patches README. |
+| P1.3 | GPU opp / cooling | ⏳ unblocked, not started | DT + mesa | Device flashed 2026-07-21 — capture baselines, then reserved `0101` in patches README. [GitHub #3](https://github.com/aneesh-pradhan/xylitol/issues/3). |
 | P1.4 | eMMC: MQ / scheduler | ✅ udev | udev | `60-perry-emmc-scheduler.rules` → `mq-deadline` on `mmcblk0`; `device-motorola-perry` **pkgrel=2**. |
 | P1.5 | Earlier DRM console / shorter splash | ✅ 2026-07-21 (repo-side; needs flash to confirm) | initramfs + deviceinfo | `pmos/postmarketos-initramfs/0001-*.patch` adds `deviceinfo_framebuffer_wait_seconds` (default 10, unchanged elsewhere); perry sets 35 (observed ~27s DPU/DSI bind + margin). `device-motorola-perry` **pkgrel=3**. Not simplefb. [GitHub #4](https://github.com/aneesh-pradhan/xylitol/issues/4). |
 | P1.6 | Reduce kernel timer / tick noise | ✅ with P1.1 | config | `HZ` **300 → 250**; left `NO_HZ_IDLE` (no `NO_HZ_FULL` on 4‑core phone). |
@@ -189,7 +189,7 @@ Record numbers in `docs/porting-log.md` with date before/after each P0/P1 change
 | Phase | Deliverable | Gate |
 |---|---|---|
 | **A** | Scaffold `device-motorola-perry` + `linux-motorola-perry` in xylitol | ✅ DONE |
-| **B** | Apply scripts; build kernel+device; Phosh image staged | ✅ build DONE; **flash PARKED** 2026-07-21 |
+| **B** | Apply scripts; build kernel+device; Phosh image staged | ✅ build DONE; **flashed to hardware** 2026-07-21 |
 | **C** | P0 userspace (zram pct, `--no-recommends`, WLR env, USB udev, presets) | ✅ in device package + Phase B image recipe |
 | **D** | P1 defconfig scrub + eMMC udev + cpufreq audit + P1.5 framebuffer-wait | ✅ repo-side DONE; P1.3 + on-device metrics still open |
 | **E** | Optional upstream deviceaport / drop generic msm89x7 dependency | Community readiness |
