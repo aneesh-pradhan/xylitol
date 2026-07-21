@@ -14,23 +14,27 @@ daily-driver Android replacement — but the base is real and usable.
 | Area | State |
 |---|---|
 | Boot to userspace | ✅ postmarketOS edge, kernel `7.0.9-msm89x7`, **aarch64** |
-| Display (Ofilm 499v0 panel) | ✅ **first-light confirmed** — msm DPU → DSI → `motorola,perry-499v0-ofilm`, 720×1280, backlight under driver control |
+| Phosh mobile UI | ✅ greetd → phrog → phosh; 720×1280@60; GPU (freedreno); touch |
+| Display (Ofilm 499v0 panel) | ✅ msm DPU → DSI → `motorola,perry-499v0-ofilm`, backlight under driver control |
 | USB networking + SSH | ✅ CDC-NCM gadget at `172.16.42.1`, key-based SSH |
 | Wi-Fi (`wcn36xx`) | ✅ scans + associates (WPA2) + DHCP + internet, auto-reconnects on boot |
-| Console | ✅ framebuffer console + `agetty` login on the panel |
+| Audio (Speaker + Mic) | ✅ perry ALSA UCM (`alsa-ucm-motorola-perry`); WirePlumber sink/source |
 | Sacred partitions | untouched — `persist` / `modemst1` / `modemst2` never flashed |
 
-Not yet exercised here: Bluetooth, audio, sensors, GPS, vibrator, cameras.
-The pmOS wiki feature matrix claims most of these work on this
-kernel+lk2nd; treat them as "probably, untested by us."
+Not yet: modem (needs SIM), sensors (vibrator/prox/ALS), cameras (off in DT),
+GPS. BT/accel/battery looked OK on a feature-matrix walk.
+
+**Prebuilt flashable image:**
+[GitHub Release `pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
+(lk2nd + zstd rootfs). Rebuild with
+[`../scripts/pmos-build-phosh-release.sh`](../scripts/pmos-build-phosh-release.sh).
 
 Two known rough edges:
 - **No boot splash.** The initramfs splash times out
   (`/dev/fb0 did not appear after waiting 10 seconds`) because the DRM
-  framebuffer only appears at ~27 s when the DPU/DSI binds. The console
-  framebuffer comes up fine right after — cosmetic only.
-- **Wi-Fi NV must be added by hand** (see step 6) and is a proprietary blob,
-  so it is not shipped in this repo.
+  framebuffer only appears at ~27 s when the DPU/DSI binds. Cosmetic only.
+- Occasional `phoc … DSI-1 Atomic commit failed: Resource busy` (~0.1%). If it
+  ever freezes the display: `WLR_DRM_NO_ATOMIC=1` for phoc.
 
 ## Heads-up before you start
 
@@ -74,10 +78,14 @@ pmbootstrap init
 #   vendor:  qcom
 #   device:  qcom-msm89x7      (generic MSM8917/8937 Qualcomm port)
 #   kernel:  postmarketos-qcom-msm89x7
-#   UI:      console  (or a GUI if you want to try one)
+#   UI:      phosh            (durable phone shell; or console for bring-up)
 #   set a username; enable SSH keys:
 pmbootstrap config ssh_keys True
 ```
+
+**Fast path (recommended):** skip the manual steps below and run
+`./scripts/pmos-build-phosh-release.sh` — it applies every overlay, builds with
+UI=phosh, and stages release assets under `artifacts/pmos-release/`.
 
 ### 2. (optional) Understand the overlay
 
@@ -134,10 +142,13 @@ boot-deploy emits `fdt /msm8917-motorola-perry.dtb` instead. Do this *before*
 ```bash
 cd ~/GitHub/xylitol
 ./scripts/pmos-apply-perry-deviceinfo.sh
-pmbootstrap checksum deviceinfo-motorola-perry
-pmbootstrap build    deviceinfo-motorola-perry
-pmbootstrap install  --add deviceinfo-motorola-perry \
-                     --add firmware-motorola-perry-nv   # Wi-Fi; see step 6
+./scripts/pmos-apply-perry-firmware.sh
+./scripts/pmos-apply-perry-ucm.sh
+pmbootstrap config ui phosh
+pmbootstrap build deviceinfo-motorola-perry
+pmbootstrap build firmware-motorola-perry-nv
+pmbootstrap build alsa-ucm-motorola-perry
+pmbootstrap install --add deviceinfo-motorola-perry,firmware-motorola-perry-nv,alsa-ucm-motorola-perry
 ```
 
 On an already-flashed device, `./scripts/pmos-install-perry-deviceinfo.sh`

@@ -1,9 +1,13 @@
 # Maintainer: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
 # Local-only pmaport (not upstream). Installs /etc/deviceinfo so boot-deploy
 # emits an explicit perry fdt line instead of fdtdir / (Blocker A).
+#
+# Also enables systemd linger for the default image user (aneesh) so PipeWire /
+# WirePlumber stay up without an open login — needed for headless SSH audio and
+# harmless under Phosh (the graphical session already keeps them alive).
 pkgname=deviceinfo-motorola-perry
 pkgver=1
-pkgrel=0
+pkgrel=1
 pkgdesc="perry: pin deviceinfo_dtb so boot-deploy emits fdt (not fdtdir)"
 url="https://github.com/aneesh-pradhan/xylitol"
 arch="noarch"
@@ -13,6 +17,9 @@ options="!check"
 
 package() {
 	install -Dm644 "$srcdir/deviceinfo" "$pkgdir/etc/deviceinfo"
+	# Equivalent to `loginctl enable-linger aneesh` (empty marker file).
+	install -d "$pkgdir/var/lib/systemd/linger"
+	touch "$pkgdir/var/lib/systemd/linger/aneesh"
 }
 
 sha512sums="

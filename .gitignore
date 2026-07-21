@@ -9,6 +9,7 @@ out/
 ccache/
 *.img
 *.img.gz
+*.img.zst
 *.zip
 *.tar
 *.tar.gz
@@ -16,6 +17,7 @@ ccache/
 *.bin
 proprietary/
 vendor/motorola/
+artifacts/
 
 # Stock dumps and device extracts
 stock-*/

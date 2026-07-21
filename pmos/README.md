@@ -74,3 +74,29 @@ pmbootstrap build    deviceinfo-motorola-perry
 pmbootstrap install  --add deviceinfo-motorola-perry
 # live device: ./scripts/pmos-install-perry-deviceinfo.sh
 ```
+
+Also enables systemd linger for the default image user (`aneesh`) via
+`/var/lib/systemd/linger/aneesh` (same effect as `loginctl enable-linger`).
+
+## ALSA UCM (`alsa-ucm-motorola-perry`)
+
+Ships the perry UCM2 profile (Speaker + Mic) and disables WirePlumber's
+libcamera monitor (cameras off in DT; that monitor crash-loops).
+
+```bash
+./scripts/pmos-apply-perry-ucm.sh
+pmbootstrap build   alsa-ucm-motorola-perry
+pmbootstrap install --add alsa-ucm-motorola-perry
+```
+
+## Durable Phosh image (all of the above)
+
+One-shot that applies every overlay, builds with **UI=phosh**, and stages
+GitHub Release assets (lk2nd + zstd-compressed rootfs + `FLASH.md`):
+
+```bash
+./scripts/pmos-build-phosh-release.sh           # build + stage under artifacts/
+./scripts/pmos-build-phosh-release.sh --upload  # also publish via gh release
+```
+
+Does **not** flash. Reproduction / flash steps: [`../docs/pmos.md`](../docs/pmos.md).

@@ -1936,17 +1936,47 @@ benign for now. **If it ever manifests as freeze/glitch:** force phoc off the
 atomic KMS path with `WLR_DRM_NO_ATOMIC=1` (drop-in env for the phoc/greetd
 session) — the standard wlroots-on-Qualcomm workaround. Not applied (unneeded).
 
-**DURABILITY — IMPORTANT (owed, not yet done):** the UI was `apk add`ed onto the
-running rootfs, so it does **NOT survive `pmbootstrap install`** (rootfs regen).
-To make perry ship Phosh from a clean install:
-- `pmbootstrap init` → select **UI: phosh** (or add `postmarketos-ui-phosh` via
-  `pmbootstrap install --add postmarketos-ui-phosh`), **plus** our pmaports:
-  `alsa-ucm-motorola-perry` (audio), `firmware-motorola-perry-nv` (Wi-Fi),
-  `deviceinfo-motorola-perry` (fdt), and the lk2nd carry.
-- Runtime still needed once (headless): `loginctl enable-linger aneesh`.
-- Consider a `postmarketos-ui-phosh` default in a perry device pmaport later.
+**DURABILITY — DONE 2026-07-21:** clean Phosh install image built and published.
+See porting-log entry below ("Durable Phosh image + GitHub Release").
 
 **Cumulative pmOS state:** boots → Phosh mobile UI (720×1280, GPU-accelerated,
-touch) with Wi-Fi + **working audio** (this session's UCM). Remaining: durable
-UI in the install image; audio route polish (earpiece/headset under phosh);
-modem (needs SIM); sensors (vibrator/prox/ALS); cameras (disabled in DT).
+touch) with Wi-Fi + **working audio** (this session's UCM). Remaining: on-device
+reflash-validate of the published image; audio route polish (earpiece/headset
+under phosh); modem (needs SIM); sensors (vibrator/prox/ALS); cameras
+(disabled in DT).
+
+## 2026-07-21 — Durable Phosh image + GitHub Release
+
+Closed the durability gap from the Phosh bring-up: the UI had been `apk add`ed
+onto a console rootfs and would not survive `pmbootstrap install`.
+
+**What changed**
+- `deviceinfo-motorola-perry` pkgrel 0→1: still pins `deviceinfo_dtb`, and now
+  also ships `/var/lib/systemd/linger/aneesh` (same as `loginctl enable-linger`).
+- New `scripts/pmos-build-phosh-release.sh`: applies all overlays, sets
+  `ui=phosh`, builds with `--add deviceinfo-motorola-perry,firmware-motorola-perry-nv,alsa-ucm-motorola-perry`,
+  exports, zstd-compresses the rootfs, loop-mount sanity-checks (extlinux
+  `fdt /msm8917-motorola-perry.dtb`, DTB present, NV at DTS path, UCM, phosh,
+  linger), stages `FLASH.md` + `SHA256SUMS`.
+- Docs: `docs/pmos.md`, `pmos/README.md`, handoff updated.
+
+**Build result**
+- Image: `qcom-msm89x7.img` **4935M** (boot 512M + root with `extra_space=2048`)
+- Compressed: **~557 MiB** `.img.zst` (fits GitHub Releases easily)
+- lk2nd: perry node carry (r3), 315 KiB
+- Password for the public image: `147147` (documented; change after first boot)
+
+**Published:**
+[https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
+
+**Not yet done at publish time:** hardware reflash-validate.
+
+**Reflash-validate PASS (same day):** flashed release `lk2nd-msm8952-perry.img`
+→ `boot` and `qcom-msm89x7-perry-phosh.img` → `userdata` from lk2nd fastboot
+(`lk2nd:device: perry`). After `fastboot continue`: USB-net + SSH, kernel
+`7.0.9-msm89x7`, `graphical.target` + greetd active, phosh + phoc running,
+extlinux has `fdt /msm8917-motorola-perry.dtb`, linger marker present,
+UCM + WCNSS NV + all four perry apks installed, **wlan0 connected**. Sacred
+partitions never touched. Host gotcha: NetworkManager on the build host can
+steal the cdc_ncm iface — `nmcli device set <iface> managed no` before
+assigning `172.16.42.2/24`.
