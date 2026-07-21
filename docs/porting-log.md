@@ -1587,3 +1587,46 @@ DPU→DSI→Ofilm-panel→backlight chain drives the glass. **Panel = WORKING.**
 fb0 only appears at ~27 s when the DPU/DSI binds, past the 10 s initramfs
 wait; the console fb comes up fine afterward. Non-blocking; a splash-timing
 nicety for later.)
+
+## 2026-07-20 — pmOS feature-matrix walk (SSH)
+
+Walked the wiki-claimed feature matrix over USB-net SSH on the live
+`7.0.9-msm89x7` edge install (XT1765 / perry). Also: squash-merged PR #2
+(`firmware-motorola-perry-nv`), closed Cursor cloud draft PR #1, deleted
+`cursor/setup-dev-environment-ec44`, and did a `main`→`main1`→`main` default-
+branch rename so GitHub's contributors list drops `cursoragent` (API now
+shows only `aneesh-pradhan`).
+
+### Results
+
+| Feature | Result | Evidence |
+|---|---|---|
+| Wi-Fi | **Works** | `wlan0` associated (WPA2), DHCP, internet |
+| USB-net / SSH | **Works** | CDC-NCM @ `172.16.42.1`; host self-assigns `.2` |
+| Display (Ofilm) | **Works** | `card0-DSI-1` connected 720×1280, backlight 2048 |
+| Touch | **Works** | `Synaptics S3603R` input present |
+| 3D / GPU | **Works** (bound) | Adreno via msm DRM; `card0` + `renderD128`; a300 fw loaded |
+| Battery / charge | **Works** | `qcom-battery` 99%, USB online via `qcom-smbchg-usb` |
+| Bluetooth | **Works** | `hci0` up (`btqcomsmd`); after `apk add bluez`, scan saw many LE devices (EDIFIER BLE, etc.). Address `02:00:02:4B:07:1A` |
+| Accel | **Works** | IIO `bma253` on `i2c-sensors` (`imu@18`); raw xyz changing |
+| Prox / ALS | **Missing** | No IIO/input nodes; only PMIC ADCs + bma253 |
+| GPS | **Not present** | No gnss module/device; reserved-mem `gps` region only |
+| Vibrator | **Missing** | No `/sys/class/leds/vibrator`, no DT vib/haptic node, no FF device |
+| Audio | **Partial / broken UX** | Card `motorola-perry` + WCD/APR/Q6 up; PCM nodes exist. **No UCM for perry** (`alsaucm` → `-2`); sibling UCMs are montana/hannah/potter only. `speaker-test` → `-22` / "no backend DAIs enabled for MultiMedia1". Needs a perry (or msm89x7) UCM profile |
+| Cameras | **Broken** (as wiki) | `camss@1b00000` + `cci@1b0c000` both `status=disabled` in DT. `/dev/video0/1` are Venus enc/dec only — no CAMSS |
+| Modem | **Partial** | `/dev/wwan0at0` answers `AT`/`ATI` (Motorola Mobility / MPSS.JO.3.0). `AT+CPIN?` → `SIM not inserted` (no SIM in this test). No ModemManager package |
+
+### Side effect — `apk add` rewrote extlinux back to `fdtdir /`
+
+Installing `bluez`/`alsa-utils`/`v4l-utils` triggered `boot-deploy` /
+`mkinitfs`, which regenerated `/boot/extlinux/extlinux.conf` with
+`fdtdir /` (Blocker A). **Live `/boot` was immediately patched back** to
+`fdt /msm8917-motorola-perry.dtb`. This is another real-world proof that
+the durable fix (perry lk2nd device node, or boot-deploy override) is
+urgent — any package that touches the kernel/initramfs will brick the
+next reboot until `fdt` is restored by hand.
+
+Also: the same trigger reinstalled the perry DTB at stock size (50523 B),
+so any prior Solution-2 DTB edits (`fb=okay` / `usb=peripheral`) on the
+live boot partition are gone. USB-net and DRM console still work without
+them on this already-booted system.
