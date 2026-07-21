@@ -9,18 +9,19 @@ Re-verify after `repo sync` — upstream moto-msm89xx tips move.
 
 | Tree | Patches | Live tip (after `git am`) |
 |---|---|---|
-| `device/motorola/perry` (17.1 base) | `0001`–`0013` | `8c6bae3` — dw9718s_truly alias |
+| `device/motorola/perry` (17.1 base) | `0001`–`0015` | `9485df8` — montana sensor_modules (0015) |
 | `device/motorola/msm8937-common` (18.1) | `0001`–`0007` | `0a23ebb` — vendor.fm Iris |
-| `kernel/motorola/msm8953` (18.1) | `0001`–`0003` | `525e6770eb8c` — pronto WLAN inline |
+| `kernel/motorola/msm8953` (18.1) | `0001`–`0004` | `7c1b60c` — CCI cci0-only |
 | TWRP `device/motorola/perry` | `0001` | shrink recovery to fit partition |
 
 Full SHAs (2026-07-20 trees):
 
 ```
-device/motorola/perry:            8c6bae34161c9a4b2c7473f4c05ec17a7f2ae3d8
+device/motorola/perry:            9485df8d2c75194e13e7e1a69625ad698169f922
 device/motorola/msm8937-common:   0a23ebbb905d0ca3a99662eecbd6840ed1551036
-kernel/motorola/msm8953:          525e6770eb8cfe7ee5c6ca72c1c6ae2a4bf2f45c
+kernel/motorola/msm8953:          7c1b60c2203422c7da7b67e2f45274b19cce9003
 ```
+
 
 Upstream bases before patches (local manifest revisions):
 
@@ -36,7 +37,8 @@ Upstream bases before patches (local manifest revisions):
 
 - Boots to UI; touch; adb; Wi-Fi; soft navbar; SELinux Enforcing
 - FM radio (enable/tune + RDS)
-- Camera: open + still (front and back); AF / EEPROM still broken
+- Camera: open + still (front and back); AF open research (0015 preview;
+  0014 OTP broke preview — do not claim AF fixed)
 
 ## Rebuild checklist
 

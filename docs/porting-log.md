@@ -1114,3 +1114,452 @@ dumpstate window ~13:20 local).
   SEGV / kernel probe `2192` fixed).
 
 **Next:** RIL (P1). Camera AF = restore EepromName safely.
+
+## 2026-07-20 — Camera OTP/AF cal worked briefly (0014); AF still OPEN research
+
+> **Do not treat AF as fixed.** 0014 got OTP autofocus calibration
+> working, then broke preview (next entry). Live tree is **0015**:
+> preview/still OK, AF broken again (`Invalid-region`). AF remains
+> open research on the Lineage track.
+
+**Pre-0014 (bugreport ~13:20):** 463× `Invalid-region size = 0`;
+`EEPROM MODULE NOT DETECTED`; `GPIO_31 already requested by 2-0028`
+(sx9310). EepromName omitted to dodge montana `eeprom_process` SEGV.
+
+**Root causes / what 0014 + kernel 0004 changed**
+1. **CCI vs sx9310:** base `msm8917-camera.dtsi` claimed cci0+cci1
+   (gpio29–32); perry sx9310 IRQ owns gpio31. Kernel **0004**
+   (`7c1b60c`): perry sensor DTSI overrides CCI to cci0-only (same
+   pattern as hannah/james). GPIO_31 spam gone after boot flash —
+   **keep 0004**.
+2. **OTP:** restore `<EepromName>s5k4h8</EepromName>` /
+   `ov5695` in `msm8917_mot_perry_camera.xml`.
+3. **eeprom_process SEGV:** montana `libmmcamera2_sensor_modules.so`
+   crashes at `eeprom_process+470` with XT1765 eeprom libs. Stock
+   sensor_modules alone needed `libmotimager_utils.so`; then crashed
+   in montana `libmotocalibration` (`moto_led_calibration_init`).
+   Perry **0014** (`7b163c7`) ships XT1765 stock:
+   `sensor_modules`, `eeprom_util`, `motimager_utils`,
+   `motocalibration`, `pdaf`, `pdafcamif` (rest of platform stays montana).
+
+**Verified live under 0014 only (OTP cal — later regressed preview)**
+- `dumpsys media.camera` → 2 devices; Snap open `PROFILE_OPEN … rc: 0`.
+- `s5k4h8_eeprom_autofocus_calibration`: infinity DAC −55..280, macro
+  +61..589, initial code 280.
+- `Invalid-region` / `EEPROM MODULE NOT DETECTED` / `GPIO_31`: 0.
+- Soft: first-open `-2`; no `/persist/camera/ledcal/rear`; API1
+  `focus-distances=Infinity` still logged.
+
+## 2026-07-20 — 0014 REGRESSION: black viewfinder / Snap ANR (fixed by 0015)
+
+**Symptom (user):** Snap opens, black viewfinder, then "Camera isn't
+responding".
+
+**Root cause:** XT1765 stock `libmmcamera2_sensor_modules.so` (0014) with
+montana ISP/iface → `isp_util_map_streams: failed: sensor resolution: 0x0`
+→ preview link never comes up → Snap ANR in `setParameters` /
+`Camera.release`. OTP/AF cal had worked; stream mapping did not.
+
+**Fix — perry 0015** (`9485df8`): revert to montana `sensor_modules` +
+omit `<EepromName>` again. Keep kernel **0004** (CCI cci0-only).
+
+**Verified after vendor flash**
+- Montana modules MD5 `b57cabd8…` on device.
+- `PROFILE_OPEN … rc: 0`; preview 960×720; stills ~2.5 MB.
+- No `resolution: 0x0` / no Snap ANR.
+- AF: `Invalid-region` returned (expected).
+
+**Lesson:** do not mix stock `sensor_modules` with montana ISP. AF next
+options: full stock camera stack, montana `eeprom_process` shim, or
+actuator params from the OTP DAC ranges captured under 0014.
+
+**Next:** RIL (P1) or AF retry without that mix.
+
+## 2026-07-20 — Camera AF = open research; pmOS plan documented
+
+**Lineage camera AF:** remains **open research**, not fixed. Live state is
+perry **0015** (montana `sensor_modules`, EepromName omitted): preview +
+still work; AF back to `Invalid-region`. Perry **0014** OTP packaging got
+AF cal working then broke preview (`sensor resolution: 0x0`) — do not
+re-ship that mix. Approaches for a later AF session are listed in
+[`handoff.md`](handoff.md) §P1a.
+
+**postmarketOS side quest:** thorough plan written at
+[`pmos-perry.md`](pmos-perry.md). Chosen path is mainline generic
+`qcom-msm89x7` + lk2nd (not downstream 3.18). Blocker #1: packaged
+`linux-postmarketos-qcom-msm89x7` **6.19.5-r0** has **no perry DTB**;
+need local carry of [linux#48](https://github.com/msm89x7-mainline/linux/pull/48)
++ [panel-drivers#6](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/6)
+before any flash. XT1765 = MSM8917 DTB (wiki MSM8920/XT1766 notes are for
+other SKUs). Sacred: never wipe `persist`/`modemst*`; full TWRP backup
+before lk2nd.
+
+**Implementation gate:** docs only this pass — no pmbootstrap, no lk2nd
+flash, no kernel builds. Phases B–F wait for explicit user approval.
+Cross-links: README, handoff §6, CLAUDE.md side-quest blurb.
+
+## 2026-07-20 — pmOS EXECUTION started: phases B done, C building (user-approved)
+
+User approved implementing the pmOS side quest (and set the working
+model: research/plans by the planning agent in .md files, execution by
+separate agents — hence the new executor runbook
+[`pmos-runbook.md`](pmos-runbook.md)).
+
+**Phase B (host) — DONE.** pmbootstrap **3.11.1** at `~/pmos/pmbootstrap`
+(symlink `~/bin/pmbootstrap`); non-interactive init via
+`~/pmos/init-perry.exp` (expect script). Config
+`~/.config/pmbootstrap_v3.cfg`: workdir `~/pmos/work`, channel
+**systemd-edge**, device **qcom-msm89x7**, UI console, user `aneesh`,
+hostname `perry`. Note: init answered "n" to SSH-key copy — runbook C3
+flips `ssh_keys` to True before `install`.
+
+**Phase C (kernel carry) — in progress.** Upstream kernel pkg moved to
+**7.0.9-r0** since the research pass (was 6.19.5-r0); still no perry
+DTB. Local carry implemented as `pmos/linux-postmarketos-qcom-msm89x7/`
+overlay: PR #48's three patches **rebased to v7.0.9-r0** (Makefile typo
+fixed) + Tianma 499v1 panel from panel-drivers#6 (generated with
+`lmdpdg --dumb-dcs`), pkgrel=1,
+`CONFIG_DRM_PANEL_MOTOROLA_PERRY_499V1_TIANMA=m`. Applied via
+`scripts/pmos-apply-perry-kernel.sh` (backs up upstream files under
+`.xylitol-upstream/`), checksummed. First build attempt (14:58) died on
+a transient strict-mode zap failure (`umount chroot_native/proc: target
+is busy`); relaunch (15:09) got past zap and is compiling
+(`~/pmos/logs/kernel-build.log`). Success criterion:
+`boot/dtbs/qcom/msm8917-motorola-perry.dtb` + perry panel .ko in the apk.
+
+**New research locked into the runbook (verified today):**
+- Generic install flow (wiki): `pmbootstrap install` →
+  `flasher flash_lk2nd` → **verify lk2nd fastboot** → `flasher
+  flash_rootfs`; flashing rootfs outside lk2nd can soft-brick.
+- **lk2nd upstream supports perry** (devices.md lists Moto E4 perry for
+  both MSM8917 and MSM8920); `fastboot boot lk2nd.img` is a documented
+  no-flash test → runbook phase D smoke test. lk2nd owns `boot`; real
+  boot images then live at 512 KiB offset; stock aboot is untouched, so
+  Lineage rollback = reflash Lineage boot.img + TWRP data restore.
+- Boot chain for generic port: aboot → lk2nd → **extlinux** from rootfs
+  boot dir; `deviceinfo_dtb` glob `qcom/msm8917-*` auto-includes the
+  perry DTB. `flash_rootfs` targets **userdata** (kills Android data —
+  TWRP data backup is a phase-D hard gate).
+- Firmware at runtime via **msm-firmware-loader** (reads the phone's own
+  modem/WCNSS partitions) + firmware-qcom-msm89x7 + adreno-a300 — no
+  blob shipping needed for Wi-Fi bring-up.
+- Perry wiki page is archived but the device runs via the generic port;
+  wiki feature matrix (6.19.5): screen/touch/Wi-Fi/BT/audio/3D work,
+  camera broken, calls/SMS/data partial. `pstore/console-ramoops` via
+  TWRP is the no-boot debug path.
+
+**Gates ahead:** phase D needs TWRP backups (boot + data) + Lineage
+boot.img rollback artifact on hand; phase E (first real flash) needs an
+explicit user go-ahead. Sacred partitions never in play.
+
+### Addendum: first build FAILED — panel patch used removed kernel API (fixed)
+
+First build (15:09–15:23) died compiling
+`panel-motorola-perry-499v1-tianma.c`: `mipi_dsi_dcs_write_seq` is gone
+in v7.0.9 (removed in favor of the `mipi_dsi_multi_context` /
+`*_multi()` accumulate-errors API). The panel patch had been generated
+with `lmdpdg --dumb-dcs` against an older tree. Every *sibling* panel in
+`drivers/gpu/drm/panel/msm89x7-generated/` already uses the new style —
+mirrored `panel-motorola-montana-r63350-tianma.c` (also Tianma):
+`mipi_dsi_dcs_write_seq_multi` + `mipi_dsi_msleep` +
+`return dsi_ctx.accum_err`, `container_of_const`,
+`devm_drm_panel_alloc`, `drm_connector_helper_get_modes_fixed`, dropped
+the `prepared` bool. Init sequence, timings, mode, and
+`MIPI_DSI_MODE_VIDEO_HSE` flag kept identical to the generated original.
+Patch 0004 regenerated in `pmos/linux-postmarketos-qcom-msm89x7/`,
+re-applied + re-checksummed (sums synced back to APKBUILD.overlay),
+rebuild launched (`~/pmos/logs/kernel-build-2.log`).
+
+Process lesson: `pmbootstrap build ... | tee log` swallowed the failure
+(tee's exit 0) — the "completed" notification was a lie. Use
+`set -o pipefail` around pmbootstrap invocations; runbook updated.
+
+### Rebuild SUCCESS — phase C complete (15:32)
+
+`linux-postmarketos-qcom-msm89x7-7.0.9-r1.apk` (26.8 MB) built clean
+with the converted panel. Verified contents:
+`boot/dtbs/qcom/msm8917-motorola-perry.dtb` (+ `msm8920-` variant) and
+`usr/lib/modules/7.0.9-msm89x7/.../panel-motorola-perry-499v1-tianma.ko.zst`.
+Runbook C1/C2 checked off. Next for executors: runbook §2 (C3 `ssh_keys`
+flip, C4 `pmbootstrap install`, C5 export) — all host-only; then phase D
+gates (TWRP backups) before any device contact.
+
+## 2026-07-20 — pmOS Phase C½ done (host image build; no device contact)
+
+Runbook §2 (C3–C5) completed on the Ubuntu build host.
+
+**C3.** Host had an empty `~/.ssh/` (no `*.pub`). Generated
+`~/.ssh/id_ed25519` (comment `aneesh@buildhost-perry-pmos`, empty
+passphrase) and set `pmbootstrap config ssh_keys True`. Keys are
+copied into the *install image* at fill time
+(`…/mnt/install/home/aneesh/.ssh/authorized_keys`), not into the
+rootfs chroot — so a later `pmbootstrap chroot -r` won't show them;
+the flashed userdata image will.
+
+**C4.** `pmbootstrap install --password …` (dummy; noted here only as
+**set** — use SSH key). Log: `~/pmos/logs/install.log`. Wall time
+~41 min, almost all qemu-aarch64 build of `systemd-edge/systemd`
+261.1-r5. Confirmed local kernel:
+`(  4/263) Installing linux-postmarketos-qcom-msm89x7 (7.0.9-r1)`.
+Rootfs chroot has `boot/dtbs/qcom/msm8917-motorola-perry.dtb` and
+`panel-motorola-perry-499v1-tianma.ko.zst`. Combined image
+`qcom-msm89x7.img` created at 1314M nominal (actual file ~1.28 GiB).
+
+**C5.** `pmbootstrap export` → `/tmp/postmarketOS-export/`
+(`~/pmos/logs/export.log`):
+
+| Artifact | Bytes |
+|---|---|
+| `lk2nd.img` | 321 552 |
+| `qcom-msm89x7.img` | 1 377 828 864 (~1.28 GiB) |
+| `vmlinuz` | 9 819 359 |
+| `initramfs` | 13 713 848 |
+| `dtbs/msm8917-motorola-perry.dtb` | 50 523 |
+
+Broken/unused export symlinks (`boot.img`, split images, recovery
+zip) are expected on this flash path — flasher wants `lk2nd` + the
+combined rootfs image.
+
+**GATE held:** no USB / no phone. Next is runbook §3 phase D
+(Lineage `boot.img` rollback copy, TWRP boot+data backup, battery
+≥50%, then `fastboot boot lk2nd.img` smoke). Phase E still needs
+explicit user go-ahead.
+
+## 2026-07-20 — pmOS Phase D done (lk2nd smoke; Lineage intact)
+
+Full runbook §3 on XT1765 `ZY224TB8KZ`. Nothing flashed.
+
+**D1.** `~/android/backups/perry/lineage-boot-2026-07-20.img`
+(SHA-256 `fe8529e07ff1c5ca9b1691f06efdf2e68505f39e25181169aa88e9a5a418fb84`)
+byte-matches the live boot partition for the image size (11 597 824 B).
+
+**D2.** TWRP `twrp backup BD pmos-pre-D-20260720-1656` (boot + data
+excl. storage, 273 MB) → host
+`~/android/backups/perry/twrp-pmos-pre-D-20260720-1656/`. Also pulled
+DCIM/Download/Pictures/`lineage.zip` → `sdcard-pre-D/` (E's
+`flash_rootfs` wipes userdata including /sdcard).
+
+**D3.** Battery 99% in TWRP.
+
+**D4–D6.** Stock fastboot `moto-msm8917-BA.34` / `product: perry` →
+`fastboot boot lk2nd.img` → lk2nd fastboot. Full dump:
+`~/android/backups/perry/lk2nd-getvar-all.txt`. Highlights:
+
+| Key | Value |
+|---|---|
+| `lk2nd:device` | `perry` ✅ |
+| `lk2nd:version` | `22.0-r2-postmarketos` |
+| `lk2nd:bootloader` | `0xBA34` |
+| `product` | `lk2nd-msm8952` (family) |
+| `serialno` | `ZY224TB8KZ` |
+| **`lk2nd:panel`** | **`qcom,mdss_dsi_mot_ofilm_499_720p_video_v0`** |
+
+**Panel mismatch:** our C carry + PR #48 DTS hardcode
+`motorola,perry-499v1-tianma`. This phone is the **Ofilm** 499
+variant. First pmOS boot may have USB net but no display until an
+Ofilm panel driver is generated (same `lmdpdg` path as Tianma PR #6)
+and the DTS compatible updated (or dual-panel selection added).
+
+**D7.** `fastboot reboot` → Lineage
+`eng.aneesh.20260719.193203` `sys.boot_completed=1`. Reversibility OK.
+
+**GATE for E:** still needs explicit user go-ahead (overwrites `boot` +
+`userdata`). Strongly consider Ofilm panel work before or immediately
+after E1.
+
+**Research handoff:** full Ofilm tasking for the next agent is in
+[`pmos-ofilm-panel.md`](pmos-ofilm-panel.md) (questions, downstream MDSS
+paths, deliverable checklist). Handoff opener also in
+[`handoff.md`](handoff.md) §“How to start the next session”.
+
+## 2026-07-20 — pmOS Ofilm 499 research DONE + driver implemented (0005/0006)
+
+User confirmed Ofilm question ("is Ofilm real?") and approved
+implementation. Full write-up in
+[`pmos-ofilm-panel.md`](pmos-ofilm-panel.md) §7; summary:
+
+- **Ofilm = OFILM Group (O-Film Tech, Shenzhen)** — real display-module
+  integrator (touch lamination onto LCD cells; ex-Apple supplier).
+  Motorola quad-sourced the perry 499 panel: downstream DTS has
+  **tianma v0/v1/v2, boe v0/v1, inx v0/v1, ofilm v0**. Our unit's lk2nd
+  string matches ofilm v0 exactly — no discrepancy, just multi-sourcing.
+- **Upstream has no Ofilm**: linux-panel-drivers PR #6 author explicitly
+  didn't know perry had other panel variants. Our detection is new info.
+- **lk2nd mechanism** (`lk2nd/device/panel.c`): panel fixup only works
+  via an `lk2nd,panel` map node in lk2nd's own device DTS; **lk2nd has
+  no perry entry**, so no fixup happens — the mainline DTB's hardcoded
+  panel@0 compatible decides. Hence hardcoding Ofilm for this unit.
+- **Timing delta**: Ofilm and Tianma 499 share IDENTICAL clock/porches/
+  PHY timings; only the DCS init differs — different controller ICs
+  (Ofilm = Novatek-style CMD2 `FF AA 55 25`/`F0 55 AA 52 08` incl.
+  gamma tables + MADCTL `36 03`, 100 ms display-on delay; Tianma =
+  Ilitek ILI9881 `FF 98 81`, 20 ms). Wrong driver ⇒ black screen.
+- **Implemented** (hand-converted from
+  `dsi-panel-mot-ofilm-499-720p-video-common.dtsi`, multi_context API,
+  modeled 1:1 on our Tianma 0004):
+  - overlay `0005-drm-panel-add-motorola-perry-Ofilm-499v0-panel.patch`
+    (compatible `motorola,perry-499v0-ofilm`)
+  - overlay `0006-arm64-dts-qcom-perry-select-Ofilm-499v0-panel.patch`
+    (panel@0 tianma→ofilm, this unit only; 0005 stays upstreamable)
+  - `pmos-apply-perry-kernel.sh` + `APKBUILD.overlay` (pkgrel=2,
+    `CONFIG_DRM_PANEL_MOTOROLA_PERRY_499V0_OFILM=m`, Tianma kept)
+- All 6 patches apply clean in pmbootstrap build (verified in log).
+
+Phase E remains gated. Next: kernel apk rebuild → non-flash
+`fastboot boot` smoke to check Ofilm first-light.
+
+## 2026-07-20 — pmOS Ofilm smoke attempt (D¾): kernel builds, fastboot-boot chain fails pre-initramfs
+
+7.0.9-r2 built + installed + exported. Verified in the apk:
+`panel-motorola-perry-499v0-ofilm.ko.zst` present; perry DTB contains
+`motorola,perry-499v0-ofilm` (no tianma string).
+
+Non-flash smoke via stock aboot → `fastboot boot lk2nd.img` → lk2nd
+fastboot → `fastboot boot <crafted boot.img>`:
+
+- `pmbootstrap flasher boot` fails outright — qcom-msm89x7 is extlinux-
+  based; no boot.img is generated (deviceinfo has no generate_bootimg).
+- Hand-crafted header-v2 image (`--dtb` field) → lk2nd `dtb not found`
+  (lk2nd doesn't use the v2 dtb field).
+- Gzip kernel + appended perry DTB, header v0, arm32-style offsets
+  (`kernel_offset 0x8000, ramdisk 0x01000000`) → lk2nd jumps
+  (USB drops) but device watchdog-resets to Lineage; suspected
+  decompressed-kernel/ramdisk overlap.
+- Same with arm64 offsets (`kernel 0x00080000, ramdisk 0x02000000,
+  tags 0x01e00000`) → same result: USB drop, no pmOS gadget
+  (18d1:d001) within 2 min, reset back to Lineage.
+- pstore/console-ramoops after reset contains only downstream 3.18
+  logs — mainline dies before any console/ramoops (and mainline lacks
+  the downstream ramoops node), so no crash log obtainable remotely.
+- **Diagnosis: failure is pre-initramfs (USB gadget never appears), so
+  it says NOTHING about the Ofilm panel driver.** It's a
+  lk2nd-fastboot-boot arm64 load-layout issue. The flashed Phase E path
+  does not use this mechanism at all (extlinux + `fdtdir` — lk2nd loads
+  `/msm8917-motorola-perry.dtb` as a file), so E is unaffected.
+
+Device state after: Lineage boots fine (verified repeatedly). Nothing
+flashed. Crafted images in session scratchpad only (not in git).
+
+**Next options:** (a) user observes the screen during one more
+fastboot-boot retry (did lk2nd splash/kernel logo appear at all?);
+(b) skip the smoke and treat Phase E (flash, user-gated) as the real
+Ofilm first-light test — extlinux path avoids the boot.img quirks;
+(c) debug lk2nd fastboot-boot layout further (low value vs. E).
+
+Image note: rootfs regenerated with throwaway user password `147147`
+(SSH key auth is the intended login; rootfs not flashed anywhere yet).
+
+## 2026-07-20 — Ofilm smoke retry with user observing: confirms pre-initramfs death
+
+Third layout variant (v0c: kernel 0x00080000, ramdisk 0x04000000, tags
+0x03e00000 — well clear of kernel BSS) behaved identically. **User
+observed the screen:** lk2nd screen → display off at kernel handoff →
+display back on with Moto aboot's "N/A" (unlocked-warning region, i.e.
+full SoC reset) → LineageOS splash.
+
+Interpretation:
+- Display-off at handoff is EXPECTED even for a good boot: DTS ships
+  `framebuffer0` (simple-framebuffer) `status = "disabled"` and the
+  panel driver is an initramfs module — first light can only happen at
+  initramfs splash time.
+- The reset + no USB gadget ⇒ mainline kernel dies before initramfs on
+  the lk2nd `fastboot boot` path, regardless of bootimg layout. Likely
+  in the lk2nd→aarch64 entry itself (32-bit lk chaining a 64-bit
+  kernel), which the packaged extlinux flow exercises differently.
+- **Ofilm panel driver: still untested, and un-refuted.** Smoke via
+  fastboot-boot is a dead end for this device; panel first-light will
+  come from Phase E (extlinux; user-gated) or from debugging lk2nd's
+  fastboot-boot arm64 path (low value).
+
+Device: Lineage intact (user-witnessed splash; adb `device` state).
+Nothing flashed at any point today.
+
+## 2026-07-20 — pmOS BOOTS to userspace (Blocker B cleared); WiFi fixed
+
+**Headline: Phase E Blocker B is dead.** The kernel that last session was
+"blind & mute" (see the Phase E handoff section) now boots all the way to a
+full postmarketOS edge userspace — `7.0.9-msm89x7`, **aarch64** — with USB-net
++ SSH. User reported the phone visibly reaching pmOS and a WCNSS NV error on
+screen; this session confirmed the whole stack over USB.
+
+**USB access.** The pmOS gadget enumerates as CDC-NCM (`DRIVER=cdc_ncm`,
+`PRODUCT=18d1/d001` — lsusb mislabels it "Nexus 4 (fastboot)", but
+`fastboot devices` is empty; it is NOT fastboot). Host never gets a DHCP
+lease, so assign it by hand:
+```
+sudo ip addr add 172.16.42.2/24 dev <usb-iface>   # host side
+ping 172.16.42.1                                    # device side
+ssh aneesh@172.16.42.1                              # key auth; sudo pw 147147
+```
+The USB link **auto-suspends / re-enumerates** frequently, which wipes the
+host static IP — re-add it before each reconnect. Wrap all ssh/fastboot in
+`timeout` and retry.
+
+**WiFi root cause — missing NV blob (self-inflicted by our DTS).** Our perry
+DTS (`pmos/linux-postmarketos-qcom-msm89x7/0003-*.patch`) sets
+`&wcnss_ctrl { firmware-name =
+"qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin"; }`. That directory does
+not exist in the stock pmOS rootfs (it ships NV blobs for sibling MSM8937
+Motos **cedric** and **montana** under `qcom/msm8937/motorola/…`, but not
+perry). So `qcom_wcnss_ctrl` fails the NV load with `-2` (ENOENT) →
+`wcn36xx` aborts → no `wlan0` (device had only `lo` + `usb0`).
+
+**Fix.** Drop perry's own NV at the DTS path. Perry's authoritative NV is the
+one the Lineage build packages from the (montana-shared) vendor blobs:
+`out/target/product/perry/vendor/etc/wifi/WCNSS_qcom_wlan_nv.bin`, md5
+`4f88c4c5435d0d80c5e1c9bbe360a57e`, 31723 B. (Distinct from montana's
+`b1d83c4c…` and cedric's `a61d05a2…`, though all three are 31723 B — the perry
+NV differs in RF cal/regulatory, not size.) Copied to a stable local home
+(`~/android/backups/perry/WCNSS_qcom_wlan_nv.perry.bin`, since `out/` is wiped
+on clean builds) and installed on-device via
+`scripts/pmos-install-wcnss-nv.sh`. **NV blob is proprietary — never
+committed** (`.gitignore` blocks `*.bin`).
+
+**Verified (cold boot, perry NV):** no `Failed to load nv` in dmesg; `wcn36xx`
+loads `firmware WLAN version 'WCN v2.0 RadioPhy vIris_TSMC_4.0 with 48MHz XO'`;
+`wlan0` created; scan saw **51 APs on 2.4 + 5 GHz**; associated to a WPA2 AP,
+DHCP lease + `ping 1.1.1.1` ~20 ms; NetworkManager **auto-reconnects on boot**.
+
+**Two gotchas learned:**
+- **wcn36xx MAC is device-derived, not from the NV.** It came up
+  `02:00:02:4b:07:1b` — last three bytes match perry's lk2nd serial
+  `24b071b`. So the NV swap doesn't change the MAC; installing perry's own NV
+  is about RF cal/regulatory correctness, not identity.
+- **Do NOT restart the WCNSS remoteproc by hand to pick up the NV.** A manual
+  `echo stop/start > /sys/class/remoteproc/remoteproc1/state` wedged the WCNSS
+  SMD channel (`wcn36xx: ERROR Timeout! No SMD response ... 10000ms`,
+  `hal_stop failed`), tearing `wlan0` down. Graceful `reboot` then hangs on the
+  wedged WCNSS during shutdown (uptime never resets). Recover with a
+  kernel-level reboot: `echo 1 > /proc/sys/kernel/sysrq; sync;
+  echo b > /proc/sysrq-trigger`. A clean cold boot brings WiFi up reliably.
+
+**Durability owed (same class as handoff E-6).** The installer writes to the
+rootfs (survives reboot, synced to eMMC) but a `pmbootstrap install` regen
+wipes it. Fully-durable fix = promote the NV to a **local** pmaport
+(`firmware-motorola-perry`) added to the device package's depends — kept out
+of public git because the blob is proprietary. Until then: re-run
+`scripts/pmos-install-wcnss-nv.sh` after any `pmbootstrap install`.
+
+### Ofilm 499v0 panel — first-light CONFIRMED (user-witnessed)
+
+The panel-research brief ([`pmos-ofilm-panel.md`](pmos-ofilm-panel.md)) had the
+Ofilm 499v0 DRM driver (overlay 0005 driver + 0006 DTS select) as "untested,
+un-refuted" — the fastboot-boot smoke path was a dead end for this device. This
+session confirmed it on the booted rootfs. Device-side evidence:
+- DTS-selected panel `compatible: motorola,perry-499v0-ofilm` (Ofilm, **not**
+  Tianma); module `panel_motorola_perry_499v0_ofilm` loaded.
+- `card0-DSI-1` **connected + enabled**, mode **720×1280**; `fb0` 720×1280×32;
+  `Console: switching to colour frame buffer device 90x80`; `agetty` on the
+  console; backlight `/sys/class/backlight/backlight` `2048/4095`, `bl_power=0`.
+- msm/DPU stack bound: `msm_dpu 1a01000.display-controller: bound 1a94000.dsi`,
+  `dpu hardware revision 0x100f0000`, `Initialized msm 1.13.0`.
+
+Visible test (fb fill white → `/dev/urandom` static → backlight blink 3×):
+**user confirmed** seeing the random static rendered, the persistent
+`perry login:` tty text, and the backlight blinking. So the full
+DPU→DSI→Ofilm-panel→backlight chain drives the glass. **Panel = WORKING.**
+(One cosmetic quirk noted: initramfs splash times out —
+`[pmOS-rd]: ERROR: /dev/fb0 did not appear after waiting 10 seconds!` — because
+fb0 only appears at ~27 s when the DPU/DSI binds, past the 10 s initramfs
+wait; the console fb comes up fine afterward. Non-blocking; a splash-timing
+nicety for later.)
