@@ -1994,3 +1994,22 @@ Public defaults must not embed personal identity or host secrets:
   `setup-env.sh` requires `GIT_USER_*` or an existing git global identity.
 - Chronology in this log still mentions GitHub repo URLs under the project
   owner path; that is the public repo location, not a device login.
+
+## 2026-07-21 — Scrub AI co-author trailers + contributor list
+
+Found `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>` on two
+reachable commits (`pmos: add perry ALSA UCM…`, `docs: perry boots to Phosh…`).
+Rewrote all refs with `git filter-branch --msg-filter` to drop AI co-author
+trailers, pruned `refs/original` + reflog, force-pushed `main` /
+`twrp/ci-release` / tags.
+
+Then ran the **main → main1 → main** default-branch rename dance so GitHub's
+contributors list drops AI bot accounts (same trick used earlier for
+`cursoragent`).
+
+Hard enforcement added:
+
+- `AGENTS.md` + `.cursor/rules/no-ai-commit-attribution.mdc` (alwaysApply)
+- Versioned hooks: `scripts/git-hooks/{prepare-commit-msg,commit-msg}` —
+  enable with `git config core.hooksPath scripts/git-hooks`
+- CI: `.github/workflows/no-ai-coauthor.yml`

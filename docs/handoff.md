@@ -206,6 +206,8 @@ Full board in [§1](#1-open-issues--the-work-queue). Top items:
 **Cross-cutting rules (both tracks):** SACRED — never wipe/repartition
 `persist` / `modemst1` / `modemst2`. No blobs / `out/` / Lineage tree in
 xylitol git. No AI co-author trailers on commits or PRs. Never raw-dd a sparse
+
+**AI co-author scrub (2026-07-21):** history rewritten (Claude trailers removed); main→main1→main dance re-run; hooks+CI+AGENTS.md enforce the ban.
 `vendor.img`.
 
 ---
