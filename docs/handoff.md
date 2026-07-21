@@ -67,13 +67,14 @@ work queue is [§1 below](#1-open-issues--the-work-queue)).
 - ✅ **Ofilm 499v0 panel first-light** — user-confirmed on the glass.
 - ✅ **Committed + pushed** — pmOS docs/overlay/patches on `main`
   (`9ac5652`, `44bbc41`, `9345c36`); public reproduction guide
-  [`pmos.md`](pmos.md); firmware pmaport in PR #2.
+  [`pmos.md`](pmos.md); firmware pmaport squash-merged via PR
+  [#2](https://github.com/aneesh-pradhan/xylitol/pull/2) (`9c4f3a2`).
 
 ### pmOS — next (prioritized)
 
 | # | Task | Notes / where |
 |---|---|---|
-| 1 | **Merge PR #2** (firmware pmaport) | Squash-merge; then `git checkout main`. |
+| 1 | **Merge PR #2** (firmware pmaport) | ✅ Done 2026-07-20 — squash-merged as `9c4f3a2` on `main`. |
 | 2 | **Feature-matrix walk** over SSH | Wiki claims most work on this kernel+lk2nd. Test each: **BT** (btqcomsmd), **audio** (msm8916 codec/wcd), **sensors** (accel/prox/light), **GPS**, **vibrator**, **cameras** (wiki says broken). Log results per-item in porting-log. |
 | 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | Currently a throwaway image edit — lost on `pmbootstrap install`. Fix options in E-6: add a perry lk2nd device node (best), override boot-deploy, or a post-install hook. |
 | 4 | **Fold DTB `fb=okay` into the overlay** (E-6) | Legit (splash/console). Add to overlay 0003 or a new 0007. `usb=peripheral` stays a HACK — real fix is extcon/charger (`pmi8950_smbcharger`, `usb_id` GPIO 97) role detection so `otg` flips on cable. |
@@ -120,8 +121,8 @@ the chronological bring-up log; the consolidated state + to-dos are up top.
 > working. Reach it over USB-net: self-assign 172.16.42.2/24 on the cdc_ncm
 > iface, `ssh aneesh@172.16.42.1` (sudo pw 147147); link auto-suspends so
 > re-add IP + timeout-wrap ssh. Blocker B (blind & mute), Wi-Fi (WCNSS NV),
-> panel first-light, and the durable NV pmaport are all DONE. Next: merge
-> PR #2, then walk the feature matrix (BT/audio/sensors/GPS). Do not touch
+> panel first-light, and the durable NV pmaport (PR #2 merged) are all DONE.
+> Next: walk the feature matrix (BT/audio/sensors/GPS). Do not touch
 > persist/modemst*.
 
 ### E-1. What we did, in order (all succeeded)
