@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-# Install the local-only firmware-motorola-perry-nv pmaport into the live
-# pmaports tree, drop perry's WCNSS Wi-Fi NV blob next to it, and checksum.
+# Install the firmware-motorola-perry-nv pmaport into the live pmaports tree.
 #
-# This is the DURABLE Wi-Fi fix: the resulting package installs the NV into
-# the rootfs at build time, so it survives `pmbootstrap install` (unlike
-# scripts/pmos-install-wcnss-nv.sh, which patches a running device and is lost
-# on the next rootfs regen). After running this:
+# This is the DURABLE Wi-Fi fix: the package installs perry's WCNSS NV into the
+# rootfs at build time (at the mainline DTS path), so Wi-Fi survives
+# `pmbootstrap install` — unlike scripts/pmos-install-wcnss-nv.sh, which patches
+# a running device and is lost on the next rootfs regen.
 #
-#   pmbootstrap build firmware-motorola-perry-nv
-#   pmbootstrap install --add firmware-motorola-perry-nv   # pulls it into the rootfs
+# The APKBUILD downloads perry's firmware from the same community mirror
+# pmaports already pins (checksum baked in) — nothing proprietary is committed
+# to xylitol. After running this:
 #
-# The NV blob is proprietary — it is copied from a LOCAL source into the live
-# pmaports aport dir. It is never committed to xylitol (.gitignore blocks
-# *.bin) and never fetched from the network.
+#   pmbootstrap build   firmware-motorola-perry-nv
+#   pmbootstrap install --add firmware-motorola-perry-nv
+#
+# Prefer your device's OWN stock NV? That blob differs from the mirror's
+# (RF/regulatory cal only). Install it on a running device with
+# scripts/pmos-install-wcnss-nv.sh, or drop it in and re-checksum — see
+# docs/pmos.md step 6.
 #
 # Safe: touches only the local pmaports tree. Never flashes, never touches the
 # device or persist/modemst*.
@@ -33,40 +37,14 @@ fi
 
 DEST="$PMAPORTS/firmware/firmware-motorola-perry-nv"
 
-# Locate the NV blob locally: stable backup copy first, then the Lineage build
-# output (out/ is wiped on clean builds), then an explicit override.
-SRC=""
-for cand in \
-  "$HOME/android/backups/perry/WCNSS_qcom_wlan_nv.perry.bin" \
-  "$HOME/android/lineage/out/target/product/perry/vendor/etc/wifi/WCNSS_qcom_wlan_nv.bin" \
-  "${WCNSS_NV_SRC:-}" ; do
-  if [[ -n "$cand" && -f "$cand" ]]; then SRC="$cand"; break; fi
-done
-if [[ -z "$SRC" ]]; then
-  echo "ERROR: perry WCNSS NV not found locally." >&2
-  echo "  Set WCNSS_NV_SRC=/path/to/WCNSS_qcom_wlan_nv.bin and retry." >&2
-  exit 1
-fi
-
 echo "pmaports  : $PMAPORTS"
 echo "aport dst : $DEST"
-echo "NV source : $SRC"
 
 mkdir -p "$DEST"
 cp -v "$APORT_SRC/APKBUILD" "$DEST/APKBUILD"
-cp -v "$SRC" "$DEST/WCNSS_qcom_wlan_nv.bin"
 
-# Checksum so abuild accepts the local source. Prefer pmbootstrap on PATH.
-if command -v pmbootstrap >/dev/null 2>&1; then
-  pmbootstrap checksum firmware-motorola-perry-nv
-  echo
-  echo "OK. Now build + pull into the rootfs:"
-  echo "  pmbootstrap build firmware-motorola-perry-nv"
-  echo "  pmbootstrap install --add firmware-motorola-perry-nv"
-else
-  echo
-  echo "pmbootstrap not on PATH — finish manually:"
-  echo "  pmbootstrap checksum firmware-motorola-perry-nv"
-  echo "  pmbootstrap build    firmware-motorola-perry-nv"
-  echo "  pmbootstrap install  --add firmware-motorola-perry-nv"
-fi
+echo
+echo "OK. Build + pull into the rootfs (the blob is fetched + checksum-verified"
+echo "at build time — no manual download):"
+echo "  pmbootstrap build   firmware-motorola-perry-nv"
+echo "  pmbootstrap install --add firmware-motorola-perry-nv"

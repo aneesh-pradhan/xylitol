@@ -144,41 +144,49 @@ Then, from **lk2nd fastboot**:
 pmbootstrap flasher flash_rootfs             # writes the combined image to `userdata` (~95 s, destructive)
 ```
 
-### 6. Add the Wi-Fi calibration blob (proprietary — you supply it)
+### 6. Add the Wi-Fi calibration blob
 
 perry's DTS points `wcn36xx` at
 `qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin`, which the stock rootfs
 does not ship. Without it the driver fails with `-2` (ENOENT) and no `wlan0`
-appears. Provide perry's own `WCNSS_qcom_wlan_nv.bin` — extract it from your
-device's vendor partition or a stock firmware image; it is **not** in this
-repo.
+appears.
 
 > Note: pmaports' archived `firmware-motorola-perry` package *does* fetch
 > perry Wi-Fi blobs, but installs the NV to
 > `/lib/firmware/postmarketos/wlan/prima/` — **not** the
 > `qcom/msm8917/motorola/perry/` path the mainline DTS requests — so it does
-> not satisfy wcn36xx here. Hence the dedicated package below.
+> not satisfy wcn36xx here. Hence the dedicated package below, which re-homes
+> the NV to the DTS path.
 
 **Method A — durable pmaport (recommended).** Packages the NV into the rootfs
-at build time, so it survives future `pmbootstrap install` runs:
+at build time, so it survives future `pmbootstrap install` runs. The blob is
+**downloaded** from the same community perry-firmware mirror pmaports already
+pins (checksum baked in) — no extraction needed:
 
 ```bash
 cd ~/GitHub/xylitol
-WCNSS_NV_SRC=/path/to/your/perry/WCNSS_qcom_wlan_nv.bin \
-  ./scripts/pmos-apply-perry-firmware.sh          # copies aport + blob, checksums
-pmbootstrap build   firmware-motorola-perry-nv
+./scripts/pmos-apply-perry-firmware.sh            # copies the aport into pmaports
+pmbootstrap build   firmware-motorola-perry-nv    # fetches + checksum-verifies the blob
 pmbootstrap install --add firmware-motorola-perry-nv
 ```
 
 The `firmware-motorola-perry-nv` aport ([`../pmos/firmware-motorola-perry-nv/`](../pmos/firmware-motorola-perry-nv/))
-installs `WCNSS_qcom_wlan_nv.bin` at the DTS path. The blob is a bare local
-source in the aport dir — never committed, never downloaded. If you re-run
-`pmbootstrap install` later, keep the `--add firmware-motorola-perry-nv` so it
-stays in the rootfs (or add it to a local device package's `depends`).
+installs `WCNSS_qcom_wlan_nv.bin` at the DTS path. If you re-run `pmbootstrap
+install` later, keep the `--add firmware-motorola-perry-nv` so it stays in the
+rootfs (or add it to a local device package's `depends`).
 
-**Method B — quick runtime patch.** If the device is already booted (step 7)
-and you just want Wi-Fi now, drop the NV straight onto the running rootfs.
-Survives reboots but **not** a `pmbootstrap install`:
+> The mirror's NV is a **community perry extract**; it differs from any given
+> unit's own stock NV (RF/regulatory calibration only — the MAC is derived
+> from the SoC, not the NV, so Wi-Fi works with either). If you want your
+> **device-exact** NV baked into the package, extract your own
+> `WCNSS_qcom_wlan_nv.bin` (from the vendor partition or stock firmware), drop
+> it into the aport dir, edit the APKBUILD `source=` to that bare filename, and
+> `pmbootstrap checksum firmware-motorola-perry-nv`.
+
+**Method B — quick runtime patch (device-exact, your own blob).** If the
+device is already booted (step 7) and you want *your* stock NV on it now, drop
+it straight onto the running rootfs. Survives reboots but **not** a
+`pmbootstrap install`:
 
 ```bash
 # host static IP on the CDC-NCM gadget interface (no DHCP lease is offered):
