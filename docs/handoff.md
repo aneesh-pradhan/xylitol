@@ -4,7 +4,17 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-**Date:** 2026-07-20 (updated late — post audio-UCM work)  
+**Date:** 2026-07-20 (updated late — post Phosh mobile-UI bring-up)  
+**Headline (pmOS UI): perry BOOTS TO A WORKING PHOSH MOBILE UI — USER-CONFIRMED
+SUCCESS.** Installed `postmarketos-ui-phosh` on the running device; clean boot →
+`graphical.target` + greetd + phrog greeter → phosh session for `aneesh`. phoc
+modesets DSI-1 at **720×1280@60**, EGL on **GBM/mesa** (Adreno 308 GL accel),
+touch works. Combined with this session's **working audio (UCM)** + Wi-Fi, perry
+is now a usable pmOS phone. **⚠ NOT yet durable** — UI was `apk add`ed on the
+running rootfs; it will NOT survive `pmbootstrap install`. See the durability
+to-do below and porting-log 2026-07-20 "Phosh mobile UI". Benign known issue:
+occasional `phoc … DSI-1 Atomic commit failed: Resource busy` (~0.1%; fix if
+ever visible = `WLR_DRM_NO_ATOMIC=1`).  
 **⚑ Next session: see [▶ Next session — start here](#-next-session--start-here-2026-07-20-late).**  
 **⚑ PRIORITY PIVOT (2026-07-20):** user reprioritised — **pmOS is now the
 primary goal**, not a side quest. Focus is a proper pmOS end-user experience;
@@ -78,30 +88,34 @@ kept at [§1 below](#1-open-issues--the-work-queue) for when/if we return.
 ### ▶ Next session — start here (2026-07-20 late)
 
 **pmOS is now the primary track** (user pivot 2026-07-20). Boot chain solid,
-Wi-Fi up, display up, **audio routing now up** (this session). Remaining pmOS
-functional gaps from the feature matrix, by value:
+Wi-Fi up, **audio up (UCM)**, **Phosh mobile UI up (user-confirmed)**. perry is a
+usable pmOS phone. Remaining, by value:
 
-1. ✅ **Audio — perry UCM profile — DONE this session.** `motorola-perry` UCM
-   authored (potter HiFi verb + msm8x16-wcd); `alsaucm` loads, Speaker/Mic
-   routed, WirePlumber exposes a Speaker sink + Primary Microphone source.
-   Durable pmaport `pmos/alsa-ucm-motorola-perry/`. **Audible output
-   USER-CONFIRMED** (2026-07-20, speaker live). Remaining audio polish:
-   earpiece/headset-jack routing under phosh + call audio (with modem).
-2. **▶ NEXT — Modem / data: install & test ModemManager.** AT responds on
-   `/dev/wwan0at0`; no MM package installed; needs a SIM to test calls/SMS/data.
-   This is the next big end-user deliverable.
-3. Sensors: **vibrator**, **prox/ALS** (missing nodes) — smaller wins.
-4. Long tail / low priority: **cameras** (camss/cci disabled in DT — big
-   effort, wiki says broken; note the WirePlumber libcamera monitor is now
-   disabled, see audio entry), **GPS** (not present).
-5. Cosmetics/minor: initramfs splash timeout (#6), USB-net autosuspend (#7).
+1. ✅ **Audio — perry UCM profile — DONE.** `motorola-perry` UCM (potter HiFi +
+   msm8x16-wcd); Speaker/Mic routed, WirePlumber sink+source, **audible output
+   USER-CONFIRMED**. Durable pmaport `pmos/alsa-ucm-motorola-perry/`.
+2. ✅ **Mobile UI — Phosh — DONE (user-confirmed).** `postmarketos-ui-phosh`;
+   greetd→phrog→phosh, 720×1280@60, GPU (freedreno/GBM), touch. **⚠ installed on
+   the running rootfs — NOT durable across `pmbootstrap install`.**
+3. **▶ NEXT — make the UI/stack durable in a clean install** (highest value now,
+   so a reflash doesn't lose Phosh). `pmbootstrap init` UI=phosh **or**
+   `install --add postmarketos-ui-phosh` + our pmaports (`alsa-ucm-motorola-perry`,
+   `firmware-motorola-perry-nv`, `deviceinfo-motorola-perry`, lk2nd carry) +
+   `loginctl enable-linger aneesh`. Then reflash-validate. See porting-log
+   2026-07-20 "Phosh mobile UI" §DURABILITY.
+4. **Modem / data — ModemManager** — deferred: **no SIM on hand** (AT responds on
+   `/dev/wwan0at0`; needs a SIM to test). Revisit when a SIM is available.
+5. Audio route polish under phosh (earpiece/headset-jack); sensors
+   (vibrator/prox/ALS); cameras (disabled in DT); cosmetics (initramfs splash
+   #6, USB-net autosuspend #7). If the display ever freezes/glitches:
+   `WLR_DRM_NO_ATOMIC=1` for phoc (see porting-log).
 
-**Deferred — LineageOS/Android** (was the north-star; now parked behind pmOS).
-**RIL / mobile network** was the standing Android PRIORITY; board kept at
+**Deferred — LineageOS/Android** (was north-star; parked behind pmOS). Board at
 [§1](#1-open-issues--the-work-queue) for when/if we return.
 
-**Recommendation:** do **ModemManager** next (biggest remaining end-user gap).
-Audio is confirmed working.
+**Recommendation:** **make the Phosh + audio + Wi-Fi stack durable in the install
+image** next — everything works on the running device; the risk is losing it on
+the next `pmbootstrap install`/reflash. Modem waits on a SIM.
 
 **Housekeeping (no action now):** drop `pmos/lk2nd/0001-*` + the lk2nd
 `pkgrel` bump once pmaports bumps lk2nd past `d9ce4e70` (perry is already in
@@ -109,6 +123,16 @@ lk2nd `main`; our carry is a backport onto the pinned 22.0).
 
 ### Done this session (pmOS) — for context
 
+- ✅ **Phosh mobile UI — USER-CONFIRMED SUCCESS.** perry was a UI=none console
+  install; `apk add postmarketos-ui-phosh` (run via `systemd-run` transient unit
+  so session-teardown didn't reap it) → clean boot to `graphical.target` +
+  greetd + phrog greeter + phosh session (`aneesh`). phoc modesets DSI-1
+  **720×1280@60**, EGL/GBM (Adreno 308 GL), touch works. **⚠ NOT durable** (on
+  running rootfs; won't survive `pmbootstrap install`) — durability to-do is
+  now the top pmOS item. Benign: intermittent DSI-1 "Atomic commit failed:
+  Resource busy" (~0.1%; fix = `WLR_DRM_NO_ATOMIC=1` if ever visible). greetd
+  config: `/etc/phrog/greetd-config.toml` → `/usr/libexec/phrog-greetd-session`,
+  vt7. Details: porting-log 2026-07-20 "Phosh mobile UI".
 - ✅ **Audio — perry ALSA UCM profile** — was mute (`alsaucm -2`, "no backend
   DAIs"); no perry UCM shipped by `alsa-ucm-conf`. Authored
   `conf.d/motorola-perry/motorola-perry.conf` (potter HiFi verb + msm8x16-wcd

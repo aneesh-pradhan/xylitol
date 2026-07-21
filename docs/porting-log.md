@@ -1894,3 +1894,59 @@ live and well." So the full path (app/ALSA → UCM → msm8x16-wcd → speaker) 
 verified end-to-end, audibly. **Next:**
 earpiece/headset-jack routing under a UI (phosh), call audio (with modem), and
 per-route volume defaults. Modem/ModemManager is the next big pmOS deliverable.
+
+## 2026-07-20 — pmOS Phosh mobile UI up (user-confirmed SUCCESS)
+
+**Deliverable: perry boots to a usable touch mobile shell.** No SIM on hand, so
+the modem/ModemManager item was skipped; user chose "a good working mobile UI"
+instead. Installed **Phosh** (the GNOME/GTK phone shell). User confirmed success
+on the glass.
+
+**Starting state:** the rootfs was a **UI=none console install** (booted to
+`perry login:` tty, no shell). Substrate already good: `mesa-dri-gallium`
+installed, `/dev/dri/card0` + `renderD128` present (freedreno/Adreno 308), 1.4 GB
+RAM free, Adreno quirks shipped, touch + panel already working.
+
+**What was done (all on the running device over SSH — reversible, no flash):**
+1. `apk add postmarketos-ui-phosh` (v31-r0) — 533 pkgs, ~1.3 GB footprint: phosh,
+   phoc (wlroots compositor), phrog (Rust greetd greeter), phosh-osk-stevia OSK,
+   xdg-desktop-portal-phosh, mobile apps. Run as a **transient `systemd-run`
+   unit** (`--unit=phosh-install`) because a plain `nohup … &` got reaped on SSH
+   session teardown (this device aggressively kills session procs — same reason
+   we needed linger for audio). systemd-run survives session churn.
+2. `systemctl set-default graphical.target` (greetd.service ships **enabled**).
+   greetd is configured via `/etc/phrog/greetd-config.toml` →
+   `/usr/libexec/phrog-greetd-session` (vt7). pmOS uses **phrog**, not phog.
+3. **Reboot** for a clean console→compositor handover (a live `systemctl restart
+   greetd` on the running multi-user system hit `connector DSI-1: Atomic commit
+   failed: Resource busy` — the kernel DRM fbcon on the active VT still owned the
+   panel; a real graphical boot avoids that race).
+
+**Clean-boot result (validated in journal + user-confirmed visually):**
+- `graphical.target`, greetd active, `gnome-session --session=phosh` running as
+  `aneesh`, phosh shell (pid) live.
+- phoc: **`Modesetting with 720x1280 @ 60.000 Hz`** on DSI-1; EGL up on
+  **GBM/mesa** (`EGL_MESA_platform_gbm`) → Adreno 308 GL accel working.
+- **User: "PmOS is a success"** — boots to the Phosh mobile UI.
+
+**Known non-blocker:** intermittent `phoc … connector DSI-1: Atomic commit
+failed: Resource busy` persists post-modeset (~9 in 2.5 min vs ~9000 frames,
+~0.1%, bursts during heavy redraw). phoc retries; user reports success, so
+benign for now. **If it ever manifests as freeze/glitch:** force phoc off the
+atomic KMS path with `WLR_DRM_NO_ATOMIC=1` (drop-in env for the phoc/greetd
+session) — the standard wlroots-on-Qualcomm workaround. Not applied (unneeded).
+
+**DURABILITY — IMPORTANT (owed, not yet done):** the UI was `apk add`ed onto the
+running rootfs, so it does **NOT survive `pmbootstrap install`** (rootfs regen).
+To make perry ship Phosh from a clean install:
+- `pmbootstrap init` → select **UI: phosh** (or add `postmarketos-ui-phosh` via
+  `pmbootstrap install --add postmarketos-ui-phosh`), **plus** our pmaports:
+  `alsa-ucm-motorola-perry` (audio), `firmware-motorola-perry-nv` (Wi-Fi),
+  `deviceinfo-motorola-perry` (fdt), and the lk2nd carry.
+- Runtime still needed once (headless): `loginctl enable-linger aneesh`.
+- Consider a `postmarketos-ui-phosh` default in a perry device pmaport later.
+
+**Cumulative pmOS state:** boots → Phosh mobile UI (720×1280, GPU-accelerated,
+touch) with Wi-Fi + **working audio** (this session's UCM). Remaining: durable
+UI in the install image; audio route polish (earpiece/headset under phosh);
+modem (needs SIM); sensors (vibrator/prox/ALS); cameras (disabled in DT).
