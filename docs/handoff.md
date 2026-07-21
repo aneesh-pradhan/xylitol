@@ -318,9 +318,14 @@ the Lineage build's `vendor/etc/wifi/`) at that path:
 ```
 Then **reboot** (never manual `remoteproc` restart — it wedges WCNSS SMD):
 `sudo sh -c 'sync; echo 1 > /proc/sys/kernel/sysrq; echo b > /proc/sysrq-trigger'`.
-Cold boot → `wlan0` up, associates + DHCP, NM auto-reconnects. Durable-owed:
-promote NV to a local `firmware-motorola-perry` pmaport (survives
-`pmbootstrap install`); until then re-run the script after any install.
+Cold boot → `wlan0` up, associates + DHCP, NM auto-reconnects. **Durable fix
+DONE:** local pmaport `pmos/firmware-motorola-perry-nv/` +
+`scripts/pmos-apply-perry-firmware.sh` bakes the NV into the rootfs
+(`pmbootstrap build firmware-motorola-perry-nv` →
+`install --add firmware-motorola-perry-nv`), surviving `pmbootstrap install`.
+Named `-nv` to avoid the archived `firmware-motorola-perry` (which installs to
+the wrong `/lib/firmware/postmarketos/…` path). Build-validated. The runtime
+`pmos-install-wcnss-nv.sh` remains for quick patch-a-running-device.
 Notes: NV blob stable copy at `~/android/backups/perry/WCNSS_qcom_wlan_nv.perry.bin`;
 wcn36xx MAC is device-derived (`02:00:02:4b:07:1b`), not from the NV.
 

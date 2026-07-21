@@ -35,4 +35,24 @@ pmbootstrap build linux-postmarketos-qcom-msm89x7
 Expected artifact: `/boot/dtbs/qcom/msm8917-motorola-perry.dtb` inside the
 built package.
 
+## Wi-Fi NV pmaport (`firmware-motorola-perry-nv`)
+
+The mainline perry DTS points `wcn36xx` at
+`qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin`; without it Wi-Fi fails
+the NV load with `-2` and no `wlan0` appears. pmaports' archived
+`firmware-motorola-perry` installs the NV to `/lib/firmware/postmarketos/…`
+instead, so it does not satisfy this path. The local-only
+[`firmware-motorola-perry-nv/`](firmware-motorola-perry-nv/) aport installs
+perry's own NV blob at the DTS path so Wi-Fi survives `pmbootstrap install`.
+
+```bash
+WCNSS_NV_SRC=/path/to/perry/WCNSS_qcom_wlan_nv.bin \
+  ./scripts/pmos-apply-perry-firmware.sh
+pmbootstrap build   firmware-motorola-perry-nv
+pmbootstrap install --add firmware-motorola-perry-nv
+```
+
+The blob is a bare local source (dropped in by the script) — it is **not**
+committed here. Full guide: [`../docs/pmos.md`](../docs/pmos.md) step 6.
+
 **Do not** commit proprietary firmware or pmbootstrap chroots into xylitol.

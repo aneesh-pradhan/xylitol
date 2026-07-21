@@ -1533,12 +1533,22 @@ DHCP lease + `ping 1.1.1.1` ~20 ms; NetworkManager **auto-reconnects on boot**.
   kernel-level reboot: `echo 1 > /proc/sys/kernel/sysrq; sync;
   echo b > /proc/sysrq-trigger`. A clean cold boot brings WiFi up reliably.
 
-**Durability owed (same class as handoff E-6).** The installer writes to the
-rootfs (survives reboot, synced to eMMC) but a `pmbootstrap install` regen
-wipes it. Fully-durable fix = promote the NV to a **local** pmaport
-(`firmware-motorola-perry`) added to the device package's depends — kept out
-of public git because the blob is proprietary. Until then: re-run
-`scripts/pmos-install-wcnss-nv.sh` after any `pmbootstrap install`.
+**Durability — now solved with a pmaport.** The runtime installer
+(`scripts/pmos-install-wcnss-nv.sh`) writes to the rootfs (survives reboot)
+but a `pmbootstrap install` regen wipes it. The durable fix is a local pmaport
+that bakes the NV into the rootfs at build time:
+`pmos/firmware-motorola-perry-nv/` + `scripts/pmos-apply-perry-firmware.sh`
+(`pmbootstrap build firmware-motorola-perry-nv` →
+`install --add firmware-motorola-perry-nv`). Named `-nv` deliberately:
+pmaports already ships an archived `firmware-motorola-perry` (parent +
+`-wcnss` subpackage) that installs the NV to
+`/lib/firmware/postmarketos/wlan/prima/` — the downstream layout, **not** the
+`qcom/msm8917/motorola/perry/` path our mainline DTS (PR #48) requests — so it
+does not satisfy wcn36xx and a same-named package would also collide in the
+aports scan. Build-validated 2026-07-20: the apk installs
+`lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin` (md5
+`4f88c4c5…`). Blob stays a bare local source — never committed
+(`.gitignore` blocks `*.bin`), never downloaded.
 
 ### Ofilm 499v0 panel — first-light CONFIRMED (user-witnessed)
 

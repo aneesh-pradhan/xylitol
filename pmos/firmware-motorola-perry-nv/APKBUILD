@@ -1,0 +1,42 @@
+# Maintainer: Aneesh Pradhan <zen7370@outlook.com>
+#
+# Local-only pmaport — proprietary Motorola Wi-Fi calibration blob.
+#
+# Why this exists (and why not the upstream firmware-motorola-perry):
+# pmaports already ships an archived `firmware-motorola-perry`, but it installs
+# WCNSS_qcom_wlan_nv.bin to /lib/firmware/postmarketos/wlan/prima/ — the
+# downstream/Android layout. Our mainline perry DTS (msm89x7-mainline/linux
+# PR #48, carried as pmos/linux-.../0003) sets
+#   &wcnss_ctrl { firmware-name = "qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin"; }
+# so wcn36xx looks under /lib/firmware/qcom/msm8917/motorola/perry/ and, with
+# the upstream package, still finds nothing -> NV load fails with -2 (ENOENT)
+# and no wlan0. This package installs the NV at the path the DTS requests, so
+# Wi-Fi survives `pmbootstrap install` (unlike a hand-copied file).
+#
+# The blob is NOT redistributable and is NOT committed to xylitol or fetched
+# from a URL — you supply it locally. Before building, place perry's own
+# WCNSS_qcom_wlan_nv.bin next to this APKBUILD and run `pmbootstrap checksum
+# firmware-motorola-perry-nv` (scripts/pmos-apply-perry-firmware.sh does both).
+# Expected blob: perry stock NV, 31723 B, md5 4f88c4c5435d0d80c5e1c9bbe360a57e
+# (a different regional variant is fine — just re-checksum).
+pkgname=firmware-motorola-perry-nv
+pkgver=1
+pkgrel=0
+pkgdesc="WCNSS Wi-Fi NV calibration for Moto E4 (perry) at the mainline DTS path"
+url="https://github.com/aneesh-pradhan/xylitol"
+arch="noarch"
+license="proprietary"
+options="!check !strip !archcheck !tracedeps !spdx"
+# Bare local filename: abuild takes it from this aport directory (like a
+# .patch source), never the network.
+source="WCNSS_qcom_wlan_nv.bin"
+builddir="$srcdir"
+
+package() {
+	install -Dm644 "$srcdir/WCNSS_qcom_wlan_nv.bin" \
+		"$pkgdir/lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin"
+}
+
+# Populated by `pmbootstrap checksum firmware-motorola-perry-nv` once the blob
+# is in place (left empty on purpose — the blob is not in git).
+sha512sums=""
