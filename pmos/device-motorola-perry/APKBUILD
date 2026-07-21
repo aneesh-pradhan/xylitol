@@ -7,7 +7,7 @@
 pkgname=device-motorola-perry
 pkgdesc="Motorola Moto E4 (perry / XT1765, MSM8917)"
 pkgver=1
-pkgrel=2
+pkgrel=3
 url="https://github.com/aneesh-pradhan/xylitol"
 license="MIT"
 arch="aarch64"

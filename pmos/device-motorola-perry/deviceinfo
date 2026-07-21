@@ -27,3 +27,10 @@ deviceinfo_boot_filesystem="ext2"
 # (upstream default is 150% for phones ≤32 GiB).
 deviceinfo_zram_swap_pct="100"
 deviceinfo_zram_swap_algo="zstd"
+
+# P1.5 — the Ofilm 499v0 panel's DPU/DSI DRM driver doesn't bind until ~27s
+# in, past postmarketos-initramfs's hardcoded 10s /dev/fb0 wait, so the
+# initramfs gave up before the splash console could ever appear. Needs the
+# framebuffer-wait patch carried in pmos/postmarketos-initramfs/ (applied via
+# scripts/pmos-apply-initramfs-perry.sh). 35s = observed ~27s + margin.
+deviceinfo_framebuffer_wait_seconds="35"

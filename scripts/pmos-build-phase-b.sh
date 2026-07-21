@@ -35,6 +35,7 @@ echo "==> Applying xylitol perry packages into live pmaports"
 ./scripts/pmos-apply-lk2nd-perry.sh
 ./scripts/pmos-apply-kernel-perry.sh
 ./scripts/pmos-apply-device-perry.sh
+./scripts/pmos-apply-initramfs-perry.sh
 
 echo "==> pmbootstrap config: device=motorola-perry ui=phosh user=${PMOS_USER}"
 pmbootstrap config device motorola-perry
@@ -51,6 +52,10 @@ pmbootstrap checksum device-motorola-perry
 pmbootstrap build firmware-motorola-perry-nv
 pmbootstrap build alsa-ucm-motorola-perry
 pmbootstrap build lk2nd
+# --arch aarch64: this is a noarch package but defaults to building for the
+# native host arch; without an explicit aarch64 build+index entry, apk
+# silently falls back to the unpatched upstream binary during install.
+pmbootstrap build postmarketos-initramfs --arch aarch64
 pmbootstrap build linux-motorola-perry
 pmbootstrap build device-motorola-perry
 
@@ -115,6 +120,11 @@ sudo test -f /mnt/pmos-b-root/lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qco
   || { echo "ERROR: WCNSS NV missing" >&2; exit 1; }
 sudo test -f /mnt/pmos-b-root/usr/share/alsa/ucm2/conf.d/motorola-perry/motorola-perry.conf \
   || { echo "ERROR: perry UCM missing" >&2; exit 1; }
+# P1.5 — configurable framebuffer-wait patch + perry's raised timeout
+sudo grep -q 'deviceinfo_framebuffer_wait_seconds' /mnt/pmos-b-root/usr/share/initramfs/init_functions.sh \
+  || { echo "ERROR: patched postmarketos-initramfs (framebuffer wait) missing" >&2; exit 1; }
+sudo grep -q 'deviceinfo_framebuffer_wait_seconds="35"' /mnt/pmos-b-root/usr/share/deviceinfo/deviceinfo \
+  || { echo "ERROR: perry deviceinfo_framebuffer_wait_seconds override missing" >&2; exit 1; }
 # Kernel flavor: custom perry package, not generic msm89x7
 if ! sudo grep -q motorola-perry /mnt/pmos-b-boot/extlinux/extlinux.conf \
   && ! sudo test -e /mnt/pmos-b-root/usr/share/kernel/motorola-perry/kernel.release; then

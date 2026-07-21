@@ -18,9 +18,10 @@ Build recipe: `scripts/pmos-build-phosh-release.sh`. Benign: occasional
 **Headline (custom kernel, 2026-07-21):** first-class
 `pmos/device-motorola-perry` + `pmos/linux-motorola-perry` in-repo. Phase B
 image built (P0); **hardware flash PARKED** (userdata chunk hang). **P1
-repo-side DONE** (defconfig scrub, HZ=250, eMMC mq-deadline, cpufreq audit);
-packages build as `linux-motorola-perry` 7.0.9-r1 / `device-motorola-perry`
-1-r2. Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).  
+repo-side DONE** (defconfig scrub, HZ=250, eMMC mq-deadline, cpufreq audit,
+**P1.5 framebuffer-wait fix**); packages build as `linux-motorola-perry`
+7.0.9-r1 / `device-motorola-perry` 1-r3.
+Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).  
 **⚑ Next session: see [▶ Next session — start here](#-next-session--start-here-2026-07-21).**  
 **⚑ PRIORITY:** **pmOS is primary.** Android/Lineage deferred. Modem needs a
 SIM. Custom-kernel track continues until flash is explicitly resumed.  
@@ -91,44 +92,56 @@ but intact — queue at [§1](#1-open-issues--the-work-queue) when/if we return.
 ### ▶ Next session — start here (2026-07-21)
 
 **State:** Published Phosh image works on hardware. Custom
-`device-motorola-perry` + `linux-motorola-perry` are committed; P0+P1.1/1.2/1.4/1.6
-are in-tree; **Phase B flash is PARKED** (do not flash unless asked).
+`device-motorola-perry` + `linux-motorola-perry` are committed; P0, P1.1/1.2/1.4/1.6,
+and **P1.5 (framebuffer-wait fix) are all repo-side DONE and build-validated**;
+**Phase B flash is PARKED** (do not flash unless asked). Modem/SIM work is
+**out of scope** — this unit doesn't support current US tower bands, so
+calling/texting is impossible; do not schedule modem work.
 
 **Do next (pick one track):**
 
-1. **Rebuild Phase B image with P1 packages** (no flash yet) —
-   `./scripts/pmos-apply-kernel-perry.sh && ./scripts/pmos-apply-device-perry.sh`
-   then `./scripts/pmos-build-phase-b.sh`. Staged under `artifacts/pmos-phase-b/`
-   (gitignored). Confirms scrubbed kernel + eMMC udev land in the rootfs.
-2. **P1.5 — earlier DRM / shorter splash** (repo-only) — initramfs fb wait /
-   handoff cosmetics #6; see plan §P1.5. Not simplefb.
-3. **P1.3 — GPU opp / cooling** — **blocked on device metrics**; author DT
-   `0101` only after flash + `mangohud`/`govstat` baselines (plan §5).
-4. **Resume flash (only if user asks)** — force-fastboot lk2nd path worked;
+1. **P1.3 — GPU opp / cooling** — **blocked on device metrics**; author DT
+   `0101` only after flash + `mangohud`/`govstat` baselines (plan §5). Tracked
+   as [GitHub #3](https://github.com/aneesh-pradhan/xylitol/issues/3), blocked
+   by [#12](https://github.com/aneesh-pradhan/xylitol/issues/12) (flash resume).
+2. **Resume flash (only if user asks)** — force-fastboot lk2nd path worked;
    `fastboot flash userdata` hung on sparse chunk 3/3 twice. Sacred: never
    touch `persist` / `modemst1` / `modemst2`. Scripts:
    `pmos-flash-phase-b.sh` / `pmos-flash-phase-b-force.sh` (both marked PARKED).
-5. **Modem / ModemManager** — when a SIM is on hand (`/dev/wwan0at0` AT OK).
-6. **Polish (opportunistic)** — phosh earpiece/headset UCM; sensors; cameras
+   Tracked as [GitHub #12](https://github.com/aneesh-pradhan/xylitol/issues/12).
+   Once flashed, **visually confirm P1.5** — splash should now appear (was a
+   silent black screen until ~27s before).
+3. **Polish (opportunistic)** — phosh earpiece/headset UCM; sensors; cameras
    still DT-disabled. Display freeze fallback: `WLR_DRM_NO_ATOMIC=1` (already
-   in device package).
+   in device package). See GitHub #9/#10 for the larger cameras/sensors items.
 
 **Already done (do not redo):**
 
 - Audio UCM, Phosh UI, durable release `pmos-perry-2026-07-21`, Wi-Fi NV, lk2nd
   perry node carry, P0 (zram / lean install / WLR / USB nosuspend / presets),
-  P1.1 scrub + P1.6 HZ=250, P1.2 OPP audit (no DT patch), P1.4 eMMC udev.
-  Build-validated: `linux-motorola-perry` **7.0.9-r1**,
-  `device-motorola-perry` **1-r2**.
+  P1.1 scrub + P1.6 HZ=250, P1.2 OPP audit (no DT patch), P1.4 eMMC udev,
+  **P1.5 framebuffer-wait fix** (see below). Build-validated:
+  `linux-motorola-perry` **7.0.9-r1**, `device-motorola-perry` **1-r3**.
 
-**Recommendation for next session:** item **1** (rebuild image) or **2**
-(P1.5), unless the user brings a SIM (→ **5**) or explicitly resumes flash
-(→ **4**).
+**P1.5 — earlier DRM console / shorter splash: DONE (repo-side, 2026-07-21).**
+Root cause: `postmarketos-initramfs`'s `setup_framebuffer()` hardcodes a 10s
+wait for `/dev/fb0`, but perry's Ofilm 499v0 DPU/DSI DRM driver doesn't bind
+until ~27s in, so the initramfs always gave up before any splash could show.
+Fix: `pmos/postmarketos-initramfs/0001-*.patch` adds a
+`deviceinfo_framebuffer_wait_seconds` knob (default 10, unchanged for every
+other device); perry's own `deviceinfo` raises it to 35. Applied via new
+`scripts/pmos-apply-initramfs-perry.sh`, wired into
+`scripts/pmos-build-phase-b.sh`. Not simplefb (see E-6 below — that stays
+retired). Build-validated only — **on-device visual confirmation still needs
+a flash** (currently parked). Full write-up + gotchas found while building
+this: porting-log 2026-07-21 "P1.5 framebuffer-wait fix". Tracked as
+[GitHub #4](https://github.com/aneesh-pradhan/xylitol/issues/4).
 
 **Canonical paths:** `pmos/linux-motorola-perry/` (defconfig + patches
-0001–0006), `pmos/device-motorola-perry/`, plan
-[`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md). Published
-overlay path (`qcom-msm89x7` + `pmos-build-phosh-release.sh`) still valid.
+0001–0006), `pmos/device-motorola-perry/`, `pmos/postmarketos-initramfs/`
+(P1.5 patch), plan [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).
+Published overlay path (`qcom-msm89x7` + `pmos-build-phosh-release.sh`) still
+valid.
 
 **Housekeeping (no action now):** drop `pmos/lk2nd/0001-*` + lk2nd `pkgrel`
 bump once pmaports bumps lk2nd past `d9ce4e70`.
@@ -204,7 +217,7 @@ items folded into the new list.
 | 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | ✅ Done + **runbook-validated** 2026-07-20 — apk-regen + cold reboot keep `fdt`. Pmaport `deviceinfo-motorola-perry`. |
 | 4 | ~~Fold DTB `fb=okay`/`usb=peripheral` into the overlay~~ (E-6) | ✅ **Resolved 2026-07-20 — RETIRED, no change.** Evidence: all 4 siblings on this kernel (nora/montana/cedric + perry) ship `simple-framebuffer status="disabled"` and `dr_mode="otg"`; device boots fine with both (real Ofilm DRM console + USB-net). Both were bring-up hacks now served by real drivers; folding either in would diverge from the family (usb=peripheral also breaks OTG host). Early splash, if ever wanted, = initramfs timeout bump (#6), not simplefb. See porting-log 2026-07-20 "Retire Solution-2 DTB hacks". |
 | 5 | ~~Add perry lk2nd device node~~ | ✅ **DONE — flashed + validated 2026-07-20.** Patch `pmos/lk2nd/0001-*` adds `motorola-perry` to `msm8917-mtp.dts`; built lk2nd **r3** (`scripts/pmos-apply-lk2nd-perry.sh`), flashed to `boot`. Runtime: lk2nd logs `Detected device: Motorola Moto E4 (perry) (MSM8917) (compatible: motorola,perry)` (no FIXME/`-1`); pmOS boots through it (7.0.9-msm89x7, USB-net+SSH, wlan0). `fdtdir` now resolves natively (complements the deviceinfo `fdt` pin). Details: [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md). |
-| 6 | **Cosmetic: initramfs splash timeout** | `/dev/fb0` appears ~27 s (DPU/DSI bind), past the 10 s initramfs wait → no splash. Bump the wait or get the panel probing earlier. Non-blocking. |
+| 6 | ~~Cosmetic: initramfs splash timeout~~ (P1.5) | ✅ **Repo-side DONE 2026-07-21** — `deviceinfo_framebuffer_wait_seconds` patch to `postmarketos-initramfs`, perry set to 35s. Build-validated; needs a flash to visually confirm. See [Next to-dos](#-next-session--start-here-2026-07-21) and porting-log 2026-07-21. |
 | 7 | **USB-net stability** | Gadget auto-suspends, wiping the host IP. If iterating a lot: pin a NetworkManager profile for the cdc_ncm iface and/or disable device autosuspend. |
 | 8 | **(optional) Device-exact NV in the pmaport** | Mirror NV (`3076c1a0…`) ≠ this unit's stock NV (`4f88c4c5…`, in backups). RF/regulatory cal only; MAC is SoC-derived. Bake stock in if you want this exact XT1765's cal — see [`pmos.md`](pmos.md) step 6. |
 | 9 | **(optional) Upstream contributions** | lk2nd perry node is **already upstream** (`d9ce4e70`) — no PR needed. Still worth reporting: Ofilm-v0 panel detection to linux-panel-drivers#6 / linux#48, and the pmaports NV path mismatch. |
