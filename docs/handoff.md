@@ -83,7 +83,7 @@ work queue is [§1 below](#1-open-issues--the-work-queue)).
 |---|---|---|
 | 1 | **Merge PR #2** (firmware pmaport) | ✅ Done 2026-07-20 — squash-merged as `9c4f3a2` on `main`. |
 | 2 | **Feature-matrix walk** over SSH | ✅ Done 2026-07-20 — results in porting-log. BT/Wi-Fi/display/touch/GPU/accel OK; audio needs perry UCM; cameras (`camss`/`cci` disabled), vibrator, prox/ALS, GPS missing. |
-| 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | ✅ Done 2026-07-20 — `/etc/deviceinfo` pins `deviceinfo_dtb` to perry; mkinitfs emits `fdt`. Live + pmaport `deviceinfo-motorola-perry`. |
+| 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | ✅ Done + **runbook-validated** 2026-07-20 — apk-regen + cold reboot keep `fdt`. Pmaport `deviceinfo-motorola-perry`. |
 | 4 | **Fold DTB `fb=okay` into the overlay** (E-6) | Legit (splash/console). Add to overlay 0003 or a new 0007. `usb=peripheral` stays a HACK — real fix is extcon/charger (`pmi8950_smbcharger`, `usb_id` GPIO 97) role detection so `otg` flips on cable. |
 | 5 | **Add perry lk2nd device node** | Fixes `fdtdir`, panel auto-select, and the cosmetic "Unknown (FIXME!)". Needs building lk2nd (arm-none-eabi) + reflashing lk2nd to `boot`. Enables #3 the right way. |
 | 6 | **Cosmetic: initramfs splash timeout** | `/dev/fb0` appears ~27 s (DPU/DSI bind), past the 10 s initramfs wait → no splash. Bump the wait or get the panel probing earlier. Non-blocking. |
@@ -130,9 +130,9 @@ the chronological bring-up log; the consolidated state + to-dos are up top.
 > re-add IP + timeout-wrap ssh. Blocker B (blind & mute), Wi-Fi (WCNSS NV),
 > panel first-light, and the durable NV pmaport (PR #2 merged) are all DONE.
 > Feature matrix walked (see porting-log). Durable extlinux `fdt` pin DONE
-> (`deviceinfo-motorola-perry`). Next: perry lk2nd device node (also fixes
-> panel auto-select / "Unknown FIXME"), or audio UCM / fold `fb=okay` into
-> overlay. Do not touch persist/modemst*.
+> and runbook-validated (apk-regen + cold reboot). Next: perry lk2nd device
+> node (panel auto-select / "Unknown FIXME"), or audio UCM / fold `fb=okay`
+> into overlay. Do not touch persist/modemst*.
 
 ### E-1. What we did, in order (all succeeded)
 
