@@ -1,0 +1,57 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Tue, 21 Jul 2026 11:20:00 -0700
+Subject: [PATCH] initramfs: make framebuffer wait timeout device-configurable
+
+setup_framebuffer() gives up on /dev/fb0 after a hardcoded 10 seconds and
+logs an ERROR, skipping set_framebuffer_mode() entirely. On perry
+(XT1765/MSM8917), the Ofilm 499v0 panel's DPU/DSI DRM driver doesn't bind
+until ~27s in, so every boot hits this timeout and the device gets no splash
+console at all -- not because it lacks a framebuffer, but because it's slower
+to appear than the hardcoded budget.
+
+Add deviceinfo_framebuffer_wait_seconds (default 10, matching prior
+behavior for every other device) so a device can raise it instead. Perry
+sets this via device-motorola-perry/deviceinfo (see
+pmos-apply-initramfs-perry.sh). Not simplefb: the real DPU/DSI DRM console
+is used once it binds, this patch only stops the initramfs from giving up
+before that happens. See docs/porting-log.md 2026-07-20 "Retire Solution-2
+DTB hacks" and docs/perry-custom-kernel-plan.md P1.5.
+---
+ init_functions.sh | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/init_functions.sh b/init_functions.sh
+--- a/init_functions.sh
++++ b/init_functions.sh
+@@ -20,6 +20,10 @@
+ deviceinfo_create_initfs_extra="${deviceinfo_create_initfs_extra:-}"
+ deviceinfo_no_framebuffer="${deviceinfo_no_framebuffer:-}"
+ deviceinfo_rootfs_image_sector_size="${deviceinfo_rootfs_image_sector_size:-}"
++# Some DRM panel drivers (e.g. perry's Ofilm 499v0, ~27s to DPU/DSI bind)
++# take longer than the default 10s to register /dev/fb0. Let a device raise
++# the wait so it still gets a splash instead of silently giving up early.
++deviceinfo_framebuffer_wait_seconds="${deviceinfo_framebuffer_wait_seconds:-10}"
+
+ # Default to no splash unless set on the kernel cmdline. Plymouth will not
+ # display a splash if this param is missing from the cmdline
+@@ -1318,13 +1322,14 @@ setup_framebuffer() {
+ 		return
+ 	fi
+
+-	# Wait for /dev/fb0
+-	for _ in $(seq 1 100); do
++	# Wait for /dev/fb0 (deviceinfo_framebuffer_wait_seconds, default 10)
++	_fb_wait_iters="$((deviceinfo_framebuffer_wait_seconds * 10))"
++	for _ in $(seq 1 "$_fb_wait_iters"); do
+ 		[ -e "/dev/fb0" ] && break
+ 		sleep 0.1
+ 	done
+ 	if ! [ -e "/dev/fb0" ]; then
+-		echo "ERROR: /dev/fb0 did not appear after waiting 10 seconds!"
++		echo "ERROR: /dev/fb0 did not appear after waiting ${deviceinfo_framebuffer_wait_seconds} seconds!"
+ 		echo "If your device does not have a framebuffer, disable this with:"
+ 		echo "no_framebuffer=true in <https://postmarketos.org/deviceinfo>"
+ 		return
+--
+2.43.0

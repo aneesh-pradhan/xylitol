@@ -2084,3 +2084,94 @@ Noted in `pmos/linux-motorola-perry/patches/README.md`.
 
 **Still open:** P1.3 GPU opp/cooling, P1.5 earlier DRM/splash, on-device
 baselines after flash resumes.
+
+## 2026-07-21 — P1.5 framebuffer-wait fix (repo-side, no flash)
+
+[GitHub #4](https://github.com/aneesh-pradhan/xylitol/issues/4). Root cause
+(confirmed by reading `postmarketos-initramfs` 3.12.0 source, extracted from
+`~/pmos/work/cache_distfiles/postmarketos-mkinitfs-2.11.1.tar.gz` and the
+live pmaports checkout): `init_functions.sh`'s `setup_framebuffer()` waits a
+hardcoded `seq 1 100` × `sleep 0.1` = **10s** for `/dev/fb0`, then gives up
+and logs `ERROR: /dev/fb0 did not appear after waiting 10 seconds!` without
+ever calling `set_framebuffer_mode()`. Perry's Ofilm 499v0 DPU/DSI DRM driver
+doesn't bind until **~27s** in (already known, see 2026-07-20 "Retire
+Solution-2 DTB hacks" — that entry named the initramfs-timeout bump as the
+correct low-risk path, not simplefb). This is why perry gets a silent black
+screen through the whole boot instead of any splash/console.
+
+**Fix:** `pmos/postmarketos-initramfs/0001-make-framebuffer-wait-timeout-device-configurable.patch`
+adds `deviceinfo_framebuffer_wait_seconds` (default `10`, so every other pmOS
+device is unaffected); `setup_framebuffer()`'s loop count and error message
+now derive from it. Perry's own
+`pmos/device-motorola-perry/deviceinfo` sets it to `35` (27s observed +
+margin). New `scripts/pmos-apply-initramfs-perry.sh` (mirrors
+`pmos-apply-lk2nd-perry.sh`'s pattern: copy patch into the local pmaports
+`main/postmarketos-initramfs`, bump `pkgrel`, insert into `source=`,
+re-checksum) wired into `scripts/pmos-build-phase-b.sh`.
+
+**Four gotchas hit getting this to actually build + land in the rootfs**
+(each confirmed by direct inspection, not assumption — worth remembering for
+future community-package patches or first-class package edits):
+
+1. **awk closing-quote match bug.** The apply script's insert-into-`source=`
+   awk looked for a line starting with `"` to find the block's end. lk2nd's
+   `source=` block closes with an unindented `"`, but
+   `postmarketos-initramfs`'s closes with a **tab-indented** `"` (multi-entry
+   block) — the awk skipped past it and matched the `sha512sums=` block's
+   closing `"` instead, silently mis-inserting the patch line into the wrong
+   block. `pmbootstrap checksum` then regenerated `sha512sums=` from the
+   *actual* `source=` list (which never got the patch), silently discarding
+   the bad insert — so the APKBUILD looked "fixed" (pkgrel bumped, patch file
+   copied) but the patch was never actually wired in. Fix: match
+   `/^[ \t]*"[ \t]*$/` instead of `/^"/`.
+2. **abuild `default_prepare()` needs `$builddir` for `.patch` sources.**
+   `postmarketos-initramfs` ships plain files (no tarball), so its APKBUILD
+   never sets `builddir=`. abuild's `default_prepare()` requires
+   `[ -d "$builddir" ]` before applying any `.patch` entry —
+   `ERROR: Is $builddir set correctly?`. Fix: add `builddir="$startdir"`.
+   First attempt used `builddir="$srcdir"` instead — abuild's default
+   `$srcdir` is populated with **symlinks** back into `$startdir` for local
+   sources, and `patch` refuses to edit through a symlink
+   (`File init_functions.sh is not a regular file -- refusing to patch`).
+   `$startdir` has the real files; `$srcdir/init_functions.sh` symlinks to
+   the same path, so `build()`/`package()` (which reference `$srcdir`) pick
+   up the patched content automatically.
+3. **`arch="noarch"` defaults to the native host arch, not the target.**
+   `pmbootstrap build postmarketos-initramfs` (no `--arch`) only produced an
+   `x86_64` apk with no `aarch64` index entry. The perry rootfs (aarch64)
+   installed fine anyway — apk silently fell back to the **unpatched
+   upstream r0** binary from the remote mirror instead of erroring, so the
+   sanity check (`grep` for the new function in the built rootfs) was what
+   actually caught it, not a build failure. Fix:
+   `pmbootstrap build postmarketos-initramfs --arch aarch64`.
+4. **`device-motorola-perry`'s `deviceinfo` install path is NOT
+   `/etc/deviceinfo`.** `devicepkg_package.sh` (from `devicepkg-dev`) installs
+   to `usr/share/deviceinfo/$pkgname`, symlinked from
+   `usr/share/deviceinfo/deviceinfo`. `/etc/deviceinfo` doesn't exist on this
+   image at all. Also unrelated but compounding: **`device-motorola-perry`'s
+   `pkgrel` wasn't bumped** after editing `deviceinfo`, so `pmbootstrap
+   build` kept reusing an hours-old cached apk from earlier in the session
+   with none of the P1.5 change — content checksums matched in the *source*
+   APKBUILD (`pmbootstrap checksum` re-hashes correctly), but apk versioning
+   is pkgrel-based, not content-hash-based, so nothing forced a rebuild.
+   Fixed both: sanity check now greps
+   `usr/share/deviceinfo/deviceinfo`, and `device-motorola-perry` bumped
+   `pkgrel` 2 → 3.
+
+**Environment note (unrelated to the patch, but ate most of the session):**
+`pmbootstrap`'s buildroot teardown (`zap_buildroots`) intermittently lost a
+race unmounting `chroot_native/{proc,sys,mnt/...}` with `target is busy` on
+this desktop (busy with GNOME's `localsearch` indexer, editors, browser tabs,
+etc. all touching `/proc`). Recovery: `sudo umount -l <mountpoint>` (lazy)
+followed by `pmbootstrap shutdown`, then retry — never needed more than a few
+attempts. Not a xylitol or patch issue; purely host noise.
+
+**Build validation:** full `scripts/pmos-build-phase-b.sh` run succeeded
+end-to-end (packages up to date except the two above, which rebuilt
+correctly) with all sanity checks passing, including two new ones added for
+this fix (patched `init_functions.sh` present, perry's
+`deviceinfo_framebuffer_wait_seconds="35"` present). Extracted and directly
+verified the built apks/rootfs contents at each step rather than trusting
+"up to date" / exit-code-0 alone — this is what caught gotchas 3 and 4 above.
+**Not yet confirmed on hardware** — flash is still parked; next flash should
+visually confirm a splash appears instead of a black screen for ~27s.
