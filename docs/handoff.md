@@ -308,13 +308,11 @@ install unless you also re-apply the extlinux/DTB fixes.
 Both Solution 1 (extlinux `fdt`) and Solution 2 (DTB fb/usb) are edits to
 the *flashed image*, lost on any `pmbootstrap install`. To make them
 reproducible in the xylitol overlay:
-- **extlinux `fdtdir`→`fdt`:** `boot-deploy`'s `create_extlinux_config`
-  emits `fdtdir /`. Options: (a) the RIGHT fix — **add a perry device node
-  to lk2nd** so `lk2nd_device_get_dtb_hints()` works (also fixes panel
-  selection & "Unknown (FIXME!)"); needs building lk2nd (arm-none-eabi) +
-  reflashing lk2nd to `boot`. (b) patch/override boot-deploy or set a
-  single `deviceinfo_dtb` so it emits explicit `fdt`. (c) a post-install
-  hook that rewrites extlinux.conf.
+- **extlinux `fdtdir`→`fdt`:** ✅ Durable via `/etc/deviceinfo` pin
+  (`deviceinfo-motorola-perry` pmaport). boot-deploy now emits
+  `fdt /msm8917-motorola-perry.dtb` on every mkinitfs. Remaining "proper"
+  fix is still a perry lk2nd device node (also panel auto-select /
+  "Unknown FIXME!") — see to-do #5.
 - **DTB fb=okay:** legit to fold into overlay patch 0003 (or new 0007) —
   a simple-framebuffer splash/console is normal & upstreamable.
 - **DTB usb=peripheral:** a bring-up HACK. Upstream-correct fix = make
