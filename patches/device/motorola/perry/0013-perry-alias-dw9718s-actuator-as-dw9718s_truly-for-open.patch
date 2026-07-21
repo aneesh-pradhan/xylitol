@@ -1,5 +1,5 @@
 From 8c6bae34161c9a4b2c7473f4c05ec17a7f2ae3d8 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Mon, 20 Jul 2026 11:28:21 -0700
 Subject: [PATCH] perry: alias dw9718s actuator as dw9718s_truly for open
 

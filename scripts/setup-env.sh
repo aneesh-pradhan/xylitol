@@ -4,10 +4,16 @@
 # supported device's build page, since perry has no wiki page of its own).
 set -euo pipefail
 
-# Only used if git user.* is unset globally. Public rebuilds should pass their own:
+# Required if git user.* is unset globally — no personal defaults in-repo:
 #   GIT_USER_NAME='Your Name' GIT_USER_EMAIL='you@example.com' ./scripts/setup-env.sh
-GIT_USER_NAME="${GIT_USER_NAME:-aneesh-pradhan}"
-GIT_USER_EMAIL="${GIT_USER_EMAIL:-zen7370@outlook.com}"
+if [ -z "${GIT_USER_NAME:-}" ] || [ -z "${GIT_USER_EMAIL:-}" ]; then
+  if ! git config --global user.name >/dev/null 2>&1 || ! git config --global user.email >/dev/null 2>&1; then
+    echo "ERROR: set GIT_USER_NAME and GIT_USER_EMAIL (or git config --global user.*)" >&2
+    exit 1
+  fi
+fi
+GIT_USER_NAME="${GIT_USER_NAME:-$(git config --global user.name)}"
+GIT_USER_EMAIL="${GIT_USER_EMAIL:-$(git config --global user.email)}"
 CCACHE_SIZE="${CCACHE_SIZE:-25G}"
 BIN_DIR="$HOME/bin"
 LINEAGE_DIR="$HOME/android/lineage"

@@ -22,8 +22,8 @@ XYLITOL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APORT_SRC="$XYLITOL_ROOT/pmos/alsa-ucm-motorola-perry"
 
 DEVICE_IP="${DEVICE_IP:-172.16.42.1}"
-DEVICE_USER="${DEVICE_USER:-aneesh}"
-PMOS_SUDO_PW="${PMOS_SUDO_PW:-147147}"     # throwaway sudo pw; SSH is key-based
+DEVICE_USER="${DEVICE_USER:-xylitol}"
+PMOS_SUDO_PW="${PMOS_SUDO_PW:-xylitol}"    # public-image default; change after first boot
 
 UCM_SRC="$APORT_SRC/motorola-perry.conf"
 WP_SRC="$APORT_SRC/50-perry-disable-libcamera.conf"

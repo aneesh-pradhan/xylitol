@@ -1,4 +1,4 @@
-# Maintainer: Aneesh Pradhan <zen7370@outlook.com>
+# Maintainer: Project Xylitol <xylitol@users.noreply.github.com>
 #
 # Local-only pmaport (not upstream). Gives the Moto E4 (perry, XT1765) working
 # audio on mainline / postmarketOS by shipping the device's ALSA UCM2 profile.

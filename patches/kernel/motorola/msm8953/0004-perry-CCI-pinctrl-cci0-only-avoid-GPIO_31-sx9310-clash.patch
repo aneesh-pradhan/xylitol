@@ -1,5 +1,5 @@
 From 7c1b60c2203422c7da7b67e2f45274b19cce9003 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Mon, 20 Jul 2026 14:22:50 -0700
 Subject: [PATCH] perry: CCI pinctrl cci0-only (avoid GPIO_31 / sx9310 clash)
 

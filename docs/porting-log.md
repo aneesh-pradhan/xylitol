@@ -385,7 +385,7 @@ After the VINTF kernel-enforce override, bacon completed successfully
 (`BACON_RC=0`, ~6 min incremental):
 
 `out/target/product/perry/lineage-18.1-20260720-UNOFFICIAL-perry.zip`
-(~699 MB; also `lineage_perry-ota-eng.aneesh.zip`).
+(~699 MB; also `lineage_perry-ota-eng.builder.zip`).
 
 Build host was Ubuntu 26.04 in this session. Next: flash via TWRP
 (`fastboot boot` preferred), expect bootloop, debug with `adb logcat` /
@@ -450,7 +450,7 @@ Ubuntu 26.04 host issues fixed:
 
 Verified: `fastboot boot ~/android/recovery/twrp-perry-local-latest.img`
 → adb recovery, `ro.twrp.version=3.7.0_9-0`,
-`eng.aneesh.20260719.191216`, pstore accessible.
+`eng.builder.20260719.191216`, pstore accessible.
 
 ## 2026-07-19 — USB panic research: siblings, official LOS, root cause confirmed
 
@@ -1209,7 +1209,7 @@ separate agents — hence the new executor runbook
 (symlink `~/bin/pmbootstrap`); non-interactive init via
 `~/pmos/init-perry.exp` (expect script). Config
 `~/.config/pmbootstrap_v3.cfg`: workdir `~/pmos/work`, channel
-**systemd-edge**, device **qcom-msm89x7**, UI console, user `aneesh`,
+**systemd-edge**, device **qcom-msm89x7**, UI console, user `xylitol`,
 hostname `perry`. Note: init answered "n" to SSH-key copy — runbook C3
 flips `ssh_keys` to True before `install`.
 
@@ -1289,10 +1289,10 @@ gates (TWRP backups) before any device contact.
 Runbook §2 (C3–C5) completed on the Ubuntu build host.
 
 **C3.** Host had an empty `~/.ssh/` (no `*.pub`). Generated
-`~/.ssh/id_ed25519` (comment `aneesh@buildhost-perry-pmos`, empty
+`~/.ssh/id_ed25519` (comment `xylitol@buildhost-perry-pmos`, empty
 passphrase) and set `pmbootstrap config ssh_keys True`. Keys are
 copied into the *install image* at fill time
-(`…/mnt/install/home/aneesh/.ssh/authorized_keys`), not into the
+(`…/mnt/install/home/xylitol/.ssh/authorized_keys`), not into the
 rootfs chroot — so a later `pmbootstrap chroot -r` won't show them;
 the flashed userdata image will.
 
@@ -1361,7 +1361,7 @@ Ofilm panel driver is generated (same `lmdpdg` path as Tianma PR #6)
 and the DTS compatible updated (or dual-panel selection added).
 
 **D7.** `fastboot reboot` → Lineage
-`eng.aneesh.20260719.193203` `sys.boot_completed=1`. Reversibility OK.
+`eng.builder.20260719.193203` `sys.boot_completed=1`. Reversibility OK.
 
 **GATE for E:** still needs explicit user go-ahead (overwrites `boot` +
 `userdata`). Strongly consider Ofilm panel work before or immediately
@@ -1446,7 +1446,7 @@ fastboot-boot retry (did lk2nd splash/kernel logo appear at all?);
 Ofilm first-light test — extlinux path avoids the boot.img quirks;
 (c) debug lk2nd fastboot-boot layout further (low value vs. E).
 
-Image note: rootfs regenerated with throwaway user password `147147`
+Image note: rootfs regenerated with throwaway user password `xylitol`
 (SSH key auth is the intended login; rootfs not flashed anywhere yet).
 
 ## 2026-07-20 — Ofilm smoke retry with user observing: confirms pre-initramfs death
@@ -1489,7 +1489,7 @@ lease, so assign it by hand:
 ```
 sudo ip addr add 172.16.42.2/24 dev <usb-iface>   # host side
 ping 172.16.42.1                                    # device side
-ssh aneesh@172.16.42.1                              # key auth; sudo pw 147147
+ssh xylitol@172.16.42.1                              # key auth; sudo pw xylitol
 ```
 The USB link **auto-suspends / re-enumerates** frequently, which wipes the
 host static IP — re-add it before each reconnect. Wrap all ssh/fastboot in
@@ -1594,8 +1594,7 @@ Walked the wiki-claimed feature matrix over USB-net SSH on the live
 `7.0.9-msm89x7` edge install (XT1765 / perry). Also: squash-merged PR #2
 (`firmware-motorola-perry-nv`), closed Cursor cloud draft PR #1, deleted
 `cursor/setup-dev-environment-ec44`, and did a `main`→`main1`→`main` default-
-branch rename so GitHub's contributors list drops `cursoragent` (API now
-shows only `aneesh-pradhan`).
+branch rename so GitHub's contributors list drops `cursoragent`.
 
 ### Results
 
@@ -1803,7 +1802,7 @@ Runtime validation (lk2nd fastboot serial `24b071b`):
   Log also shows `androidboot.device=perry`, panel
   `qcom,mdss_dsi_mot_ofilm_499_720p_video_v0`, `androidboot.hardware.sku=XT1765`.
 - `fastboot continue` → pmOS booted through the new lk2nd: USB-net came up,
-  `ssh aneesh@172.16.42.1` → `Linux 7.0.9-msm89x7`, `up 0 min`, `wlan0` present.
+  `ssh xylitol@172.16.42.1` → `Linux 7.0.9-msm89x7`, `up 0 min`, `wlan0` present.
   **No boot regression.**
 
 So the device node fix is complete on hardware: identity fixed and `fdtdir`
@@ -1874,8 +1873,7 @@ the audio nodes flap, not the UCM):**
 2. **No systemd linger.** In headless SSH bring-up (no phosh session) the user
    systemd manager — and thus pipewire/wireplumber — is torn down whenever the
    last login session closes; each short SSH command churned it (session ids
-   climbing 12→22→…, graceful "Stopping", no signal). `loginctl enable-linger
-   aneesh` → WP stays `active` across disconnect+reconnect, sink/source persist.
+   climbing 12→22→…, graceful "Stopping", no signal). `loginctl enable-linger xylitol` → WP stays `active` across disconnect+reconnect, sink/source persist.
    A real phone UI session would keep it alive; linger is a runtime step (not
    packaged).
 
@@ -1924,7 +1922,7 @@ RAM free, Adreno quirks shipped, touch + panel already working.
 
 **Clean-boot result (validated in journal + user-confirmed visually):**
 - `graphical.target`, greetd active, `gnome-session --session=phosh` running as
-  `aneesh`, phosh shell (pid) live.
+  `xylitol`, phosh shell (pid) live.
 - phoc: **`Modesetting with 720x1280 @ 60.000 Hz`** on DSI-1; EGL up on
   **GBM/mesa** (`EGL_MESA_platform_gbm`) → Adreno 308 GL accel working.
 - **User: "PmOS is a success"** — boots to the Phosh mobile UI.
@@ -1952,7 +1950,7 @@ onto a console rootfs and would not survive `pmbootstrap install`.
 
 **What changed**
 - `deviceinfo-motorola-perry` pkgrel 0→1: still pins `deviceinfo_dtb`, and now
-  also ships `/var/lib/systemd/linger/aneesh` (same as `loginctl enable-linger`).
+  also ships `/var/lib/systemd/linger/xylitol` (same as `loginctl enable-linger`).
 - New `scripts/pmos-build-phosh-release.sh`: applies all overlays, sets
   `ui=phosh`, builds with `--add deviceinfo-motorola-perry,firmware-motorola-perry-nv,alsa-ucm-motorola-perry`,
   exports, zstd-compresses the rootfs, loop-mount sanity-checks (extlinux
@@ -1964,7 +1962,7 @@ onto a console rootfs and would not survive `pmbootstrap install`.
 - Image: `qcom-msm89x7.img` **4935M** (boot 512M + root with `extra_space=2048`)
 - Compressed: **~557 MiB** `.img.zst` (fits GitHub Releases easily)
 - lk2nd: perry node carry (r3), 315 KiB
-- Password for the public image: `147147` (documented; change after first boot)
+- Password for the public image: `xylitol` (documented; change after first boot)
 
 **Published:**
 [https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
@@ -1980,3 +1978,19 @@ UCM + WCNSS NV + all four perry apks installed, **wlan0 connected**. Sacred
 partitions never touched. Host gotcha: NetworkManager on the build host can
 steal the cdc_ncm iface — `nmcli device set <iface> managed no` before
 assigning `172.16.42.2/24`.
+
+## 2026-07-21 — Privacy scrub (public image + repo defaults)
+
+Public defaults must not embed personal identity or host secrets:
+
+- Image / docs default user: **`xylitol`** (was a personal username).
+- Public image password default: **`xylitol`** (was a personal throwaway).
+- Release builds set `pmbootstrap config ssh_keys False` — no host
+  `authorized_keys` baked in.
+- No Wi-Fi `*.nmconnection` profiles in the image (asserted by the release
+  script). A live-device SSID profile that appeared after flash-validate was
+  deleted on-device; it was never in the published artifact.
+- APKBUILD Maintainer lines and `setup-env.sh` no longer ship personal emails;
+  `setup-env.sh` requires `GIT_USER_*` or an existing git global identity.
+- Chronology in this log still mentions GitHub repo URLs under the project
+  owner path; that is the public repo location, not a device login.

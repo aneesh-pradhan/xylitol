@@ -1,5 +1,5 @@
 From ad4f6338cc40dfd5db3f0969f5e6af1d2e93484a Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 21:24:04 -0700
 Subject: [PATCH] perry: force soft navigation bar (qemu.hw.mainkeys=0)
 MIME-Version: 1.0

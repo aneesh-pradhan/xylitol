@@ -1,5 +1,5 @@
 From 4a17e457b81b4921dc754cb13b830a0211630605 Mon Sep 17 00:00:00 2001
-From: aneesh-pradhan <aneesh@localhost>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 13:40:57 -0700
 Subject: [PATCH 2/3] perry: switch to BOARD_COMMON env var for extract/setup
  scripts

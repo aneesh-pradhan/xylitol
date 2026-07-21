@@ -17,9 +17,11 @@
 #   ./scripts/pmos-build-phosh-release.sh --upload  # also gh release create/upload
 #
 # Env overrides:
-#   PMOS_PASSWORD   default image password (PLAIN TEXT; default: 147147)
+#   PMOS_USER       image username (default: xylitol)
+#   PMOS_PASSWORD   default image password (PLAIN TEXT; default: xylitol)
 #   PMOS_EXTRA_SPACE  free space on rootfs in MiB (default: 2048)
 #   RELEASE_TAG     GitHub release tag (default: pmos-perry-YYYY-MM-DD)
+#   GH_REPO         GitHub repo for --upload (default: aneesh-pradhan/xylitol)
 set -euo pipefail
 
 XYLITOL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -30,7 +32,7 @@ for arg in "$@"; do
   case "$arg" in
     --upload) UPLOAD=1 ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,22p' "$0"
       exit 0
       ;;
     *)
@@ -40,8 +42,10 @@ for arg in "$@"; do
   esac
 done
 
-PMOS_PASSWORD="${PMOS_PASSWORD:-147147}"
+PMOS_USER="${PMOS_USER:-xylitol}"
+PMOS_PASSWORD="${PMOS_PASSWORD:-xylitol}"
 PMOS_EXTRA_SPACE="${PMOS_EXTRA_SPACE:-2048}"
+GH_REPO="${GH_REPO:-aneesh-pradhan/xylitol}"
 DATE_UTC="$(date -u +%Y-%m-%d)"
 RELEASE_TAG="${RELEASE_TAG:-pmos-perry-${DATE_UTC}}"
 OUT_DIR="$XYLITOL_ROOT/artifacts/pmos-release/${RELEASE_TAG}"
@@ -64,11 +68,12 @@ echo "==> Applying xylitol pmos overlays into live pmaports"
 ./scripts/pmos-apply-perry-ucm.sh
 ./scripts/pmos-apply-lk2nd-perry.sh
 
-echo "==> pmbootstrap config: ui=phosh, extra_space=${PMOS_EXTRA_SPACE}"
+echo "==> pmbootstrap config: user=${PMOS_USER}, ui=phosh, extra_space=${PMOS_EXTRA_SPACE}"
 pmbootstrap config ui phosh
+pmbootstrap config user "$PMOS_USER"
 pmbootstrap config extra_space "$PMOS_EXTRA_SPACE"
-# Keep hostname/user; ensure SSH + keys for maintainer access after flash.
-pmbootstrap config ssh_keys True
+# Public images: password auth only — never bake host SSH keys or Wi-Fi creds.
+pmbootstrap config ssh_keys False
 pmbootstrap config hostname perry
 
 echo "==> Building local packages"
@@ -149,8 +154,21 @@ sudo test -f /mnt/pmos-rel-boot/msm8917-motorola-perry.dtb \
   || { echo "ERROR: perry DTB missing from boot" >&2; exit 1; }
 sudo test -f /mnt/pmos-rel-root/etc/deviceinfo \
   || { echo "ERROR: /etc/deviceinfo missing" >&2; exit 1; }
-sudo test -f /mnt/pmos-rel-root/var/lib/systemd/linger/aneesh \
-  || { echo "ERROR: linger marker missing" >&2; exit 1; }
+sudo test -f /mnt/pmos-rel-root/var/lib/systemd/linger/"$PMOS_USER" \
+  || { echo "ERROR: linger marker missing for $PMOS_USER" >&2; exit 1; }
+sudo test -d /mnt/pmos-rel-root/home/"$PMOS_USER" \
+  || { echo "ERROR: home for $PMOS_USER missing" >&2; exit 1; }
+# Privacy: no baked host SSH keys, no Wi-Fi connection profiles.
+if sudo test -s /mnt/pmos-rel-root/home/"$PMOS_USER"/.ssh/authorized_keys 2>/dev/null; then
+  echo "ERROR: authorized_keys present — public images must not bake host SSH keys" >&2
+  exit 1
+fi
+if sudo find /mnt/pmos-rel-root/etc/NetworkManager/system-connections \
+     -type f -name '*.nmconnection' 2>/dev/null | grep -q .; then
+  echo "ERROR: NetworkManager connection profiles present in image (Wi-Fi/creds leak risk)" >&2
+  sudo ls -la /mnt/pmos-rel-root/etc/NetworkManager/system-connections/ >&2 || true
+  exit 1
+fi
 sudo test -f /mnt/pmos-rel-root/lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin \
   || { echo "ERROR: WCNSS NV missing at DTS path" >&2; exit 1; }
 sudo test -f /mnt/pmos-rel-root/usr/share/alsa/ucm2/conf.d/motorola-perry/motorola-perry.conf \
@@ -177,8 +195,10 @@ edge + \`linux-postmarketos-qcom-msm89x7\` with the perry/Ofilm carry.
 | \`${ROOTFS_NAME}.zst\` | Combined boot+root image → decompress, flash to \`userdata\` |
 | \`SHA256SUMS\` | Checksums |
 
-Default user: **aneesh** / password: **${PMOS_PASSWORD}** (change after first boot).
-SSH over USB-net: \`aneesh@172.16.42.1\` (host self-assigns \`172.16.42.2/24\`).
+Default user: **${PMOS_USER}** / password: **${PMOS_PASSWORD}** (change after first boot).
+SSH over USB-net: \`${PMOS_USER}@172.16.42.1\` (host self-assigns \`172.16.42.2/24\`).
+No host SSH keys or Wi-Fi profiles are baked into this image — password login only
+until you add your own key / connect to a network on-device.
 
 ## Flash (destructive to userdata)
 
@@ -229,24 +249,25 @@ echo "FLASH.md password for this image: $PMOS_PASSWORD"
 
 if [[ "$UPLOAD" -eq 1 ]]; then
   command -v gh >/dev/null || { echo "ERROR: gh CLI required for --upload" >&2; exit 1; }
-  echo "==> Creating / updating GitHub release $RELEASE_TAG"
-  if gh release view "$RELEASE_TAG" -R aneesh-pradhan/xylitol >/dev/null 2>&1; then
+  echo "==> Creating / updating GitHub release $RELEASE_TAG on $GH_REPO"
+  if gh release view "$RELEASE_TAG" -R "$GH_REPO" >/dev/null 2>&1; then
     gh release upload "$RELEASE_TAG" \
       "$OUT_DIR/$LK2ND_NAME" \
       "$OUT_DIR/${ROOTFS_NAME}.zst" \
       "$OUT_DIR/SHA256SUMS" \
       "$OUT_DIR/FLASH.md" \
-      -R aneesh-pradhan/xylitol --clobber
+      -R "$GH_REPO" --clobber
+    gh release edit "$RELEASE_TAG" -R "$GH_REPO" --notes-file "$OUT_DIR/FLASH.md"
   else
     gh release create "$RELEASE_TAG" \
       "$OUT_DIR/$LK2ND_NAME" \
       "$OUT_DIR/${ROOTFS_NAME}.zst" \
       "$OUT_DIR/SHA256SUMS" \
       "$OUT_DIR/FLASH.md" \
-      -R aneesh-pradhan/xylitol \
+      -R "$GH_REPO" \
       --title "postmarketOS Phosh for perry (${DATE_UTC})" \
       --notes-file "$OUT_DIR/FLASH.md"
   fi
   echo "Release URL:"
-  gh release view "$RELEASE_TAG" -R aneesh-pradhan/xylitol --json url -q .url
+  gh release view "$RELEASE_TAG" -R "$GH_REPO" --json url -q .url
 fi

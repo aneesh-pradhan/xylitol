@@ -1,4 +1,4 @@
-# Maintainer: Aneesh Pradhan <zen7370@outlook.com>
+# Maintainer: Project Xylitol <xylitol@users.noreply.github.com>
 #
 # Installs perry's WCNSS Wi-Fi NV at the path the mainline DTS requests, so
 # wcn36xx loads it and Wi-Fi survives `pmbootstrap install`.

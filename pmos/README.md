@@ -75,8 +75,8 @@ pmbootstrap install  --add deviceinfo-motorola-perry
 # live device: ./scripts/pmos-install-perry-deviceinfo.sh
 ```
 
-Also enables systemd linger for the default image user (`aneesh`) via
-`/var/lib/systemd/linger/aneesh` (same effect as `loginctl enable-linger`).
+Also enables systemd linger for the default image user (`xylitol`) via
+`/var/lib/systemd/linger/xylitol` (same effect as `loginctl enable-linger`).
 
 ## ALSA UCM (`alsa-ucm-motorola-perry`)
 

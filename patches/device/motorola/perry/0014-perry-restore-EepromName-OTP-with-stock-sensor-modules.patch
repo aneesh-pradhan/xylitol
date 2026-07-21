@@ -1,5 +1,5 @@
 From 7b163c7dcdf6b4274bdc7e50f63f48b8ea518926 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Mon, 20 Jul 2026 14:22:50 -0700
 Subject: [PATCH] perry: restore EepromName OTP with stock sensor_modules stack
 MIME-Version: 1.0

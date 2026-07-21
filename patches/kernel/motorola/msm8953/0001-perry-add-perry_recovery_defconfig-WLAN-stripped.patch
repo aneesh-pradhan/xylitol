@@ -1,5 +1,5 @@
 From 8d3d791d1d5e3ba4cabc19f613e31ec68d95743f Mon Sep 17 00:00:00 2001
-From: aneesh-pradhan <aneesh@localhost>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 14:17:36 -0700
 Subject: [PATCH] perry: add perry_recovery_defconfig (WLAN stripped)
 

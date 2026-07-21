@@ -1,5 +1,5 @@
 From 98583f97345d48fa6e0164ea22b15ecbde4d32ad Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 14:51:02 -0700
 Subject: [PATCH 2/2] perry: harden extract-files for partial XT1765 blob sets
 

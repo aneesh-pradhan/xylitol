@@ -15,8 +15,8 @@ set -euo pipefail
 
 XYLITOL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$XYLITOL_ROOT/pmos/deviceinfo-motorola-perry/deviceinfo"
-TARGET="${1:-aneesh@172.16.42.1}"
-PW="${PMOS_SUDO_PASSWORD:-147147}"
+TARGET="${1:-xylitol@172.16.42.1}"
+PW="${PMOS_SUDO_PASSWORD:-xylitol}"
 
 if [[ ! -f "$SRC" ]]; then
   echo "ERROR: missing $SRC" >&2

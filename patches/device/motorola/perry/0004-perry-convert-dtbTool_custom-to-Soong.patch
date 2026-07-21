@@ -1,5 +1,5 @@
 From 260ad1f1bdf35a757dde2fba0a939ff6e08d1db1 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 14:51:02 -0700
 Subject: [PATCH 1/2] perry: convert dtbTool_custom to Soong
 

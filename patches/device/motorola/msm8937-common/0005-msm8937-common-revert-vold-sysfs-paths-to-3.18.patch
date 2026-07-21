@@ -1,5 +1,5 @@
 From 5c47e14f69bd485bb75d68bd93c41ff31e9cb883 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 19:53:54 -0700
 Subject: [PATCH 5/5] msm8937-common: revert vold sysfs paths to 3.18
 MIME-Version: 1.0

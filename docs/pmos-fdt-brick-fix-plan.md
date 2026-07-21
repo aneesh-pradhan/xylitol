@@ -112,8 +112,8 @@ All four are sound. The plan below is validation + gap-closing, not rework.
 > Step-by-step runnable version with exact commands, expected outputs, and STOP
 > gates: [`pmos-fdt-fix-runbook.md`](pmos-fdt-fix-runbook.md).
 
-Preconditions: pmOS booted, reachable at `ssh aneesh@172.16.42.1` (bring up
-USB-net per handoff E-10; sudo pw `147147`). Sacred: never touch
+Preconditions: pmOS booted, reachable at `ssh xylitol@172.16.42.1` (bring up
+USB-net per handoff E-10; sudo pw `xylitol`). Sacred: never touch
 `persist`/`modemst1`/`modemst2`; never re-flash lk2nd/`boot` in this task.
 
 **A. Runtime validation (fast, proves the mechanism on the live device):**

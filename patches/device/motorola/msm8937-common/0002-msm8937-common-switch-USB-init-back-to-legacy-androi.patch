@@ -1,5 +1,5 @@
 From ab0345aec345b818c51ecd4d9c6e3682950adf7d Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 19:28:11 -0700
 Subject: [PATCH 2/3] msm8937-common: switch USB init back to legacy
  android_usb

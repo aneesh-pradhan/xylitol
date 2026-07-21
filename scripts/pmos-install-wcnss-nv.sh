@@ -21,9 +21,9 @@
 set -euo pipefail
 
 DEVICE_IP="${DEVICE_IP:-172.16.42.1}"
-DEVICE_USER="${DEVICE_USER:-aneesh}"
-# pmOS throwaway sudo password (SSH login itself is key-based). Override via env.
-PMOS_SUDO_PW="${PMOS_SUDO_PW:-147147}"
+DEVICE_USER="${DEVICE_USER:-xylitol}"
+# Public-image default password (override via env; change after first boot).
+PMOS_SUDO_PW="${PMOS_SUDO_PW:-xylitol}"
 
 DEST="/lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin"
 EXPECT_MD5="4f88c4c5435d0d80c5e1c9bbe360a57e"   # perry vendor NV (NCQS26.69-64-21)

@@ -1,5 +1,5 @@
 From 008b2baff1cb0adff5c2ae5ab03b7d7ccaf9f50b Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 17:20:58 -0700
 Subject: [PATCH] sepolicy: ensure file_contexts ends with newline
 

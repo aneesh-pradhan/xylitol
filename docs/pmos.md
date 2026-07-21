@@ -26,7 +26,9 @@ GPS. BT/accel/battery looked OK on a feature-matrix walk.
 
 **Prebuilt flashable image:**
 [GitHub Release `pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
-(lk2nd + zstd rootfs). Rebuild with
+(lk2nd + zstd rootfs). Default user **`xylitol`** / password **`xylitol`**
+(change after first boot). No host SSH keys or Wi-Fi profiles are baked in.
+Rebuild with
 [`../scripts/pmos-build-phosh-release.sh`](../scripts/pmos-build-phosh-release.sh).
 
 Two known rough edges:

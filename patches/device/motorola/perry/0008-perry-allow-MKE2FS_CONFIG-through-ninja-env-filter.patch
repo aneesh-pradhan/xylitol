@@ -1,5 +1,5 @@
 From e36441b8d6eae7296ff316e4f4384352f9d160dd Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 17:56:43 -0700
 Subject: [PATCH] perry: allow MKE2FS_CONFIG through ninja env filter
 

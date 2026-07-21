@@ -20,7 +20,7 @@ Do not deviate from gates marked **GATE** without asking the user.
 - pmbootstrap 3.11.1: `~/pmos/pmbootstrap`, on PATH via `~/bin/pmbootstrap`
   (`export PATH="$HOME/bin:$PATH"`). Config: `~/.config/pmbootstrap_v3.cfg`
   (workdir `~/pmos/work`, channel systemd-edge, device `qcom-msm89x7`,
-  UI console, user `aneesh`, hostname `perry`).
+  UI console, user `xylitol`, hostname `perry`).
 - Never commit into xylitol: proprietary firmware, chroots, built images.
   Xylitol carries only patches/APKBUILD overlay (`pmos/`) + docs.
 - Log every completed phase + result in `docs/porting-log.md` (dated) and
@@ -81,7 +81,7 @@ checksums done; apk built and consumed by C4 install.
 
 - [x] **C3.** `pmbootstrap config ssh_keys True` — done 2026-07-20.
   Host had no `~/.ssh/*.pub`; generated `~/.ssh/id_ed25519`
-  (`aneesh@buildhost-perry-pmos`), then flipped config. Keys are baked
+  (`xylitol@buildhost-perry-pmos`), then flipped config. Keys are baked
   into the install image at fill time (not the rootfs chroot).
 - [x] **C4.** `pmbootstrap install` — done 2026-07-20 (~41 min;
   `~/pmos/logs/install.log`). Built systemd-edge/systemd under qemu
@@ -144,7 +144,7 @@ for TWRP):
     or right after E if display is dead.
 - [x] **D7.** `fastboot reboot` → Lineage booted normally
   (`sys.boot_completed=1`,
-  `lineage_perry-userdebug 11 RQ3A.211001.001 eng.aneesh.20260719.193203`).
+  `lineage_perry-userdebug 11 RQ3A.211001.001 eng.builder.20260719.193203`).
   Nothing was flashed; reversibility confirmed.
 
 **GATE:** If D5 shows a black screen or D6 misdetects the board, STOP.
@@ -209,7 +209,7 @@ what actually happened (checkboxes reflect reality, not the original plan):
     **DTB-only patch** (framebuffer `okay` + usb `peripheral`) for
     observability; reflash/boot pending. Full detail + reflash recipe in
     handoff "Phase E pmOS" §E-4/§E-5.
-- [ ] **E5.** `ssh aneesh@172.16.42.1` once USB-net is up; record
+- [ ] **E5.** `ssh xylitol@172.16.42.1` once USB-net is up; record
   `uname -a`, `dmesg`, `cat /proc/device-tree/model`, panel/DRM status.
 
 **Both current on-device fixes are image edits (lost on `pmbootstrap

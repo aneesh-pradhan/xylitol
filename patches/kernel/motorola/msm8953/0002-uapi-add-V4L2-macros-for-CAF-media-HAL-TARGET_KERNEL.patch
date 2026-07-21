@@ -1,5 +1,5 @@
 From bbf6519df5ce7d44a2454f0de3e3385b4732c49d Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 15:36:01 -0700
 Subject: [PATCH] uapi: add V4L2 macros for CAF media HAL
  (TARGET_KERNEL_VERSION=4.9)

@@ -11,8 +11,8 @@ make the call — at a STOP gate, paste the outputs and wait; do not improvise.
 
 **Rules (non-negotiable):** never touch `persist`/`modemst1`/`modemst2`; do
 **not** reflash `lk2nd`/`boot` in this task; no blobs/`out/`/Lineage tree into
-git; no AI co-author trailers. Device SSH: `aneesh@172.16.42.1`, sudo pw
-`147147`. Wrap every ssh in `timeout` (the USB-net link auto-suspends).
+git; no AI co-author trailers. Device SSH: `xylitol@172.16.42.1`, sudo pw
+`xylitol`. Wrap every ssh in `timeout` (the USB-net link auto-suspends).
 
 ---
 
@@ -39,7 +39,7 @@ cold boot and retry. **Still nothing → STOP, report.**
 
 ## Step 2 — Capture the BEFORE state (evidence)
 ```bash
-timeout 15 ssh aneesh@172.16.42.1 "grep -E 'fdt|fdtdir' /boot/extlinux/extlinux.conf; echo '---'; ls -l /etc/deviceinfo 2>&1"
+timeout 15 ssh xylitol@172.16.42.1 "grep -E 'fdt|fdtdir' /boot/extlinux/extlinux.conf; echo '---'; ls -l /etc/deviceinfo 2>&1"
 ```
 Record whether it currently says `fdt` or `fdtdir`, and whether `/etc/deviceinfo`
 already exists. Either is a valid baseline — just record it.
@@ -54,7 +54,7 @@ reboot).
 
 ## Step 4 — Assert exactly one dtb resolves
 ```bash
-timeout 20 ssh aneesh@172.16.42.1 'sh -c ". /etc/deviceinfo; c=0; for f in \$deviceinfo_dtb; do c=\$((c+\$(find /boot -path \"/boot/dtbs*/\$f.dtb\" | wc -l))); done; echo dtb_count=\$c; ls -l /boot/msm8917-motorola-perry.dtb"'
+timeout 20 ssh xylitol@172.16.42.1 'sh -c ". /etc/deviceinfo; c=0; for f in \$deviceinfo_dtb; do c=\$((c+\$(find /boot -path \"/boot/dtbs*/\$f.dtb\" | wc -l))); done; echo dtb_count=\$c; ls -l /boot/msm8917-motorola-perry.dtb"'
 ```
 **Expect:** `dtb_count=1` **and** the flat `/boot/msm8917-motorola-perry.dtb`
 exists. **If count ≠ 1 or the flat file is missing → STOP, report** (do not
@@ -62,7 +62,7 @@ reboot — the boot line would be wrong/unresolvable).
 
 ## Step 5 — Real test: re-trigger the exact regen path that bricked us
 ```bash
-timeout 60 ssh aneesh@172.16.42.1 "echo 147147 | sudo -S -p '' apk add tree >/dev/null 2>&1; echo '--- after apk add ---'; grep -E 'fdt|fdtdir' /boot/extlinux/extlinux.conf; echo 147147 | sudo -S -p '' apk del tree >/dev/null 2>&1"
+timeout 60 ssh xylitol@172.16.42.1 "echo xylitol | sudo -S -p '' apk add tree >/dev/null 2>&1; echo '--- after apk add ---'; grep -E 'fdt|fdtdir' /boot/extlinux/extlinux.conf; echo xylitol | sudo -S -p '' apk del tree >/dev/null 2>&1"
 ```
 **Expect:** still `fdt /msm8917-motorola-perry.dtb`, **no** `fdtdir`. **If it
 flipped back to `fdtdir` → STOP, report** — fix is not durable; do NOT reboot.
@@ -74,7 +74,7 @@ reboot go/no-go is the maintainer's call.)
 
 ## Step 6 — (only after go) Reboot confidence check
 ```bash
-timeout 15 ssh aneesh@172.16.42.1 "echo 147147 | sudo -S -p '' sh -c 'sync; echo 1 > /proc/sys/kernel/sysrq; echo b > /proc/sysrq-trigger'"
+timeout 15 ssh xylitol@172.16.42.1 "echo xylitol | sudo -S -p '' sh -c 'sync; echo 1 > /proc/sys/kernel/sysrq; echo b > /proc/sysrq-trigger'"
 ```
 Wait ~40 s, then repeat Step 1 + ping. **Expect:** device returns on USB-net.
 Doesn't return within ~3 min → it's in lk2nd fastboot; recover per

@@ -95,7 +95,7 @@ Runtime evidence (rebooted into lk2nd fastboot, serial `24b071b`):
   `Failed to find matching lk2nd device node: -1` / "Unknown (FIXME!)" is gone.
   (Log also shows `androidboot.device=perry`, panel
   `qcom,mdss_dsi_mot_ofilm_499_720p_video_v0`, `sku=XT1765` — our exact unit.)
-- `fastboot continue` → pmOS boots: USB-net up, `ssh aneesh@172.16.42.1` →
+- `fastboot continue` → pmOS boots: USB-net up, `ssh xylitol@172.16.42.1` →
   `Linux 7.0.9-msm89x7`, `up 0 min`, `wlan0` present. **New lk2nd boots the OS
   cleanly (no regression).**
 

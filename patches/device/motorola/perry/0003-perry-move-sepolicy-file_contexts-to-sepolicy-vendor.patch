@@ -1,5 +1,5 @@
 From fa46845f16f7927fb135d7c60645cc1d79099d59 Mon Sep 17 00:00:00 2001
-From: aneesh-pradhan <aneesh@localhost>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 13:40:57 -0700
 Subject: [PATCH 3/3] perry: move sepolicy/file_contexts to sepolicy/vendor/
 

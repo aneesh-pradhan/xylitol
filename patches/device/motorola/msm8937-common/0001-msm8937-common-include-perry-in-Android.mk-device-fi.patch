@@ -1,5 +1,5 @@
 From 8bf7ea43290a910ba6f7bcb3f07b7709182727cd Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: xylitol <xylitol@localhost>
 Date: Sun, 19 Jul 2026 14:53:58 -0700
 Subject: [PATCH] msm8937-common: include perry in Android.mk device filter
 

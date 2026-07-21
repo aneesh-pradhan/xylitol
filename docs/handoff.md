@@ -7,7 +7,7 @@
 **Date:** 2026-07-21 (updated — durable Phosh image + GitHub Release)  
 **Headline (pmOS UI): perry BOOTS TO A WORKING PHOSH MOBILE UI — USER-CONFIRMED
 SUCCESS.** Installed `postmarketos-ui-phosh` on the running device; clean boot →
-`graphical.target` + greetd + phrog greeter → phosh session for `aneesh`. phoc
+`graphical.target` + greetd + phrog greeter → phosh session for `xylitol`. phoc
 modesets DSI-1 at **720×1280@60**, EGL on **GBM/mesa** (Adreno 308 GL accel),
 touch works. Combined with this session's **working audio (UCM)** + Wi-Fi, perry
 is now a usable pmOS phone. **✅ Durable clean-install image published +
@@ -43,8 +43,8 @@ this session). Next pmOS gaps: audio UCM, modem/ModemManager, sensors.
 **pmOS side quest — NOW THE ACTIVE WORK (2026-07-20):** Phase E
 **FLASHED** and **BOOTING**. **Blocker B is CLEARED** — the kernel that was
 "blind & mute" now boots to a full postmarketOS edge userspace
-(`7.0.9-msm89x7`, **aarch64**) with USB-net + SSH (`ssh aneesh@172.16.42.1`,
-sudo pw `147147`). **WiFi FIXED** (missing perry WCNSS NV blob → `-2`; dropped
+(`7.0.9-msm89x7`, **aarch64**) with USB-net + SSH (`ssh xylitol@172.16.42.1`,
+sudo pw `xylitol` on public images). **WiFi FIXED** (missing perry WCNSS NV blob → `-2`; dropped
 perry's own NV → `wlan0` up, scans 51 APs, associates + DHCP + internet,
 auto-reconnects on cold boot). Installer:
 `scripts/pmos-install-wcnss-nv.sh` (runtime); **durable Wi-Fi pmaport DONE**
@@ -99,16 +99,13 @@ usable pmOS phone. Remaining, by value:
 2. ✅ **Mobile UI — Phosh — DONE (user-confirmed).** `postmarketos-ui-phosh`;
    greetd→phrog→phosh, 720×1280@60, GPU (freedreno/GBM), touch.
 3. ✅ **Durable clean install + GitHub Release — DONE + FLASH-VALIDATED
-   (2026-07-21).**
-   `scripts/pmos-build-phosh-release.sh` builds UI=phosh with
-   `deviceinfo-motorola-perry` (fdt + linger), `firmware-motorola-perry-nv`,
-   `alsa-ucm-motorola-perry`, lk2nd perry carry. Published:
+   (2026-07-21); privacy-respun same day.**
+   Public image defaults: user/password **`xylitol`**, `ssh_keys=False`, no
+   Wi-Fi profiles. Linger marker `/var/lib/systemd/linger/xylitol`.
    [pmos-perry-2026-07-21](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21).
-   **On-device reflash PASS:** flashed release lk2nd→`boot` + rootfs→`userdata`
-   from lk2nd; boots to `graphical.target` + greetd + phosh/phoc; extlinux
-   `fdt /msm8917-motorola-perry.dtb`; linger; UCM; WCNSS NV; all four apks
-   present; **wlan0 connected**. (Host tip: `nmcli device set <cdc_ncm>
-   managed no` or USB-net flaps after Phosh/NM comes up.)
+   Earlier flash-validate used the pre-privacy build (personal username + host
+   SSH keys); the published assets were replaced with the scrubbed image.
+   On-device SSID profile that appeared after that flash was deleted.
 4. **Modem / data — ModemManager** — deferred: **no SIM on hand** (AT responds on
    `/dev/wwan0at0`; needs a SIM to test). Revisit when a SIM is available.
 5. Audio route polish under phosh (earpiece/headset-jack); sensors
@@ -136,7 +133,7 @@ lk2nd `main`; our carry is a backport onto the pinned 22.0).
 - ✅ **Phosh mobile UI — USER-CONFIRMED SUCCESS.** perry was a UI=none console
   install; `apk add postmarketos-ui-phosh` (run via `systemd-run` transient unit
   so session-teardown didn't reap it) → clean boot to `graphical.target` +
-  greetd + phrog greeter + phosh session (`aneesh`). phoc modesets DSI-1
+  greetd + phrog greeter + phosh session (`xylitol`). phoc modesets DSI-1
   **720×1280@60**, EGL/GBM (Adreno 308 GL), touch works. Benign: intermittent
   DSI-1 "Atomic commit failed: Resource busy" (~0.1%; fix = `WLR_DRM_NO_ATOMIC=1`
   if ever visible). greetd config: `/etc/phrog/greetd-config.toml` →
@@ -231,7 +228,7 @@ the chronological bring-up log; the consolidated state + to-dos are up top.
 > Phase E section. pmOS BOOTS on perry (XT1765): full postmarketOS edge
 > userspace (7.0.9-msm89x7 aarch64), Wi-Fi + Ofilm display + USB/SSH all
 > working. Reach it over USB-net: self-assign 172.16.42.2/24 on the cdc_ncm
-> iface, `ssh aneesh@172.16.42.1` (sudo pw 147147); link auto-suspends so
+> iface, `ssh xylitol@172.16.42.1` (sudo pw xylitol); link auto-suspends so
 > re-add IP + timeout-wrap ssh. Blocker B (blind & mute), Wi-Fi (WCNSS NV),
 > panel first-light, and the durable NV pmaport (PR #2 merged) are all DONE.
 > Feature matrix walked (see porting-log). Durable extlinux `fdt` pin DONE
@@ -330,7 +327,7 @@ silent → kernel is executing). Blocker A cleared.
 ### E-4. Blocker B — kernel executes but was SILENT — **CLEARED 2026-07-20**
 
 **RESOLVED.** The kernel boots to a full pmOS userspace and is reachable over
-USB-net + SSH (confirmed this session: `ssh aneesh@172.16.42.1`, uptime,
+USB-net + SSH (confirmed this session: `ssh xylitol@172.16.42.1`, uptime,
 `nmcli`, `dmesg` all live). Whatever combination of the Solution-2 DTB edits /
 panel bring-up did it, "blind & mute" is no longer the state — the device
 reaches multi-user, NetworkManager, and WiFi. **First on-boot task: bring up
@@ -381,7 +378,7 @@ confirm state, `flash_rootfs`, `fastboot continue`, watch screen + USB.
 
 **Expected outcomes of Solution 2 boot:**
 - Panel shows scrolling kernel/boot text → kernel is alive; read where it
-  goes / hangs. And/or USB-net at `172.16.42.1` → `ssh aneesh@172.16.42.1`
+  goes / hangs. And/or USB-net at `172.16.42.1` → `ssh xylitol@172.16.42.1`
   (key baked in), then `dmesg` tells us everything (incl. Ofilm panel).
 - If framebuffer shows boot then freezes at a point → that's the REAL
   early hang; debug that DTS node (compare vs booting sibling nora/montana,
@@ -391,7 +388,7 @@ confirm state, `flash_rootfs`, `fastboot continue`, watch screen + USB.
 
 ```bash
 export PATH="$HOME/bin:$PATH"
-IMG=/home/aneesh/pmos/work/chroot_native/home/pmos/rootfs/qcom-msm89x7.img
+IMG=$HOME/pmos/work/chroot_native/home/pmos/rootfs/qcom-msm89x7.img
 # --- edit files inside pmOS_boot (partition 1, ext2, 487 MiB) ---
 LOOP=$(sudo losetup -fP --show "$IMG")     # ${LOOP}p1=pmOS_boot ${LOOP}p2=root
 sudo mount "${LOOP}p1" /mnt/x              # extlinux/extlinux.conf, *.dtb, dtbs/
@@ -401,7 +398,7 @@ sync; sudo umount /mnt/x; sudo losetup -d "$LOOP"
 timeout 8 fastboot getvar product          # expect: lk2nd-msm8952
 pmbootstrap flasher flash_rootfs           # sends THIS image (sparses live), ~95 s
 timeout 10 fastboot continue               # lk2nd boots the kernel
-# watch: ip -brief addr | grep -iE 'usb|enx'; ping 172.16.42.1; ssh aneesh@172.16.42.1
+# watch: ip -brief addr | grep -iE 'usb|enx'; ping 172.16.42.1; ssh xylitol@172.16.42.1
 ```
 Notes: `flash_rootfs` does NOT regenerate — it flashes the current raw
 `qcom-msm89x7.img`, so loop-mount edits survive. `pmbootstrap install`
@@ -480,7 +477,7 @@ DTB's `framebuffer@90001000`/`dr_mode`).
 IFACE=$(for n in /sys/class/net/*; do grep -q cdc_ncm "$n/device/uevent" 2>/dev/null && basename "$n"; done)
 sudo ip addr add 172.16.42.2/24 dev "$IFACE"; sudo ip link set "$IFACE" up
 ping 172.16.42.1                          # device
-ssh aneesh@172.16.42.1                     # key auth; sudo pw 147147
+ssh xylitol@172.16.42.1                     # key auth; sudo pw xylitol
 ```
 The link **auto-suspends / re-enumerates** (wipes the host IP) — re-add
 `172.16.42.2/24` and `timeout`-wrap every ssh before each reconnect.
@@ -725,7 +722,7 @@ Public notes: [`blobs.md`](blobs.md). Re-unpack:
 (0015); AF still `Invalid-region`. FM done (0007).
 
 **pmOS next: BOOTS + WiFi up (Blocker B cleared).** Reachable via
-`ssh aneesh@172.16.42.1` (see E-10 for USB-net setup). Next: confirm panel
+`ssh xylitol@172.16.42.1` (see E-10 for USB-net setup). Next: confirm panel
 first-light on screen, walk the feature matrix (BT/audio/sensors/GPS/vibra),
 make the WCNSS NV durable as a local pmaport. Ofilm driver 0005/0006,
 7.0.9-r2; findings [`pmos-ofilm-panel.md`](pmos-ofilm-panel.md) §7. Never
