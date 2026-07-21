@@ -1741,3 +1741,48 @@ pinning `peripheral`.
 **Net:** the recurring "Solution-2 edits keep getting wiped on regen" worry is
 moot — there was nothing worth making durable. Overlay unchanged; handoff E-6
 and to-do #4 updated to reflect the decision.
+
+## 2026-07-20 — lk2nd perry device node (built + binary-verified; flash pending)
+
+Handoff to-do #5. Perry (XT1765/MSM8917) had no lk2nd device node, so lk2nd
+`lk2nd-msm8952` v22.0 showed "Unknown (FIXME!)", logged `Failed to find matching
+lk2nd device node: -1`, and returned NULL from `lk2nd_device_get_dtb_hints()` so
+`fdtdir /` could not resolve (the Blocker-A root cause).
+
+**Research (lk2nd tag 22.0 source):** device nodes live in
+`lk2nd/device/dts/<soc>/`; perry's family is the `msm8952` build.
+`msm8917-mtp.dts` already defines perry's MSM8917 siblings **nora** and
+**hannah** as `&lk2nd` children — perry was simply missing. `device/2nd/match.c`
+matches `lk2nd,match-device` against `lk2nd_dev.device` (already `perry` at
+runtime, per `fastboot getvar lk2nd:device`); `device/device.c` reads `model`
+(clears FIXME) and `lk2nd,dtb-files` (feeds the `fdtdir` resolver via
+`boot/extlinux.c`). No board-id work needed (generic MTP dtb is what loads;
+device-level match does the rest); no panel node (single Ofilm DTB), mirroring
+the jeter template.
+
+**Change:** `pmos/lk2nd/0001-device-add-motorola-perry-msm8917-node.patch` adds
+
+    motorola-perry {
+        model = "Motorola Moto E4 (perry) (MSM8917)";
+        compatible = "motorola,perry";
+        lk2nd,match-device = "perry";
+        lk2nd,dtb-files = "msm8917-motorola-perry";
+    };
+
+Carried + built via `scripts/pmos-apply-lk2nd-perry.sh` (injects the patch into
+the local pmaports `main/lk2nd` aport, bumps `pkgrel` 2→3 for a version tell,
+re-checksums).
+
+**Build validation (host, no device):** `pmbootstrap build lk2nd` exit 0
+(cross-native, arm-none-eabi). `strings` on the built
+`lk2nd-msm8952-22.0-r3` `lk2nd.img` shows `Motorola Moto E4 (perry) (MSM8917)`,
+`motorola,perry`, `perry`, `msm8917-motorola-perry`, and `22.0-r3-postmarketos`;
+siblings nora/hannah intact; the shipped r2 apk had **zero** perry references
+(control). So the node compiles and is embedded.
+
+**Pending (device-side, gated):** flash lk2nd r3 to `boot` + verify
+`lk2nd:version=22.0-r3-postmarketos`, model no longer FIXME, `-1` log line gone,
+normal boot intact. Runbook: [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md).
+Complementary to the deviceinfo `fdt` pin (both make boot durable; independent).
+Note: local pmaports `main/lk2nd` aport is now dirty (patch + pkgrel=3) — the
+xylitol patch+script reproduce it.
