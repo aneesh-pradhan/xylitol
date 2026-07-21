@@ -71,9 +71,10 @@ work queue is [§1 below](#1-open-issues--the-work-queue)).
   [#2](https://github.com/aneesh-pradhan/xylitol/pull/2) (`9c4f3a2`).
 - ✅ **Feature-matrix walk** — BT/Wi-Fi/display/touch/GPU/accel/battery OK;
   audio needs UCM; cameras/vibrator/prox/ALS/GPS missing or disabled; modem
-  AT OK (no SIM). See porting-log 2026-07-20 feature-matrix. **Note:**
-  `apk add` rewrote extlinux → `fdtdir` (restored live); durable `fdt` fix
-  is now urgent.
+  AT OK (no SIM). See porting-log 2026-07-20 feature-matrix.
+- ✅ **Durable extlinux `fdt`** — `/etc/deviceinfo` + pmaport
+  `deviceinfo-motorola-perry`; mkinitfs emits `fdt` (verified after
+  delete+regen). Runtime: `scripts/pmos-install-perry-deviceinfo.sh`.
 
 ### pmOS — next (prioritized)
 
@@ -81,7 +82,7 @@ work queue is [§1 below](#1-open-issues--the-work-queue)).
 |---|---|---|
 | 1 | **Merge PR #2** (firmware pmaport) | ✅ Done 2026-07-20 — squash-merged as `9c4f3a2` on `main`. |
 | 2 | **Feature-matrix walk** over SSH | ✅ Done 2026-07-20 — results in porting-log. BT/Wi-Fi/display/touch/GPU/accel OK; audio needs perry UCM; cameras (`camss`/`cci` disabled), vibrator, prox/ALS, GPS missing. |
-| 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | **URGENT** — `apk add` (bluez/…) re-triggered boot-deploy and reset to `fdtdir /` (restored live). Fix options in E-6: perry lk2nd device node (best), override boot-deploy, or post-install hook. |
+| 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | ✅ Done 2026-07-20 — `/etc/deviceinfo` pins `deviceinfo_dtb` to perry; mkinitfs emits `fdt`. Live + pmaport `deviceinfo-motorola-perry`. |
 | 4 | **Fold DTB `fb=okay` into the overlay** (E-6) | Legit (splash/console). Add to overlay 0003 or a new 0007. `usb=peripheral` stays a HACK — real fix is extcon/charger (`pmi8950_smbcharger`, `usb_id` GPIO 97) role detection so `otg` flips on cable. |
 | 5 | **Add perry lk2nd device node** | Fixes `fdtdir`, panel auto-select, and the cosmetic "Unknown (FIXME!)". Needs building lk2nd (arm-none-eabi) + reflashing lk2nd to `boot`. Enables #3 the right way. |
 | 6 | **Cosmetic: initramfs splash timeout** | `/dev/fb0` appears ~27 s (DPU/DSI bind), past the 10 s initramfs wait → no splash. Bump the wait or get the panel probing earlier. Non-blocking. |
@@ -127,9 +128,10 @@ the chronological bring-up log; the consolidated state + to-dos are up top.
 > iface, `ssh aneesh@172.16.42.1` (sudo pw 147147); link auto-suspends so
 > re-add IP + timeout-wrap ssh. Blocker B (blind & mute), Wi-Fi (WCNSS NV),
 > panel first-light, and the durable NV pmaport (PR #2 merged) are all DONE.
-> Feature matrix walked (see porting-log). Next: durable extlinux `fdt` fix
-> (URGENT — apk/boot-deploy resets it) and/or perry lk2nd device node. Do not
-> touch persist/modemst*.
+> Feature matrix walked (see porting-log). Durable extlinux `fdt` pin DONE
+> (`deviceinfo-motorola-perry`). Next: perry lk2nd device node (also fixes
+> panel auto-select / "Unknown FIXME"), or audio UCM / fold `fb=okay` into
+> overlay. Do not touch persist/modemst*.
 
 ### E-1. What we did, in order (all succeeded)
 

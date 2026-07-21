@@ -1630,3 +1630,28 @@ Also: the same trigger reinstalled the perry DTB at stock size (50523 B),
 so any prior Solution-2 DTB edits (`fb=okay` / `usb=peripheral`) on the
 live boot partition are gone. USB-net and DRM console still work without
 them on this already-booted system.
+
+## 2026-07-20 — Durable extlinux `fdt` via `/etc/deviceinfo`
+
+**Root cause of Blocker A recurring:** `device-qcom-msm89x7` sets
+`deviceinfo_dtb` to a multi-SoC glob (`qcom/msm8917-* …`). boot-deploy's
+`create_extlinux_config` then emits `fdtdir /` whenever `find_all_dtbs`
+returns >1. lk2nd has no perry device node → `lk2nd_device_get_dtb_hints()`
+returns NULL → boot aborts. Any `apk` that triggers `mkinitfs` regenerates
+extlinux and undoes a hand-edit (hit this during the feature-matrix
+`apk add bluez`).
+
+**Fix:** boot-deploy sources `/etc/deviceinfo` *after* the package
+deviceinfo. A one-line override:
+```
+deviceinfo_dtb="qcom/msm8917-motorola-perry"
+```
+makes `find_all_dtbs` return exactly one path →
+`fdt /msm8917-motorola-perry.dtb`. Verified live: delete extlinux.conf,
+`mkinitfs`, result is `fdt` not `fdtdir`.
+
+Shipped as local pmaport `pmos/deviceinfo-motorola-perry/` (+ apply /
+runtime install scripts). Build-validated; installed on the live rootfs via
+`apk add --allow-untrusted`. This is the pragmatic durable fix; a perry
+lk2nd device node remains the "proper" upstream fix (also unlocks panel
+auto-select and clears "Unknown (FIXME!)").

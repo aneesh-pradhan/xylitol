@@ -123,20 +123,29 @@ Reboot into **lk2nd fastboot**: `fastboot reboot`, then hold **Volume-Down**
 while it boots. Confirm you're in lk2nd:
 `fastboot getvar product` → `lk2nd-msm8952`; `lk2nd:device: perry`.
 
-### 5. Fix the extlinux boot entry, then flash the rootfs
+### 5. Pin perry's DTB (durable extlinux `fdt`), then flash the rootfs
 
-lk2nd has no perry device node, so the auto-generated `extlinux.conf` uses
-`fdtdir /` — which lk2nd cannot resolve for perry and the boot aborts. Rewrite
-it to an **explicit DTB** before flashing. Loop-mount the boot partition of
-the export image and edit one line:
+lk2nd has no perry device node, so the generic `qcom-msm89x7` package's
+multi-SoC `deviceinfo_dtb` glob makes boot-deploy emit `fdtdir /` — which
+lk2nd cannot resolve for perry and the boot aborts. **Pin a single DTB** so
+boot-deploy emits `fdt /msm8917-motorola-perry.dtb` instead. Do this *before*
+`pmbootstrap install` (or bake it into the image with `--add`):
 
 ```bash
-IMG=~/pmos/work/chroot_native/home/pmos/rootfs/qcom-msm89x7.img
-LOOP=$(sudo losetup -fP --show "$IMG")        # ${LOOP}p1 = pmOS_boot
-sudo mount "${LOOP}p1" /mnt/x
-sudoedit /mnt/x/extlinux/extlinux.conf        # change:  fdtdir /   ->   fdt /msm8917-motorola-perry.dtb
-sync; sudo umount /mnt/x; sudo losetup -d "$LOOP"
+cd ~/GitHub/xylitol
+./scripts/pmos-apply-perry-deviceinfo.sh
+pmbootstrap checksum deviceinfo-motorola-perry
+pmbootstrap build    deviceinfo-motorola-perry
+pmbootstrap install  --add deviceinfo-motorola-perry \
+                     --add firmware-motorola-perry-nv   # Wi-Fi; see step 6
 ```
+
+On an already-flashed device, `./scripts/pmos-install-perry-deviceinfo.sh`
+writes `/etc/deviceinfo` over USB-net SSH and re-runs `mkinitfs`.
+
+> Manual loop-mount edit of `extlinux.conf` still works as a one-shot, but any
+> later `apk add` that triggers `mkinitfs`/`boot-deploy` will rewrite it back
+> to `fdtdir /` unless `/etc/deviceinfo` is in place. Prefer the package.
 
 Then, from **lk2nd fastboot**:
 

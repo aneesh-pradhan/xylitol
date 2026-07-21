@@ -58,3 +58,19 @@ given unit's own stock NV (RF/regulatory cal only) — for a device-exact NV,
 see [`../docs/pmos.md`](../docs/pmos.md) step 6.
 
 **Do not** commit proprietary firmware or pmbootstrap chroots into xylitol.
+
+## Extlinux `fdt` pin (`deviceinfo-motorola-perry`)
+
+lk2nd has no perry device node, so the generic `qcom-msm89x7` multi-DTB glob
+makes boot-deploy emit `fdtdir /` and boot aborts. This aport installs
+`/etc/deviceinfo` pinning `deviceinfo_dtb` to `qcom/msm8917-motorola-perry`,
+so every `mkinitfs`/`boot-deploy` run emits
+`fdt /msm8917-motorola-perry.dtb`. Verified: survives `apk add` + `mkinitfs`.
+
+```bash
+./scripts/pmos-apply-perry-deviceinfo.sh
+pmbootstrap checksum deviceinfo-motorola-perry
+pmbootstrap build    deviceinfo-motorola-perry
+pmbootstrap install  --add deviceinfo-motorola-perry
+# live device: ./scripts/pmos-install-perry-deviceinfo.sh
+```

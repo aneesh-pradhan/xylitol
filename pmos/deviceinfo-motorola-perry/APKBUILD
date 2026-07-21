@@ -1,0 +1,20 @@
+# Maintainer: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+# Local-only pmaport (not upstream). Installs /etc/deviceinfo so boot-deploy
+# emits an explicit perry fdt line instead of fdtdir / (Blocker A).
+pkgname=deviceinfo-motorola-perry
+pkgver=1
+pkgrel=0
+pkgdesc="perry: pin deviceinfo_dtb so boot-deploy emits fdt (not fdtdir)"
+url="https://github.com/aneesh-pradhan/xylitol"
+arch="noarch"
+license="MIT"
+source="deviceinfo"
+options="!check"
+
+package() {
+	install -Dm644 "$srcdir/deviceinfo" "$pkgdir/etc/deviceinfo"
+}
+
+sha512sums="
+9901e23ef79dd8e4b33afe1a4f2d9306770d704d62d0907bede7e20d3a37f8dfdbf6e47c39001cc0825c3588a994ba5f1d8aceb8979c6a90467c85b7412659b1  deviceinfo
+"

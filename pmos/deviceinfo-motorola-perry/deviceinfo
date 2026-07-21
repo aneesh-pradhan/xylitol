@@ -1,0 +1,7 @@
+# perry override — sourced AFTER /usr/share/deviceinfo/deviceinfo by boot-deploy.
+# The generic qcom-msm89x7 package sets deviceinfo_dtb to a multi-SoC glob, which
+# makes create_extlinux_config emit "fdtdir /". lk2nd has no perry device node, so
+# fdtdir fails ("The dtb-files for this device is not set") and boot aborts.
+# Pin a single DTB so boot-deploy emits "fdt /msm8917-motorola-perry.dtb" instead.
+# Survives apk upgrades that re-run mkinitfs/boot-deploy.
+deviceinfo_dtb="qcom/msm8917-motorola-perry"
