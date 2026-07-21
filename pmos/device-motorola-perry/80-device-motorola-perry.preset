@@ -1,0 +1,8 @@
+# P0.4 — if UI recommends sneak in, keep them from burning RAM/CPU on 2 GB.
+disable cups.service
+disable cups.socket
+disable cups.path
+disable fprintd.service
+disable flatpak-system-helper.service
+disable tuned.service
+disable tuned-ppd.service

@@ -1,0 +1,83 @@
+# Maintainer: Project Xylitol <xylitol@users.noreply.github.com>
+#
+# Custom perry-focused kernel. Based on msm89x7-mainline/linux with the xylitol
+# perry DTS/panel carry. Perf patches: patches/01xx-*. See
+# docs/perry-custom-kernel-plan.md.
+pkgname=linux-motorola-perry
+pkgver=7.0.9
+pkgrel=1
+pkgdesc="Mainline kernel for Motorola Moto E4 (perry / MSM8917) — xylitol carry"
+arch="aarch64"
+_carch="arm64"
+_flavor="motorola-perry"
+url="https://github.com/msm89x7-mainline/linux"
+license="GPL-2.0-only"
+options="!strip !check !tracedeps
+	pmb:cross-native
+	pmb:kconfigcheck-nftables
+"
+makedepends="
+	bison
+	clang
+	findutils
+	flex
+	lld
+	llvm
+	openssl-dev
+	perl
+	postmarketos-installkernel
+	python3
+	zstd
+"
+_tag="$pkgver-r0"
+_config="config-$_flavor.$arch"
+# Local filename mirrors upstream aport so the cached tarball is reused.
+source="
+	linux-postmarketos-qcom-msm89x7-v$_tag.tar.gz::$url/archive/v$_tag.tar.gz
+	$_config
+	0001-Input-rmi_i2c-introduce-reset-GPIO-handling.patch
+	0002-arm64-qcom-add-support-for-MSM8920.patch
+	0003-arm64-dts-qcom-add-support-for-motorola-perry.patch
+	0004-drm-panel-add-motorola-perry-Tianma-499v1-panel.patch
+	0005-drm-panel-add-motorola-perry-Ofilm-499v0-panel.patch
+	0006-arm64-dts-qcom-perry-select-Ofilm-499v0-panel.patch
+"
+builddir="$srcdir/linux-$_tag"
+
+prepare() {
+	default_prepare
+	cp "$srcdir/$_config" .config
+}
+
+build() {
+	unset LDFLAGS
+	make ARCH="$_carch" LLVM=1 \
+		KBUILD_BUILD_VERSION="$((pkgrel + 1))-perry-xylitol"
+}
+
+package() {
+	mkdir -p "$pkgdir"/boot
+	make zinstall modules_install dtbs_install \
+		ARCH="$_carch" \
+		LLVM=1 \
+		INSTALL_PATH="$pkgdir"/boot \
+		INSTALL_MOD_PATH="$pkgdir"/usr \
+		INSTALL_MOD_STRIP=1 \
+		INSTALL_DTBS_PATH="$pkgdir"/boot/dtbs
+	rm -f "$pkgdir"/usr/lib/modules/*/build "$pkgdir"/usr/lib/modules/*/source
+
+	install -D "$builddir"/include/config/kernel.release \
+		"$pkgdir"/usr/share/kernel/$_flavor/kernel.release
+}
+
+# sha512sums filled by: pmbootstrap checksum linux-motorola-perry
+sha512sums="
+268a56a9a842c412929f4098c95a1b1148d18cd87b331ece06bd7eea9efb128f0f61d786229c1d5f92ff39511a3218bcd8316655d6c924b0d3394802b990293c  linux-postmarketos-qcom-msm89x7-v7.0.9-r0.tar.gz
+675a6e05953604807ec0c857fea7ef7a30769d36234921d11dcb827875be1eb4cc7116c4e29c5c2521c08a56d2076a108a90ced3c06f92840a8abb3064236b4e  config-motorola-perry.aarch64
+8999c9e81b4b140c02698886428a0ec0678d7c113efb0278e4e30f729bf7c68bc4d8492373eb6b3033ef013e6063e8cbd867f8119e5faf16e3b392d421e9a494  0001-Input-rmi_i2c-introduce-reset-GPIO-handling.patch
+13a8ac26bf5ce5f5e267e76a538c7aa3e4be0c385342208abce856708b54bf24ae7bbb586c7688720c079b15385e10a65dd8b883649cac2516694c45382a3e7a  0002-arm64-qcom-add-support-for-MSM8920.patch
+6cfe2b20302fbfb7e08cc1ab5b28b11227f29be676a3e57046aff7090522e67075d77ab348c7d711d0da5b0ba0245989134dfb34aef390309784f2ebec63939a  0003-arm64-dts-qcom-add-support-for-motorola-perry.patch
+55e48223b021ef79c1f4e95d95626a5b348ef5988524148358d81c845ff716bbcaacbbf37c8885596de09b51d855286731523d458f2c397825b993cbae49b045  0004-drm-panel-add-motorola-perry-Tianma-499v1-panel.patch
+8db59af39641c504a99b9f353202632d73c773acc9921e23e7aa29a3dc6663d58e171bfc11dd023afd5e82f08e6ad8a945070a826eb84dd3b37a751fb160c61a  0005-drm-panel-add-motorola-perry-Ofilm-499v0-panel.patch
+aa7224c31831610dd8936be1f9c1d55719f913f45a2d702db9391d84aeb2abfcb4f9341d052cdf6c26d5c38049a31279a90045aa439d26df2680a9ca1af568bc  0006-arm64-dts-qcom-perry-select-Ofilm-499v0-panel.patch
+"

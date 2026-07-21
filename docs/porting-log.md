@@ -2013,3 +2013,74 @@ Hard enforcement added:
 - Versioned hooks: `scripts/git-hooks/{prepare-commit-msg,commit-msg}` —
   enable with `git config core.hooksPath scripts/git-hooks`
 - CI: `.github/workflows/no-ai-coauthor.yml`
+
+## 2026-07-21 — Phase B: linux-motorola-perry + device-motorola-perry (build)
+
+Cut over from generic `qcom-msm89x7` overlays to first-class packages:
+
+- `linux-motorola-perry` 7.0.9-r0 — msm89x7-mainline tarball + xylitol
+  patches 0001–0006; defconfig seeded from msm89x7 (not yet P1-scrubbed).
+- `device-motorola-perry` 1-r1 — single DTB pin, NV + UCM depends, linger,
+  **P0** baked in:
+  - `deviceinfo_zram_swap_pct=100` / `zstd` (postmarketos-zram already in base)
+  - `/etc/environment.d/50-perry-wlr.conf` → `WLR_DRM_NO_ATOMIC=1`
+  - lean install via `pmbootstrap install --no-recommends` (no firefox/cups/…)
+  - udev USB UDC nosuspend + systemd preset masking cups/flatpak/fprintd/tuned
+- Unblocked aport name clash by removing local copies of upstream
+  `device/archived/{device,linux}-motorola-perry` (stale 3.18 fork).
+
+Sanity on staged image (`artifacts/pmos-phase-b/motorola-perry-phosh.img`):
+extlinux `fdt /msm8917-motorola-perry.dtb`, DTB present, linger, WLR env,
+WCNSS NV, UCM, kernel.release `7.0.9-msm89x7`, no firefox-esr.
+
+Scripts: `pmos-build-phase-b.sh`, `pmos-flash-phase-b.sh`. Flash-validate
+blocked on reaching lk2nd fastboot (running image SSH password unknown).
+
+## 2026-07-21 — Park Phase B flash; canonicalize custom kernel in-repo
+
+Stopped hardware flashing mid-bring-up: force-fastboot lk2nd worked, but
+`fastboot flash userdata` hung on sparse chunk 3/3 (twice); abort left lk2nd
+USB wedged. User redirected to repo-side DT/kernel work.
+
+In-repo cleanup:
+
+- `pmos/linux-motorola-perry/` is the **canonical** home for perry DT/panel
+  patches (`patches/0001–0006`) and tracked `config-motorola-perry.aarch64`
+  (removed from `.gitignore`).
+- `pmos/device-motorola-perry/` remains the first-class deviceaport (P0
+  drop-ins + single DTB pin).
+- `scripts/pmos-apply-perry-kernel.sh` now copies patches from
+  `linux-motorola-perry/patches/` (legacy overlay folder stays a mirror).
+- Published `qcom-msm89x7` + `pmos-build-phosh-release.sh` path unchanged.
+- Flash helpers retained but parked (`pmos-flash-phase-b*.sh`).
+
+Next without device: P1 defconfig scrub / numbered `01xx` DT-perf patches.
+
+## 2026-07-21 — P1 (repo-side): defconfig scrub, eMMC udev, cpufreq audit
+
+No flash (still parked). Changes in xylitol only:
+
+**P1.1 + P1.6** — `pmos/linux-motorola-perry/config-motorola-perry.aarch64`,
+`pkgrel` → 1:
+
+- `HZ` 300 → 250 (`NO_HZ_IDLE` kept; no `NO_HZ_FULL`)
+- Off: function tracer / dynamic ftrace (kept `CONFIG_FTRACE` + tracepoints),
+  `DYNAMIC_DEBUG`, `FW_LOADER_DEBUG`, `CIFS_DEBUG*`, `BLK_DEBUG_FS`
+- Off: non-perry Motorola/Xiaomi `DRM_PANEL_*` modules; kept perry Ofilm +
+  Tianma
+- Intentionally **did not** run host `olddefconfig` (earlier attempt rewrote
+  Alpine clang / SCS / CFI markers to Ubuntu GCC — discarded)
+
+**P1.2** — audited only: `msm8917.dtsi` CPU OPPs already 960 / 1094.4 / 1248 /
+1401.6 MHz + cooling-cells; schedutil default; no DT patch until measured.
+Noted in `pmos/linux-motorola-perry/patches/README.md`.
+
+**P1.4** — `device-motorola-perry` pkgrel → 2: udev
+`60-perry-emmc-scheduler.rules` sets `mq-deadline` on `mmcblk0`.
+
+**Build validation:** `pmbootstrap build` succeeded for
+`linux-motorola-perry` **7.0.9-r1** (~25 min) and `device-motorola-perry`
+**1-r2**.
+
+**Still open:** P1.3 GPU opp/cooling, P1.5 earlier DRM/splash, on-device
+baselines after flash resumes.

@@ -89,14 +89,27 @@ pmbootstrap build   alsa-ucm-motorola-perry
 pmbootstrap install --add alsa-ucm-motorola-perry
 ```
 
-## Durable Phosh image (all of the above)
+## Custom perry device + kernel (canonical)
 
-One-shot that applies every overlay, builds with **UI=phosh**, and stages
-GitHub Release assets (lk2nd + zstd-compressed rootfs + `FLASH.md`):
+Plan + performance backlog:
+[`../docs/perry-custom-kernel-plan.md`](../docs/perry-custom-kernel-plan.md).
+
+| Path | Role |
+|---|---|
+| [`device-motorola-perry/`](device-motorola-perry/) | First-class device package (`motorola-perry`) |
+| [`linux-motorola-perry/`](linux-motorola-perry/) | **Canonical** kernel aport: defconfig + DT/panel patches |
 
 ```bash
-./scripts/pmos-build-phosh-release.sh           # build + stage under artifacts/
-./scripts/pmos-build-phosh-release.sh --upload  # also publish via gh release
+./scripts/pmos-apply-device-perry.sh
+./scripts/pmos-apply-kernel-perry.sh
+pmbootstrap checksum linux-motorola-perry device-motorola-perry
+pmbootstrap build    linux-motorola-perry
+pmbootstrap build    device-motorola-perry
 ```
 
-Does **not** flash. Reproduction / flash steps: [`../docs/pmos.md`](../docs/pmos.md).
+`scripts/pmos-apply-perry-kernel.sh` (legacy `qcom-msm89x7` overlay path) now
+pulls patches from `linux-motorola-perry/patches/` so there is one DT source.
+
+**Hardware flash of the Phase B image is parked** (2026-07-21). Published
+release images still use `qcom-msm89x7` +
+`scripts/pmos-build-phosh-release.sh` until an explicit cutover.

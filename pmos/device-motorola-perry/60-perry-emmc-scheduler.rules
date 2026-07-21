@@ -1,0 +1,3 @@
+# P1.4 — prefer mq-deadline on eMMC for interactive/apk latency on 16 GB perry.
+# bf q remains available if switched manually; do not force on non-mmc devices.
+ACTION=="add|change", KERNEL=="mmcblk0", ATTR{queue/scheduler}="mq-deadline"

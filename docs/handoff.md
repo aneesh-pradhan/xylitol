@@ -4,24 +4,26 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-**Date:** 2026-07-21 (updated — durable Phosh image + GitHub Release)  
+**Date:** 2026-07-21 (updated — Phase B + P1 custom kernel committed)  
 **Headline (pmOS UI): perry BOOTS TO A WORKING PHOSH MOBILE UI — USER-CONFIRMED
 SUCCESS.** Installed `postmarketos-ui-phosh` on the running device; clean boot →
 `graphical.target` + greetd + phrog greeter → phosh session for `xylitol`. phoc
 modesets DSI-1 at **720×1280@60**, EGL on **GBM/mesa** (Adreno 308 GL accel),
-touch works. Combined with this session's **working audio (UCM)** + Wi-Fi, perry
-is now a usable pmOS phone. **✅ Durable clean-install image published +
-flash-validated on hardware** —
-[Release `pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
-(Phosh + UCM + Wi-Fi NV + fdt/linger + lk2nd perry). Build recipe:
-`scripts/pmos-build-phosh-release.sh`. Benign known issue: occasional
-`phoc … DSI-1 Atomic commit failed: Resource busy` (~0.1%; fix if ever visible =
+touch works. Combined with **working audio (UCM)** + Wi-Fi, perry is a usable
+pmOS phone. **✅ Durable clean-install image published + flash-validated** —
+[Release `pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21).
+Build recipe: `scripts/pmos-build-phosh-release.sh`. Benign: occasional
+`phoc … DSI-1 Atomic commit failed: Resource busy` (~0.1%;
 `WLR_DRM_NO_ATOMIC=1`).  
-**⚑ Next session: see [▶ Next session — start here](#-next-session--start-here-2026-07-20-late).**  
-**⚑ PRIORITY PIVOT (2026-07-20):** user reprioritised — **pmOS is now the
-primary goal**, not a side quest. Focus is a proper pmOS end-user experience;
-Android/Lineage RIL is deferred. Audio UCM (below) was the first deliverable
-under this; **modem/ModemManager is next** (needs SIM).  
+**Headline (custom kernel, 2026-07-21):** first-class
+`pmos/device-motorola-perry` + `pmos/linux-motorola-perry` in-repo. Phase B
+image built (P0); **hardware flash PARKED** (userdata chunk hang). **P1
+repo-side DONE** (defconfig scrub, HZ=250, eMMC mq-deadline, cpufreq audit);
+packages build as `linux-motorola-perry` 7.0.9-r1 / `device-motorola-perry`
+1-r2. Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).  
+**⚑ Next session: see [▶ Next session — start here](#-next-session--start-here-2026-07-21).**  
+**⚑ PRIORITY:** **pmOS is primary.** Android/Lineage deferred. Modem needs a
+SIM. Custom-kernel track continues until flash is explicitly resumed.  
 **Headline (pmOS audio):** **perry now has working audio routing.** Authored the
 `motorola-perry` ALSA UCM profile (was mute: `alsaucm -2` / "no backend DAIs").
 `alsaucm` loads HiFi, `PRI_MI2S_RX ← MultiMedia1` + `SPK DAC` engage,
@@ -81,47 +83,61 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 
 ---
 
-## Next to-dos (2026-07-20 end of session)
+## Next to-dos
 
-Two tracks on the same device. **pmOS is now the primary track** (user pivot
-2026-07-20); **Lineage/Android is deferred** but intact — its work queue is
-kept at [§1 below](#1-open-issues--the-work-queue) for when/if we return.
+Two tracks on the same device. **pmOS is primary**; **Lineage/Android deferred**
+but intact — queue at [§1](#1-open-issues--the-work-queue) when/if we return.
 
-### ▶ Next session — start here (2026-07-20 late)
+### ▶ Next session — start here (2026-07-21)
 
-**pmOS is now the primary track** (user pivot 2026-07-20). Boot chain solid,
-Wi-Fi up, **audio up (UCM)**, **Phosh mobile UI up (user-confirmed)**. perry is a
-usable pmOS phone. Remaining, by value:
+**State:** Published Phosh image works on hardware. Custom
+`device-motorola-perry` + `linux-motorola-perry` are committed; P0+P1.1/1.2/1.4/1.6
+are in-tree; **Phase B flash is PARKED** (do not flash unless asked).
 
-1. ✅ **Audio — perry UCM profile — DONE.** `motorola-perry` UCM (potter HiFi +
-   msm8x16-wcd); Speaker/Mic routed, WirePlumber sink+source, **audible output
-   USER-CONFIRMED**. Durable pmaport `pmos/alsa-ucm-motorola-perry/`.
-2. ✅ **Mobile UI — Phosh — DONE (user-confirmed).** `postmarketos-ui-phosh`;
-   greetd→phrog→phosh, 720×1280@60, GPU (freedreno/GBM), touch.
-3. ✅ **Durable clean install + GitHub Release — DONE + FLASH-VALIDATED
-   (2026-07-21); privacy-respun same day.**
-   Public image defaults: user/password **`xylitol`**, `ssh_keys=False`, no
-   Wi-Fi profiles. Linger marker `/var/lib/systemd/linger/xylitol`.
-   [pmos-perry-2026-07-21](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21).
-   Earlier flash-validate used the pre-privacy build (personal username + host
-   SSH keys); the published assets were replaced with the scrubbed image.
-   On-device SSID profile that appeared after that flash was deleted.
-4. **Modem / data — ModemManager** — deferred: **no SIM on hand** (AT responds on
-   `/dev/wwan0at0`; needs a SIM to test). Revisit when a SIM is available.
-5. Audio route polish under phosh (earpiece/headset-jack); sensors
-   (vibrator/prox/ALS); cameras (disabled in DT); cosmetics (initramfs splash
-   #6, USB-net autosuspend #7). If the display ever freezes/glitches:
-   `WLR_DRM_NO_ATOMIC=1` for phoc (see porting-log).
+**Do next (pick one track):**
 
-**Deferred — LineageOS/Android** (was north-star; parked behind pmOS). Board at
-[§1](#1-open-issues--the-work-queue) for when/if we return.
+1. **Rebuild Phase B image with P1 packages** (no flash yet) —
+   `./scripts/pmos-apply-kernel-perry.sh && ./scripts/pmos-apply-device-perry.sh`
+   then `./scripts/pmos-build-phase-b.sh`. Staged under `artifacts/pmos-phase-b/`
+   (gitignored). Confirms scrubbed kernel + eMMC udev land in the rootfs.
+2. **P1.5 — earlier DRM / shorter splash** (repo-only) — initramfs fb wait /
+   handoff cosmetics #6; see plan §P1.5. Not simplefb.
+3. **P1.3 — GPU opp / cooling** — **blocked on device metrics**; author DT
+   `0101` only after flash + `mangohud`/`govstat` baselines (plan §5).
+4. **Resume flash (only if user asks)** — force-fastboot lk2nd path worked;
+   `fastboot flash userdata` hung on sparse chunk 3/3 twice. Sacred: never
+   touch `persist` / `modemst1` / `modemst2`. Scripts:
+   `pmos-flash-phase-b.sh` / `pmos-flash-phase-b-force.sh` (both marked PARKED).
+5. **Modem / ModemManager** — when a SIM is on hand (`/dev/wwan0at0` AT OK).
+6. **Polish (opportunistic)** — phosh earpiece/headset UCM; sensors; cameras
+   still DT-disabled. Display freeze fallback: `WLR_DRM_NO_ATOMIC=1` (already
+   in device package).
 
-**Recommendation:** **modem when a SIM is available**, or audio route polish /
-sensors. Durable Phosh image is flash-validated.
+**Already done (do not redo):**
 
-**Housekeeping (no action now):** drop `pmos/lk2nd/0001-*` + the lk2nd
-`pkgrel` bump once pmaports bumps lk2nd past `d9ce4e70` (perry is already in
-lk2nd `main`; our carry is a backport onto the pinned 22.0).
+- Audio UCM, Phosh UI, durable release `pmos-perry-2026-07-21`, Wi-Fi NV, lk2nd
+  perry node carry, P0 (zram / lean install / WLR / USB nosuspend / presets),
+  P1.1 scrub + P1.6 HZ=250, P1.2 OPP audit (no DT patch), P1.4 eMMC udev.
+  Build-validated: `linux-motorola-perry` **7.0.9-r1**,
+  `device-motorola-perry` **1-r2**.
+
+**Recommendation for next session:** item **1** (rebuild image) or **2**
+(P1.5), unless the user brings a SIM (→ **5**) or explicitly resumes flash
+(→ **4**).
+
+**Canonical paths:** `pmos/linux-motorola-perry/` (defconfig + patches
+0001–0006), `pmos/device-motorola-perry/`, plan
+[`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md). Published
+overlay path (`qcom-msm89x7` + `pmos-build-phosh-release.sh`) still valid.
+
+**Housekeeping (no action now):** drop `pmos/lk2nd/0001-*` + lk2nd `pkgrel`
+bump once pmaports bumps lk2nd past `d9ce4e70`.
+
+### ▶ Prior next-session note (2026-07-20 late) — archived
+
+Superseded by the 2026-07-21 block above. Historical checklist items 1–3
+(UCM / Phosh / durable release) remain DONE; modem / polish / custom-kernel
+items folded into the new list.
 
 ### Done this session (pmOS) — for context
 

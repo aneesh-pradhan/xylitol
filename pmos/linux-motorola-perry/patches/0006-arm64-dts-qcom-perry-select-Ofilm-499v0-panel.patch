@@ -1,0 +1,32 @@
+From 869b42adedcd7b7428026476dac9d78edaaa7899 Mon Sep 17 00:00:00 2001
+From: xylitol <perry@xylitol.local>
+Date: Mon, 20 Jul 2026 17:18:20 -0700
+Subject: [PATCH 6/6] arm64: dts: qcom: perry: select Ofilm 499v0 panel
+
+This XT1765 unit (ZY224TB8KZ) has the Ofilm 499 panel per lk2nd
+detection (lk2nd:panel:qcom,mdss_dsi_mot_ofilm_499_720p_video_v0).
+lk2nd has no perry device entry, so no boot-time panel fixup happens:
+the DTB compatible decides which driver probes. Switch panel@0 from the
+Tianma v1 compatible to Ofilm v0 for this unit. Proper multi-panel
+support needs an lk2nd,panel map upstream (see docs/pmos-ofilm-panel.md).
+
+---
+ arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+index 6c6b9a4..680cc75 100644
+--- a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+@@ -198,7 +198,7 @@
+ 	status = "okay";
+ 
+ 	panel@0 {
+-		compatible = "motorola,perry-499v1-tianma";
++		compatible = "motorola,perry-499v0-ofilm";
+ 		reg = <0>;
+ 
+ 		reset-gpios = <&tlmm 60 GPIO_ACTIVE_LOW>;
+-- 
+2.53.0
+

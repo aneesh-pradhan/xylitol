@@ -1,0 +1,15 @@
+# Modules loaded in the initramfs for perry (msm89x7 family + Ofilm panel).
+# Touches / panels mirror device-qcom-msm89x7; refine after Phase B with lsmod.
+atmel_mxt_ts
+cyttsp5
+edt_ft5x06
+goodix_ts
+led_class_multicolor
+leds_qcom_lpg
+msm
+novatek_nvt_ts
+panel_motorola_perry_499v0_ofilm
+qcom_pbs
+rmi_core
+rmi_i2c
+tps65132_regulator

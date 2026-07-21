@@ -32,3 +32,8 @@ XT1765_*.xml
 *.tmp
 .DS_Store
 *~
+
+# Kernel defconfig for linux-motorola-perry is tracked (canonical perry
+# custom-kernel aport). Do not re-add it to this ignore list.
+pmos/linux-motorola-perry/*.bak*
+pmos/linux-motorola-perry/*bak-pre-*

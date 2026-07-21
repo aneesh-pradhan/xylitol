@@ -1,0 +1,29 @@
+# Reference: <https://postmarketos.org/deviceinfo>
+# Motorola Moto E4 (perry) — XT1765 / MSM8917. Single DTB (no multi-SoC glob).
+
+deviceinfo_format_version="0"
+deviceinfo_name="Motorola Moto E4"
+deviceinfo_manufacturer="Motorola"
+deviceinfo_codename="motorola-perry"
+deviceinfo_year="2017"
+deviceinfo_chassis="handset"
+deviceinfo_arch="aarch64"
+
+deviceinfo_drm="true"
+deviceinfo_external_storage="true"
+deviceinfo_screen_width="720"
+deviceinfo_screen_height="1280"
+
+deviceinfo_flash_method="fastboot"
+deviceinfo_partition_type="msdos"
+
+# Explicit perry DTB — lk2nd + boot-deploy must not use fdtdir /
+deviceinfo_dtb="qcom/msm8917-motorola-perry"
+deviceinfo_generate_extlinux_config="true"
+deviceinfo_boot_filesystem="ext2"
+
+# P0.1 — postmarketos-zram (via postmarketos-base). Default algo zstd;
+# 100% of RAM (~2 GiB compressed swap) is a good middle ground on this SKU
+# (upstream default is 150% for phones ≤32 GiB).
+deviceinfo_zram_swap_pct="100"
+deviceinfo_zram_swap_algo="zstd"

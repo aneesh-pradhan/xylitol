@@ -1,0 +1,4 @@
+# P0.5 — keep USB gadget / UDC awake so USB-net SSH does not die on suspend.
+# Host side still needs: nmcli device set <cdc_ncm> managed no
+ACTION=="add", SUBSYSTEM=="udc", TEST=="power/control", ATTR{power/control}="on"
+ACTION=="add", SUBSYSTEM=="usb", KERNEL=="dwc3*", TEST=="power/control", ATTR{power/control}="on"

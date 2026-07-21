@@ -1,0 +1,72 @@
+# Maintainer: Project Xylitol <xylitol@users.noreply.github.com>
+# Reference: <https://postmarketos.org/devicepkg>
+#
+# First-class perry device package. Depends on linux-motorola-perry (xylitol
+# mainline carry). P0 userspace (zram via deviceinfo, WLR env, lean presets,
+# USB nosuspend) ships here — see docs/perry-custom-kernel-plan.md.
+pkgname=device-motorola-perry
+pkgdesc="Motorola Moto E4 (perry / XT1765, MSM8917)"
+pkgver=1
+pkgrel=2
+url="https://github.com/aneesh-pradhan/xylitol"
+license="MIT"
+arch="aarch64"
+options="!check !archcheck"
+depends="
+	alsa-ucm-motorola-perry
+	firmware-motorola-perry-nv
+	firmware-qcom-adreno-a300
+	firmware-qcom-msm89x7
+	linux-motorola-perry
+	lk2nd-msm8952
+	mkbootimg
+	msm-firmware-loader
+	postmarketos-base
+	soc-qcom-msm89x7
+"
+makedepends="devicepkg-dev"
+source="
+	deviceinfo
+	modules-initfs
+	50-perry-wlr.conf
+	50-perry-usb-nosuspend.rules
+	60-perry-emmc-scheduler.rules
+	80-device-motorola-perry.preset
+"
+
+build() {
+	devicepkg_build "$startdir" "$pkgname"
+}
+
+package() {
+	devicepkg_package "$startdir" "$pkgname"
+
+	# P0.3 — phoc/wlroots DSI EBUSY workaround
+	install -Dm644 "$srcdir"/50-perry-wlr.conf \
+		"$pkgdir"/etc/environment.d/50-perry-wlr.conf
+
+	# P0.5 — USB gadget stay-awake for USB-net SSH
+	install -Dm644 "$srcdir"/50-perry-usb-nosuspend.rules \
+		"$pkgdir"/usr/lib/udev/rules.d/50-perry-usb-nosuspend.rules
+
+	# P1.4 — eMMC mq-deadline
+	install -Dm644 "$srcdir"/60-perry-emmc-scheduler.rules \
+		"$pkgdir"/usr/lib/udev/rules.d/60-perry-emmc-scheduler.rules
+
+	# P0.4 — systemd preset (no-op if units absent)
+	install -Dm644 "$srcdir"/80-device-motorola-perry.preset \
+		"$pkgdir"/usr/lib/systemd/system-preset/80-device-motorola-perry.preset
+
+	# Linger for default image user (PipeWire/WirePlumber without open login)
+	install -d "$pkgdir"/var/lib/systemd/linger
+	touch "$pkgdir"/var/lib/systemd/linger/xylitol
+}
+
+sha512sums="
+5708386b36b7b10a4ef0038859ca95df437059cea454c9dfe4a201076277a46698b916930c41d4089c8f3498ee32697bed468780ef17a57a3d8e920d3837f4a4  deviceinfo
+77d068b6e770a8c3ab28256c1a08cbd932e95758c84e087e61920959a60a652cd35008173e2395c4d6e266b5362bc2c51ffd40d1f977f9d29d53713f256a9b3d  modules-initfs
+27f38c63d99408c4e4f76075f9bdf579a2d12c722bbb2f8fd6371a5aa2999000f7f5bec7c57e85a0e8a4ba2d3008d2a67360aee48781f5083de331bf022d958c  50-perry-wlr.conf
+bcfc4e18bcaf1b252f701620a0007f6cf4f485ceeb606c2a79a5d42bd240fdd1880d13b5be12ce4b434c77924c91f95170f83e53f1b2e2966c84ddb0d51fa12f  50-perry-usb-nosuspend.rules
+3e54e764f8883e6a8e7f80eb2dad1b0489132af4993601141ed771b00d7ec2934e8f836ec8a6189faf69d9bba04fc2f773cf03c1853d71a0933c713a18465d28  60-perry-emmc-scheduler.rules
+f25bd21d7ef669dd432f2b00d5386e6d7f05fd9ea269024ae5f5dc0d6627f96b8f0be7d1f4eab4f351afa232db977ac43aa69d52cecb86d87b60dec7297ad082  80-device-motorola-perry.preset
+"
