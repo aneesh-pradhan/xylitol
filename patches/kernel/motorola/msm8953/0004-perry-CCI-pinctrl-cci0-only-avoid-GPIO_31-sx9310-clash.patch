@@ -1,0 +1,41 @@
+From 7c1b60c2203422c7da7b67e2f45274b19cce9003 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Mon, 20 Jul 2026 14:22:50 -0700
+Subject: [PATCH] perry: CCI pinctrl cci0-only (avoid GPIO_31 / sx9310 clash)
+
+Base msm8917-camera.dtsi claims cci0+cci1 (gpio29-32). Perry's
+sx9310 SAR IRQ already owns gpio31; mirror hannah/james and keep
+cci0 only so CCI pinctrl apply succeeds on camera open.
+---
+ .../dts/qcom/msm8917-camera-sensor-mot-perry.dtsi | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/arch/arm/boot/dts/qcom/msm8917-camera-sensor-mot-perry.dtsi b/arch/arm/boot/dts/qcom/msm8917-camera-sensor-mot-perry.dtsi
+index a218abb8202e..adff774bbad5 100644
+--- a/arch/arm/boot/dts/qcom/msm8917-camera-sensor-mot-perry.dtsi
++++ b/arch/arm/boot/dts/qcom/msm8917-camera-sensor-mot-perry.dtsi
+@@ -12,6 +12,21 @@
+  */
+ 
+ &cci {
++	/* Perry uses CCI master 0 only (all sensors/eeprom/actuator).
++	 * Base msm8917-camera.dtsi also claims cci1 (gpio31/32); gpio31 is
++	 * already owned by sx9310@28 (SAR IRQ). Mirror hannah/james: keep
++	 * cci0 only so CCI pinctrl apply does not fail on camera open.
++	 */
++	pinctrl-names = "cci_default", "cci_suspend";
++	pinctrl-0 = <&cci0_active>;
++	pinctrl-1 = <&cci0_suspend>;
++	gpios = <&tlmm 29 0>,
++		<&tlmm 30 0>;
++	qcom,gpio-tbl-num = <0 1>;
++	qcom,gpio-tbl-flags = <1 1>;
++	qcom,gpio-tbl-label = "CCI_I2C_DATA0",
++					"CCI_I2C_CLK0";
++
+ 	actuator0: qcom,actuator@0 {
+ 		cell-index = <0>;
+ 		reg = <0x0>;
+-- 
+2.53.0
+

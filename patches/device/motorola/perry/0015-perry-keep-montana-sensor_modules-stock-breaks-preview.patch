@@ -1,0 +1,137 @@
+From 9485df8d2c75194e13e7e1a69625ad698169f922 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Mon, 20 Jul 2026 14:33:04 -0700
+Subject: [PATCH] perry: keep montana sensor_modules (stock breaks preview)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+0014's XT1765 stock sensor_modules + EepromName fixed OTP AF cal but
+isp_util_map_streams saw sensor resolution 0x0 with montana ISP → black
+viewfinder / Snap ANR. Revert to montana sensor_modules and omit
+EepromName again. Kernel CCI 0004 stays. AF still open.
+---
+ camera-vendor.mk                            | 24 +++++++++------------
+ configs/camera/msm8917_mot_perry_camera.xml |  6 ++++--
+ proprietary-files.txt                       | 17 ++++-----------
+ 3 files changed, 18 insertions(+), 29 deletions(-)
+
+diff --git a/camera-vendor.mk b/camera-vendor.mk
+index c59e020..c1b4dcc 100644
+--- a/camera-vendor.mk
++++ b/camera-vendor.mk
+@@ -7,14 +7,11 @@
+ # Sensor/chromatix libs stay in perry-vendor.mk / proprietary-files.txt
+ # (XT1765 imx219/s5k4h8/mot_ov5695_l5695fa0 from NCQS26.69-64-21 stock).
+ #
+-# Exceptions (XT1765 stock, not montana) — needed so EepromName OTP works
+-# without eeprom_process SEGV in montana sensor_modules:
+-#   libmmcamera2_sensor_modules.so
+-#   libmmcamera_eeprom_util.so
+-#   libmotimager_utils.so (NEEDED by stock sensor_modules; lived in
+-#   system/lib on Nougat — ship under vendor/lib here)
+-#   libmotocalibration.so / libmmcamera_pdaf{,camif}.so (stock ABI
+-#   matches stock sensor_modules; montana copies SEGV in led cal)
++# NOTE (AF / 0014 lesson): shipping XT1765 stock sensor_modules with the
++# montana ISP/iface stack makes isp_util_map_streams see sensor resolution
++# 0x0 → preview link fails → black viewfinder / Snap ANR. Keep montana
++# sensor_modules (+ pdaf / motocalibration). EepromName stays omitted to
++# avoid montana eeprom_process SEGV; AF OTP needs a different approach.
+ #
+ # Phase 0 (2026-07-19): confirmed hw_get_module looks up camera.msm8937.so
+ # and opens it once SELinux labels it vendor_file.
+@@ -38,8 +35,7 @@ PRODUCT_COPY_FILES += \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera2_pp_buf_mgr.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera2_pp_buf_mgr.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera2_pproc_modules.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera2_pproc_modules.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera2_q3a_core.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera2_q3a_core.so \
+-    vendor/motorola/perry/proprietary/vendor/lib/libmmcamera2_sensor_modules.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera2_sensor_modules.so \
+-    vendor/motorola/perry/proprietary/vendor/lib/libmotimager_utils.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmotimager_utils.so \
++    vendor/motorola/montana/proprietary/vendor/lib/libmmcamera2_sensor_modules.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera2_sensor_modules.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera2_stats_algorithm.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera2_stats_algorithm.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera2_stats_modules.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera2_stats_modules.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_chromaflash_lib.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_chromaflash_lib.so \
+@@ -47,7 +43,7 @@ PRODUCT_COPY_FILES += \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_dcrf_lib.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_dcrf_lib.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_dummyalgo.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_dummyalgo.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_eebinparse.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_eebinparse.so \
+-    vendor/motorola/perry/proprietary/vendor/lib/libmmcamera_eeprom_util.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_eeprom_util.so \
++    vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_eeprom_util.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_eeprom_util.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_eztune_module.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_eztune_module.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_facedetection_lib.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_facedetection_lib.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_faceproc.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_faceproc.so \
+@@ -91,8 +87,8 @@ PRODUCT_COPY_FILES += \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_llvd.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_llvd.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_optizoom_lib.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_optizoom_lib.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_paaf_lib.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_paaf_lib.so \
+-    vendor/motorola/perry/proprietary/vendor/lib/libmmcamera_pdaf.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_pdaf.so \
+-    vendor/motorola/perry/proprietary/vendor/lib/libmmcamera_pdafcamif.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_pdafcamif.so \
++    vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_pdaf.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_pdaf.so \
++    vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_pdafcamif.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_pdafcamif.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_ppbase_module.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_ppbase_module.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_quadracfa.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_quadracfa.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_stillmore_lib.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_stillmore_lib.so \
+@@ -105,7 +101,7 @@ PRODUCT_COPY_FILES += \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmcamera_vstab_module.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmcamera_vstab_module.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmjpeg.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmjpeg.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libmmjpeg_interface.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmmjpeg_interface.so \
+-    vendor/motorola/perry/proprietary/vendor/lib/libmotocalibration.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmotocalibration.so \
++    vendor/motorola/montana/proprietary/vendor/lib/libmotocalibration.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmotocalibration.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libqomx_core.so:$(TARGET_COPY_OUT_VENDOR)/lib/libqomx_core.so \
+     vendor/motorola/montana/proprietary/vendor/lib/libqomx_jpegenc_pipe.so:$(TARGET_COPY_OUT_VENDOR)/lib/libqomx_jpegenc_pipe.so \
+     vendor/motorola/montana/proprietary/vendor/lib/lib_mot_app6_metadata.so:$(TARGET_COPY_OUT_VENDOR)/lib/lib_mot_app6_metadata.so \
+diff --git a/configs/camera/msm8917_mot_perry_camera.xml b/configs/camera/msm8917_mot_perry_camera.xml
+index 48226c5..de39eba 100644
+--- a/configs/camera/msm8917_mot_perry_camera.xml
++++ b/configs/camera/msm8917_mot_perry_camera.xml
+@@ -87,7 +87,9 @@ LensInfo : Information of the lens present in the module.
+   <CameraModuleConfig>
+     <CameraId>0</CameraId>
+     <SensorName>s5k4h8</SensorName>
+-    <EepromName>s5k4h8</EepromName>
++    <!-- EepromName omitted: montana sensor_modules eeprom_process SEGV with
++         XT1765 eeprom libs. Stock sensor_modules fixes OTP but reports
++         sensor resolution 0x0 to montana ISP → black preview. -->
+     <ActuatorName>dw9718s</ActuatorName>
+     <FlashName>pmic</FlashName>
+     <ChromatixName>s5k4h8_chromatix</ChromatixName>
+@@ -136,7 +138,7 @@ LensInfo : Information of the lens present in the module.
+   <CameraModuleConfig>
+     <CameraId>1</CameraId>
+     <SensorName>mot_ov5695</SensorName>
+-    <EepromName>ov5695</EepromName>
++    <!-- EepromName omitted: same montana eeprom_process / stock-modules tradeoff. -->
+     <FlashName>pmic</FlashName>
+     <ChromatixName>mot_ov5695_l5695fa0_chromatix</ChromatixName>
+     <ModesSupported>1</ModesSupported>
+diff --git a/proprietary-files.txt b/proprietary-files.txt
+index ad97790..834476d 100644
+--- a/proprietary-files.txt
++++ b/proprietary-files.txt
+@@ -33,20 +33,11 @@ vendor/lib/libubifocus.so
+ vendor/lib/libactuator_dw9718s.so
+ vendor/lib/libmmcamera_s5k4h8_eeprom.so
+ vendor/lib/libmmcamera_ov5695_eeprom.so
+-vendor/lib/libmmcamera_eeprom_util.so
+-# Stock sensor_modules + eeprom_util (not montana) — montana sensor_modules
+-# SEGVs in eeprom_process+470 with XT1765 eeprom libs when EepromName is set.
+ # Note: montana sensor_modules loads libactuator_<name>_truly.so when
+-# EepromName/module-info is missing. device.mk installs dw9718s under
+-# that alias — keep until stock sensor_modules + OTP is verified.
+-vendor/lib/libmmcamera2_sensor_modules.so
+-# Stock Nougat put this under system/lib — extract maps into vendor/lib.
+--system/lib/libmotimager_utils.so:vendor/lib/libmotimager_utils.so
+-vendor/lib/libmotocalibration.so
+-vendor/lib/libmmcamera_pdaf.so
+-vendor/lib/libmmcamera_pdafcamif.so
+-# eeprom_util is XT1765 stock (not montana) — montana util SEGVs in
+-# eeprom_process when paired with perry eeprom sensor libs.
++# EepromName is omitted. device.mk installs dw9718s under that alias —
++# do not list a separate _truly blob here (stock has none).
++# EepromName stays omitted: montana eeprom_process SEGVs; stock
++# sensor_modules breaks preview with montana ISP (resolution 0x0).
+ 
+ 
+ # Camera sensors
+-- 
+2.53.0
+
