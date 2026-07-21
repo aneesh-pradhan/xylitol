@@ -84,7 +84,7 @@ work queue is [§1 below](#1-open-issues--the-work-queue)).
 | 1 | **Merge PR #2** (firmware pmaport) | ✅ Done 2026-07-20 — squash-merged as `9c4f3a2` on `main`. |
 | 2 | **Feature-matrix walk** over SSH | ✅ Done 2026-07-20 — results in porting-log. BT/Wi-Fi/display/touch/GPU/accel OK; audio needs perry UCM; cameras (`camss`/`cci` disabled), vibrator, prox/ALS, GPS missing. |
 | 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | ✅ Done + **runbook-validated** 2026-07-20 — apk-regen + cold reboot keep `fdt`. Pmaport `deviceinfo-motorola-perry`. |
-| 4 | **Fold DTB `fb=okay` into the overlay** (E-6) | Legit (splash/console). Add to overlay 0003 or a new 0007. `usb=peripheral` stays a HACK — real fix is extcon/charger (`pmi8950_smbcharger`, `usb_id` GPIO 97) role detection so `otg` flips on cable. |
+| 4 | ~~Fold DTB `fb=okay`/`usb=peripheral` into the overlay~~ (E-6) | ✅ **Resolved 2026-07-20 — RETIRED, no change.** Evidence: all 4 siblings on this kernel (nora/montana/cedric + perry) ship `simple-framebuffer status="disabled"` and `dr_mode="otg"`; device boots fine with both (real Ofilm DRM console + USB-net). Both were bring-up hacks now served by real drivers; folding either in would diverge from the family (usb=peripheral also breaks OTG host). Early splash, if ever wanted, = initramfs timeout bump (#6), not simplefb. See porting-log 2026-07-20 "Retire Solution-2 DTB hacks". |
 | 5 | **Add perry lk2nd device node** | Fixes `fdtdir`, panel auto-select, and the cosmetic "Unknown (FIXME!)". Needs building lk2nd (arm-none-eabi) + reflashing lk2nd to `boot`. Enables #3 the right way. |
 | 6 | **Cosmetic: initramfs splash timeout** | `/dev/fb0` appears ~27 s (DPU/DSI bind), past the 10 s initramfs wait → no splash. Bump the wait or get the panel probing earlier. Non-blocking. |
 | 7 | **USB-net stability** | Gadget auto-suspends, wiping the host IP. If iterating a lot: pin a NetworkManager profile for the cdc_ncm iface and/or disable device autosuspend. |
@@ -314,12 +314,22 @@ reproducible in the xylitol overlay:
   `fdt /msm8917-motorola-perry.dtb` on every mkinitfs. Remaining "proper"
   fix is still a perry lk2nd device node (also panel auto-select /
   "Unknown FIXME!") — see to-do #5.
-- **DTB fb=okay:** legit to fold into overlay patch 0003 (or new 0007) —
-  a simple-framebuffer splash/console is normal & upstreamable.
-- **DTB usb=peripheral:** a bring-up HACK. Upstream-correct fix = make
-  extcon/charger (`pmi8950_smbcharger`, `usb_id` GPIO 97) role detection
-  work so `otg` flips to peripheral on cable insert. Keep `peripheral`
-  only until USB role detection is sorted.
+- **DTB fb=okay:** ✅ **RETIRED — do NOT fold in** (decided 2026-07-20).
+  All four siblings on this kernel (nora/montana/cedric + perry) ship
+  `framebuffer@90001000 status="disabled"`; perry already matches. The
+  device boots with it disabled — the real Ofilm DRM driver provides the
+  console (~27 s). We have *no* positive evidence enabling simplefb works on
+  perry, it needs a kernel rebuild+flash to test, and it risks a garbage
+  splash / clock-GDSC handover contention. Enabling it alone would diverge
+  from the whole family for a purely cosmetic gain. Early splash, if ever
+  wanted, = initramfs timeout bump (to-do #6), not simplefb.
+- **DTB usb=peripheral:** ✅ **RETIRED — do NOT fold in** (decided 2026-07-20).
+  All siblings + perry use `dr_mode="otg"`, and USB-net enumerates on the
+  booted device with `otg`. `peripheral` was a Blocker-B bring-up hack (when
+  a hang and a silent gadget were indistinguishable); it is unnecessary now
+  and would break OTG host mode. Keep `otg`. If gadget enumeration ever
+  regresses, the correct fix is extcon/charger role detection
+  (`pmi8950_smbcharger`, `usb_id` GPIO 97), not pinning `peripheral`.
 
 ### E-7. Wiki / source findings (via in-app Browser; wiki blocks WebFetch/Anubis)
 

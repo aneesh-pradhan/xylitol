@@ -94,8 +94,12 @@ All four are sound. The plan below is validation + gap-closing, not rework.
    lost on every regen** (E-6 items 4/5). The device currently boots without
    them (USB-net + DRM console work post-boot), so this is **not** part of the
    severe fix — but note it so no one assumes this plan makes the boot partition
-   fully durable. Fold `fb=okay` into overlay 0003/0007 separately; keep
-   `usb=peripheral` only until extcon role-detection is fixed.
+   fully durable. **RESOLVED 2026-07-20 — RETIRED, no overlay change:** all four
+   siblings on this kernel (nora/montana/cedric + perry) ship simplefb
+   `disabled` and `dr_mode="otg"`; the device boots with both, so neither hack
+   is worth making durable (usb=peripheral would also break OTG host). See
+   porting-log 2026-07-20 "Retire Solution-2 DTB hacks". Early splash, if ever
+   wanted, = initramfs timeout bump, not simplefb.
 4. **lk2nd device node still desirable, separately.** It would fix panel
    auto-select and the cosmetic "Unknown (FIXME!)", and make `fdtdir` work too —
    but it's heavier (lk2nd build + reflash `boot`) and lower urgency. Keep as a

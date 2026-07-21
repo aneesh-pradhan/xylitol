@@ -1698,3 +1698,46 @@ Durable `fdt` fix is **validated end-to-end**: apk-triggered regen keeps
 `fdt`, and a real cold reboot through lk2nd boots pmOS with the same
 extlinux line. Runtime path (`pmos-install-perry-deviceinfo.sh`) and
 build-time path (`deviceinfo-motorola-perry` pmaport) both good.
+
+## 2026-07-20 — Retire Solution-2 DTB hacks (fb=okay / usb=peripheral)
+
+Gap #3 from [`pmos-fdt-brick-fix-plan.md`](pmos-fdt-brick-fix-plan.md) was
+"make the Solution-2 DTB edits (`fb=okay`, `usb=peripheral`) durable in the
+overlay, since they're lost on every `pmbootstrap install`/regen." On
+investigation the correct action is the opposite: **retire both — no overlay
+change.**
+
+**Evidence — sibling DTBs on this exact kernel** (`dtc -I dtb` on the rootfs
+`/boot/dtbs/qcom/*.dtb`, `linux-postmarketos-qcom-msm89x7` 7.0.9):
+
+| Board | SoC | `framebuffer@90001000` | `dr_mode` |
+|---|---|---|---|
+| nora | msm8917 | `status="disabled"` | `otg` |
+| montana | msm8937 | `status="disabled"` | `otg` |
+| cedric | msm8937 | `status="disabled"` | `otg` |
+| **perry** (ours) | msm8917 | `status="disabled"` | `otg` |
+
+Perry's committed overlay (0003) already matches the whole family.
+
+**Why fb=okay is wrong to fold in:** every sibling keeps the simple-framebuffer
+*disabled* and relies on the real msm DPU/DSI DRM driver for the console (perry:
+Ofilm 499v0, up ~27 s). We have **no** positive on-device evidence that enabling
+simplefb works on perry (Blocker B was cleared with fb *disabled*; the live
+Solution-2 edit was lost on regen and the device still boots). Enabling it needs
+a kernel rebuild + reflash to test and risks a garbage splash (stale/absent
+lk2nd cont-splash at 0x90001000) or clock/GDSC handover contention with the real
+DPU — a family-diverging change for a purely cosmetic, non-blocking gain. If
+early splash is ever wanted, the low-risk path is the initramfs splash-timeout
+bump (handoff to-do #6), not simplefb.
+
+**Why usb=peripheral is wrong to fold in:** `dr_mode="otg"` is the family
+convention and USB-net enumerates fine on the booted device with `otg`.
+`peripheral` was a Blocker-B bring-up hack (back when a hang vs. a silent gadget
+were indistinguishable); it is unnecessary now and would break OTG host mode.
+The upstream-correct fix, only if gadget enumeration ever regresses, is
+extcon/charger role detection (`pmi8950_smbcharger`, `usb_id` GPIO 97) — never
+pinning `peripheral`.
+
+**Net:** the recurring "Solution-2 edits keep getting wiped on regen" worry is
+moot — there was nothing worth making durable. Overlay unchanged; handoff E-6
+and to-do #4 updated to reflect the decision.
