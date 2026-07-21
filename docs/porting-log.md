@@ -1533,12 +1533,36 @@ DHCP lease + `ping 1.1.1.1` ~20 ms; NetworkManager **auto-reconnects on boot**.
   kernel-level reboot: `echo 1 > /proc/sys/kernel/sysrq; sync;
   echo b > /proc/sysrq-trigger`. A clean cold boot brings WiFi up reliably.
 
-**Durability owed (same class as handoff E-6).** The installer writes to the
-rootfs (survives reboot, synced to eMMC) but a `pmbootstrap install` regen
-wipes it. Fully-durable fix = promote the NV to a **local** pmaport
-(`firmware-motorola-perry`) added to the device package's depends — kept out
-of public git because the blob is proprietary. Until then: re-run
-`scripts/pmos-install-wcnss-nv.sh` after any `pmbootstrap install`.
+**Durability — solved with a download-based pmaport.** The runtime installer
+(`scripts/pmos-install-wcnss-nv.sh`) writes to the rootfs (survives reboot)
+but a `pmbootstrap install` regen wipes it. The durable fix is a pmaport that
+bakes the NV into the rootfs at build time:
+`pmos/firmware-motorola-perry-nv/` + `scripts/pmos-apply-perry-firmware.sh`
+(`pmbootstrap build firmware-motorola-perry-nv` →
+`install --add firmware-motorola-perry-nv`). Named `-nv` deliberately:
+pmaports already ships an archived `firmware-motorola-perry` (parent +
+`-wcnss` subpackage) that installs the NV to
+`/lib/firmware/postmarketos/wlan/prima/` — the downstream layout, **not** the
+`qcom/msm8917/motorola/perry/` path our mainline DTS (PR #48) requests — so it
+does not satisfy wcn36xx and a same-named package would also collide in the
+aports scan.
+
+**Blob source (user OK'd outside sources — device is Moto/Qcom-abandoned):**
+the APKBUILD downloads the *same community mirror tarball pmaports itself pins*
+(`lastramses/firmware-motorola-perry` @ `813155d3`) — verified byte-for-byte
+against pmaports' `de37ff72…` sha512. So no blob is committed to xylitol and
+none is hand-supplied: anyone can reproduce Wi-Fi with no extraction. Build-
+validated 2026-07-20: the apk installs
+`lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin`.
+
+**NV provenance caveat:** the mirror NV (md5 `3076c1a0…`) is a community perry
+extract and differs from *this* XT1765 T-Mobile unit's own stock/Lineage NV
+(`4f88c4c5…`, saved at `~/android/backups/perry/WCNSS_qcom_wlan_nv.perry.bin`).
+Both are valid perry NVs; the delta is RF/regulatory cal only — the wcn36xx MAC
+is SoC-derived (`02:00:02:4b:07:1b`, tail matches lk2nd serial `24b071b`), not
+from the NV. For a device-exact durable NV, drop the stock blob into the aport
+dir, point `source=` at it, and re-checksum (documented in `docs/pmos.md`
+step 6); the runtime installer already uses the device-exact blob.
 
 ### Ofilm 499v0 panel — first-light CONFIRMED (user-witnessed)
 

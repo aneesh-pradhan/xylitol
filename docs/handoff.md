@@ -16,14 +16,14 @@ Enforcing. **RIL next** (or AF retry with a non-preview-breaking approach).
 sudo pw `147147`). **WiFi FIXED** (missing perry WCNSS NV blob → `-2`; dropped
 perry's own NV → `wlan0` up, scans 51 APs, associates + DHCP + internet,
 auto-reconnects on cold boot). Installer:
-`scripts/pmos-install-wcnss-nv.sh`. **Ofilm 499v0 panel first-light
-CONFIRMED** (user-witnessed: fb static + `perry login:` tty + backlight blink;
-`compatible: motorola,perry-499v0-ofilm`, DSI-1 connected 720×1280). Full
-write-up: [porting-log 2026-07-20 "pmOS BOOTS to userspace"]. Next pmOS
-frontier: remaining feature matrix (BT/audio/sensors/GPS), durable NV pmaport,
-and the cosmetic initramfs-splash timeout (fb0 appears at ~27 s, past the 10 s
-wait). Ofilm panel driver in overlay 0005/0006, kernel 7.0.9-r2. Full session
-log below in
+`scripts/pmos-install-wcnss-nv.sh` (runtime); **durable Wi-Fi pmaport DONE**
+(`firmware-motorola-perry-nv`, PR [#2](https://github.com/aneesh-pradhan/xylitol/pull/2)).
+**Ofilm 499v0 panel first-light CONFIRMED** (user-witnessed: fb static +
+`perry login:` tty + backlight blink; `compatible: motorola,perry-499v0-ofilm`,
+DSI-1 connected 720×1280). Full write-up:
+[porting-log 2026-07-20 "pmOS BOOTS to userspace"]. **Next-to-dos board:
+[§ Next to-dos](#next-to-dos-2026-07-20-end-of-session).** Ofilm panel driver
+in overlay 0005/0006, kernel 7.0.9-r2. Full session log below in
 [§ Phase E pmOS](#phase-e-pmos--flashed-mid-bring-up-session-2026-07-20-evening).  
 **Meta-repo:** `main`  
 **Lineage tree:** `~/android/lineage` (patches applied live; series in `patches/`)  
@@ -50,26 +50,79 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 
 ---
 
-## Phase E pmOS — FLASHED, mid-bring-up (SESSION 2026-07-20 evening)
+## Next to-dos (2026-07-20 end of session)
 
-**This is the live work. Read this whole section first next session.** The
-user explicitly opened the Phase-E gate ("fully commit to flashing pmOS").
-We flashed lk2nd + the pmOS rootfs, then spent the session pushing the
-boot failure forward through several distinct root causes. Two are fixed;
-one is the current frontier. Everything reversible; **sacred partitions
-never touched** (confirmed present in lk2nd's own partition dump).
+Two parallel tracks on the same device. **pmOS is the recently-active track**
+(this session); **Lineage/Android is the primary long-term track** (its own
+work queue is [§1 below](#1-open-issues--the-work-queue)).
+
+### Done this session (pmOS) — for context
+
+- ✅ **Blocker B cleared** — pmOS boots to a full userspace (`7.0.9-msm89x7`
+  aarch64), reachable over USB-net + SSH.
+- ✅ **Wi-Fi working** — root-caused the missing perry WCNSS NV; runtime
+  installer `scripts/pmos-install-wcnss-nv.sh` + **durable download-based
+  pmaport** `firmware-motorola-perry-nv` (PR
+  [#2](https://github.com/aneesh-pradhan/xylitol/pull/2)).
+- ✅ **Ofilm 499v0 panel first-light** — user-confirmed on the glass.
+- ✅ **Committed + pushed** — pmOS docs/overlay/patches on `main`
+  (`9ac5652`, `44bbc41`, `9345c36`); public reproduction guide
+  [`pmos.md`](pmos.md); firmware pmaport in PR #2.
+
+### pmOS — next (prioritized)
+
+| # | Task | Notes / where |
+|---|---|---|
+| 1 | **Merge PR #2** (firmware pmaport) | Squash-merge; then `git checkout main`. |
+| 2 | **Feature-matrix walk** over SSH | Wiki claims most work on this kernel+lk2nd. Test each: **BT** (btqcomsmd), **audio** (msm8916 codec/wcd), **sensors** (accel/prox/light), **GPS**, **vibrator**, **cameras** (wiki says broken). Log results per-item in porting-log. |
+| 3 | **Durable extlinux `fdtdir`→`fdt`** (E-6) | Currently a throwaway image edit — lost on `pmbootstrap install`. Fix options in E-6: add a perry lk2nd device node (best), override boot-deploy, or a post-install hook. |
+| 4 | **Fold DTB `fb=okay` into the overlay** (E-6) | Legit (splash/console). Add to overlay 0003 or a new 0007. `usb=peripheral` stays a HACK — real fix is extcon/charger (`pmi8950_smbcharger`, `usb_id` GPIO 97) role detection so `otg` flips on cable. |
+| 5 | **Add perry lk2nd device node** | Fixes `fdtdir`, panel auto-select, and the cosmetic "Unknown (FIXME!)". Needs building lk2nd (arm-none-eabi) + reflashing lk2nd to `boot`. Enables #3 the right way. |
+| 6 | **Cosmetic: initramfs splash timeout** | `/dev/fb0` appears ~27 s (DPU/DSI bind), past the 10 s initramfs wait → no splash. Bump the wait or get the panel probing earlier. Non-blocking. |
+| 7 | **USB-net stability** | Gadget auto-suspends, wiping the host IP. If iterating a lot: pin a NetworkManager profile for the cdc_ncm iface and/or disable device autosuspend. |
+| 8 | **(optional) Device-exact NV in the pmaport** | Mirror NV (`3076c1a0…`) ≠ this unit's stock NV (`4f88c4c5…`, in backups). RF/regulatory cal only; MAC is SoC-derived. Bake stock in if you want this exact XT1765's cal — see [`pmos.md`](pmos.md) step 6. |
+| 9 | **(optional) Upstream contributions** | Report Ofilm-v0 panel detection to linux-panel-drivers#6 / linux#48; the pmaports NV path mismatch is worth a note too. |
+
+### Lineage/Android — next (unchanged priority)
+
+Full board in [§1](#1-open-issues--the-work-queue). Top items:
+
+| # | Task | State |
+|---|---|---|
+| 1 | **RIL / mobile network** | **PRIORITY**, untouched. GSM only; never touch `persist`/`modemst*`. |
+| 2 | **Camera autofocus** | Open research. Preview/still OK (**0015**); AF `Invalid-region`. Do not re-ship stock `sensor_modules` with montana ISP. Three approaches in §P1a. |
+| 3 | Sepolicy pass, hardware audit, release hygiene | §P2/§P3 (fstab `forceencrypt`, drop the `TARGET_KERNEL_VERSION := 4.9` lie, push/fork decision). |
+
+**Cross-cutting rules (both tracks):** SACRED — never wipe/repartition
+`persist` / `modemst1` / `modemst2`. No blobs / `out/` / Lineage tree in
+xylitol git. No AI co-author trailers on commits or PRs. Never raw-dd a sparse
+`vendor.img`.
+
+---
+
+## Phase E pmOS — FLASHED and BOOTING (SESSION 2026-07-20)
+
+**pmOS now boots to a full userspace with Wi-Fi, display, and USB/SSH — see
+the [Next to-dos](#next-to-dos-2026-07-20-end-of-session) board for what's
+left.** The user opened the Phase-E gate ("fully commit to flashing pmOS").
+We flashed lk2nd + the pmOS rootfs and drove the boot failure through several
+root causes to a working system: extlinux `fdtdir`→`fdt`, the "blind & mute"
+kernel (Blocker B, now cleared), the missing WCNSS Wi-Fi NV, and Ofilm panel
+first-light. Everything reversible; **sacred partitions never touched**
+(confirmed present in lk2nd's own partition dump). The subsections below are
+the chronological bring-up log; the consolidated state + to-dos are up top.
 
 ### E-0. Opener for next session (use verbatim)
 
-> Read docs/handoff.md "Phase E pmOS" section end-to-end. pmOS BOOTS on
-> perry (XT1765) — Blocker B cleared. Full postmarketOS edge userspace
-> (7.0.9-msm89x7 aarch64), reachable over USB-net + SSH: self-assign
-> 172.16.42.2/24 on the cdc_ncm iface, `ssh aneesh@172.16.42.1` (sudo pw
-> 147147); link auto-suspends so re-add IP + timeout-wrap ssh. WiFi is
-> FIXED (perry WCNSS NV installed via scripts/pmos-install-wcnss-nv.sh;
-> reboot to activate, never manual remoteproc restart). Next: confirm panel
-> first-light on screen, walk the feature matrix (BT/audio/sensors/GPS),
-> and make the NV durable as a local pmaport. Do not touch persist/modemst*.
+> Read docs/handoff.md — start with the "Next to-dos" board, then this
+> Phase E section. pmOS BOOTS on perry (XT1765): full postmarketOS edge
+> userspace (7.0.9-msm89x7 aarch64), Wi-Fi + Ofilm display + USB/SSH all
+> working. Reach it over USB-net: self-assign 172.16.42.2/24 on the cdc_ncm
+> iface, `ssh aneesh@172.16.42.1` (sudo pw 147147); link auto-suspends so
+> re-add IP + timeout-wrap ssh. Blocker B (blind & mute), Wi-Fi (WCNSS NV),
+> panel first-light, and the durable NV pmaport are all DONE. Next: merge
+> PR #2, then walk the feature matrix (BT/audio/sensors/GPS). Do not touch
+> persist/modemst*.
 
 ### E-1. What we did, in order (all succeeded)
 
@@ -318,9 +371,18 @@ the Lineage build's `vendor/etc/wifi/`) at that path:
 ```
 Then **reboot** (never manual `remoteproc` restart — it wedges WCNSS SMD):
 `sudo sh -c 'sync; echo 1 > /proc/sys/kernel/sysrq; echo b > /proc/sysrq-trigger'`.
-Cold boot → `wlan0` up, associates + DHCP, NM auto-reconnects. Durable-owed:
-promote NV to a local `firmware-motorola-perry` pmaport (survives
-`pmbootstrap install`); until then re-run the script after any install.
+Cold boot → `wlan0` up, associates + DHCP, NM auto-reconnects. **Durable fix
+DONE:** pmaport `pmos/firmware-motorola-perry-nv/` +
+`scripts/pmos-apply-perry-firmware.sh` bakes the NV into the rootfs
+(`pmbootstrap build firmware-motorola-perry-nv` →
+`install --add firmware-motorola-perry-nv`), surviving `pmbootstrap install`.
+Named `-nv` to avoid the archived `firmware-motorola-perry` (wrong
+`/lib/firmware/postmarketos/…` path). The APKBUILD **downloads** the blob from
+the community mirror pmaports pins (user OK'd outside sources; no blob in git,
+no extraction). Mirror NV `3076c1a0…` differs from this unit's stock NV
+`4f88c4c5…` (RF/regulatory cal only; MAC is SoC-derived) — device-exact via the
+runtime `pmos-install-wcnss-nv.sh` or an aport `source=` override. Build-
+validated. See PR [#2](https://github.com/aneesh-pradhan/xylitol/pull/2).
 Notes: NV blob stable copy at `~/android/backups/perry/WCNSS_qcom_wlan_nv.perry.bin`;
 wcn36xx MAC is device-derived (`02:00:02:4b:07:1b`), not from the NV.
 

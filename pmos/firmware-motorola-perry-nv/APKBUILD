@@ -1,0 +1,40 @@
+# Maintainer: Aneesh Pradhan <zen7370@outlook.com>
+#
+# Installs perry's WCNSS Wi-Fi NV at the path the mainline DTS requests, so
+# wcn36xx loads it and Wi-Fi survives `pmbootstrap install`.
+#
+# Why not the upstream firmware-motorola-perry: pmaports already ships an
+# (archived) firmware-motorola-perry that fetches this exact tarball, but
+# installs the NV under /lib/firmware/postmarketos/wlan/prima/ — the
+# downstream/Android layout. Our mainline perry DTS (msm89x7-mainline/linux
+# PR #48, carried as pmos/linux-.../0003) points wcn36xx at
+#   qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin
+# so that package does not satisfy it (NV load fails with -2, no wlan0). This
+# package re-homes just the NV to the DTS path.
+#
+# Source: the same community perry-firmware mirror pmaports pins — verified
+# byte-for-byte (identical tarball sha512). This is a redistributable download,
+# not a blob committed to xylitol. The NV it carries is a community perry
+# extract; it differs from a given unit's own stock NV (RF/regulatory cal
+# only — the MAC is device-derived), and Wi-Fi works with either. To use your
+# device's exact stock NV instead, see docs/pmos.md step 6.
+pkgname=firmware-motorola-perry-nv
+pkgver=1
+pkgrel=0
+pkgdesc="WCNSS Wi-Fi NV for Moto E4 (perry) at the mainline DTS path"
+url="https://github.com/aneesh-pradhan/xylitol"
+arch="noarch"
+license="proprietary"
+options="!check !strip !archcheck !tracedeps !spdx"
+_commit="813155d3bbce0f8a83cace3fd8c3cceedc184a46"
+source="firmware-motorola-perry-nv-$_commit.tar.gz::https://github.com/lastramses/firmware-motorola-perry/archive/$_commit/firmware-motorola-perry-$_commit.tar.gz"
+builddir="$srcdir/firmware-motorola-perry-$_commit"
+
+package() {
+	install -Dm644 "$builddir"/wlan/prima/WCNSS_qcom_wlan_nv.bin \
+		"$pkgdir"/lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qcom_wlan_nv.bin
+}
+
+sha512sums="
+de37ff72ab99f2cc8da29091cda0c11eda7a08c3c0c5d91827ea4356f62e55adf5546dc2377d584a501394941bb4364529781841ed808cd64bd587b2ddd4589f  firmware-motorola-perry-nv-813155d3bbce0f8a83cace3fd8c3cceedc184a46.tar.gz
+"
