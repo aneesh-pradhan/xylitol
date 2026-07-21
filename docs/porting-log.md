@@ -1809,3 +1809,14 @@ Runtime validation (lk2nd fastboot serial `24b071b`):
 So the device node fix is complete on hardware: identity fixed and `fdtdir`
 now resolves natively (belt-and-suspenders with the deviceinfo `fdt` pin — either
 alone boots). Only `boot` was written; sacred `persist`/`modemst*` untouched.
+
+### 2026-07-20 — lk2nd perry node is already upstream (no PR)
+
+Before prepping an upstream PR, checked lk2nd `main`: perry was **already added**
+by `d9ce4e70` (2026-04-09, "dts: msm8917 & msm8920: add support for the Motorola
+Moto E4 (perry)"). The upstream node is **byte-for-byte identical** to the one
+derived here (model/compatible/match-device/dtb-files) — independent, same
+result, which corroborates correctness; upstream also did the msm8920 variant.
+It is just not in the released `22.0` tag pmaports pins (`main` ~96 commits
+ahead). So **no PR** — `pmos/lk2nd/0001-*` is a temporary backport; drop it (and
+the pkgrel bump) when pmaports bumps lk2nd past `d9ce4e70`.

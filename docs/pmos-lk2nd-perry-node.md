@@ -138,10 +138,29 @@ this is why it is not automated.
    direct proof of the node's dtb-hint; skip if you don't want to disturb the
    working boot line.
 
+## Already upstream — this is a backport, not a new contribution (no PR)
+
+Checked 2026-07-20: perry is **already in lk2nd upstream `main`**, added by
+[`d9ce4e70`](https://github.com/msm8916-mainline/lk2nd/commit/d9ce4e70e)
+(2026-04-09, "dts: msm8917 & msm8920: add support for the Motorola Moto E4
+(perry)"). The upstream node is **byte-for-byte identical** to ours (same
+`model` / `compatible` / `lk2nd,match-device` / `lk2nd,dtb-files`) — independent
+derivation, same result, which corroborates correctness. Upstream also covers
+the msm8920 variant.
+
+It is simply **not in the released `22.0` tag** that pmaports pins (`main` is
+~96 commits ahead of `22.0`). So **no upstream PR is warranted** — our
+`pmos/lk2nd/0001-*` patch is a **temporary backport** of `d9ce4e70` onto the
+22.0-pinned build. **Drop the patch + the `pkgrel` bump** once pmaports bumps
+`lk2nd` to a release that includes `d9ce4e70` (or once we base the build on
+upstream `main`); the carry becomes redundant then.
+
 ## Relationship to the deviceinfo `fdt` fix
 
 The deviceinfo pin (`deviceinfo-motorola-perry`) already makes boot durable by
 emitting an explicit `fdt`. This device node is the **complementary upstream-shaped
 fix**: it makes lk2nd resolve `fdtdir` on its own *and* fixes device identity.
-Both can coexist; neither depends on the other. If this node is upstreamed to
-lk2nd, the deviceinfo pin becomes optional (but harmless).
+Both can coexist; neither depends on the other. The node is already upstream
+(`d9ce4e70`); once a pmaports lk2nd release carries it, this node ships for free
+and the deviceinfo pin becomes optional (but harmless — keep it as the portable,
+bootloader-independent guarantee).
