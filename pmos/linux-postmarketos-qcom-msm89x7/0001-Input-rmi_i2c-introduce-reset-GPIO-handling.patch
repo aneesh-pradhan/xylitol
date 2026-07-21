@@ -1,0 +1,106 @@
+From c129ef821f9bd142351269eb3aa2b2e28c54e533 Mon Sep 17 00:00:00 2001
+From: xylitol <perry@xylitol.local>
+Date: Mon, 20 Jul 2026 14:56:43 -0700
+Subject: [PATCH 1/4] Input: rmi_i2c: introduce reset GPIO handling
+
+From msm89x7-mainline/linux#48 (d3dc233).
+
+Signed-off-by: Felix Kaechele <felix@kaechele.ca>
+---
+ drivers/input/rmi4/rmi_driver.c |  1 -
+ drivers/input/rmi4/rmi_driver.h |  2 ++
+ drivers/input/rmi4/rmi_i2c.c    | 23 +++++++++++++++++++++++
+ 3 files changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/input/rmi4/rmi_driver.c b/drivers/input/rmi4/rmi_driver.c
+index ccd9338a4..083cb56cf 100644
+--- a/drivers/input/rmi4/rmi_driver.c
++++ b/drivers/input/rmi4/rmi_driver.c
+@@ -31,7 +31,6 @@
+ #define RMI4_PAGE_MASK 0xFF00
+ 
+ #define RMI_DEVICE_RESET_CMD	0x01
+-#define DEFAULT_RESET_DELAY_MS	100
+ 
+ void rmi_free_function_list(struct rmi_device *rmi_dev)
+ {
+diff --git a/drivers/input/rmi4/rmi_driver.h b/drivers/input/rmi4/rmi_driver.h
+index e84495caa..5af5a8212 100644
+--- a/drivers/input/rmi4/rmi_driver.h
++++ b/drivers/input/rmi4/rmi_driver.h
+@@ -16,6 +16,8 @@
+ #define SYNAPTICS_INPUT_DEVICE_NAME "Synaptics RMI4 Touch Sensor"
+ #define SYNAPTICS_VENDOR_ID 0x06cb
+ 
++#define DEFAULT_RESET_DELAY_MS	100
++
+ #define GROUP(_attrs) { \
+ 	.attrs = _attrs,  \
+ }
+diff --git a/drivers/input/rmi4/rmi_i2c.c b/drivers/input/rmi4/rmi_i2c.c
+index 3c0c5fd44..beff566ca 100644
+--- a/drivers/input/rmi4/rmi_i2c.c
++++ b/drivers/input/rmi4/rmi_i2c.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2011 Unixphere
+  */
+ 
++#include <linux/gpio/consumer.h>
+ #include <linux/i2c.h>
+ #include <linux/rmi.h>
+ #include <linux/of.h>
+@@ -26,7 +27,9 @@
+  * @tx_buf_size: Size of the buffer
+  *
+  * @supplies: Array of voltage regulators
++ * @reset_gpio: Reference to the reset GPIO
+  * @startup_delay: Milliseconds to pause after powering up the regulators
++ * @reset_delay: Milliseconds to pause after resetting the device
+  */
+ struct rmi_i2c_xport {
+ 	struct rmi_transport_dev xport;
+@@ -39,7 +42,9 @@ struct rmi_i2c_xport {
+ 	size_t tx_buf_size;
+ 
+ 	struct regulator_bulk_data supplies[2];
++	struct gpio_desc *reset_gpio;
+ 	u32 startup_delay;
++	u32 reset_delay;
+ };
+ 
+ #define RMI_PAGE_SELECT_REGISTER 0xff
+@@ -227,6 +232,15 @@ static int rmi_i2c_probe(struct i2c_client *client)
+ 		return -ENODEV;
+ 	}
+ 
++	rmi_i2c->reset_gpio = devm_gpiod_get_optional(&client->dev, "reset",
++						      GPIOD_OUT_HIGH);
++	if (IS_ERR(rmi_i2c->reset_gpio)) {
++		error = PTR_ERR(rmi_i2c->reset_gpio);
++		dev_err(&client->dev, "failed to get reset GPIO: %d\n", error);
++		return error;
++	}
++	gpiod_set_consumer_name(rmi_i2c->reset_gpio, "rmi4 reset");
++
+ 	rmi_i2c->supplies[0].supply = "vdd";
+ 	rmi_i2c->supplies[1].supply = "vio";
+ 	error = devm_regulator_bulk_get(&client->dev,
+@@ -251,6 +265,15 @@ static int rmi_i2c_probe(struct i2c_client *client)
+ 
+ 	msleep(rmi_i2c->startup_delay);
+ 
++	if (rmi_i2c->reset_gpio) {
++		of_property_read_u32(client->dev.of_node, "syna,reset-delay-ms",
++				     &rmi_i2c->reset_delay);
++		gpiod_set_value_cansleep(rmi_i2c->reset_gpio, 1);
++		usleep_range(10000, 20000);
++		gpiod_set_value_cansleep(rmi_i2c->reset_gpio, 0);
++		msleep(rmi_i2c->reset_delay ?: DEFAULT_RESET_DELAY_MS);
++	}
++
+ 	rmi_i2c->client = client;
+ 	mutex_init(&rmi_i2c->page_mutex);
+ 
+-- 
+2.53.0
+
