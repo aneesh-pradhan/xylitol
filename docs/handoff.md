@@ -4,8 +4,21 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-**Date:** 2026-07-20 (updated late — post fdt/lk2nd work)  
+**Date:** 2026-07-20 (updated late — post audio-UCM work)  
 **⚑ Next session: see [▶ Next session — start here](#-next-session--start-here-2026-07-20-late).**  
+**⚑ PRIORITY PIVOT (2026-07-20):** user reprioritised — **pmOS is now the
+primary goal**, not a side quest. Focus is a proper pmOS end-user experience;
+Android/Lineage RIL is deferred. Audio UCM (below) was the first deliverable
+under this; **modem/ModemManager is next.**  
+**Headline (pmOS audio):** **perry now has working audio routing.** Authored the
+`motorola-perry` ALSA UCM profile (was mute: `alsaucm -2` / "no backend DAIs").
+`alsaucm` loads HiFi, `PRI_MI2S_RX ← MultiMedia1` + `SPK DAC` engage,
+`aplay hw:0,0` streams clean, **WirePlumber exposes a Speaker sink + Primary
+Microphone source**. Also fixed two pmOS stability bugs that flapped the audio
+nodes: WirePlumber libcamera crash-loop (disabled) + no systemd linger
+(enabled). Durable pmaport `pmos/alsa-ucm-motorola-perry/` + install/apply
+scripts. **Audible output USER-CONFIRMED** (2026-07-20: beep+sweep out the
+speaker — "Audio works cleanly. I can confirm the speaker is live and well").  
 **Headline (Android):** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb,
 Wi-Fi, soft navbar, **FM radio user-confirmed** (0007), **camera open/still**
 (0011–0013; **0015** keeps montana `sensor_modules`). **AF still broken.**
@@ -58,34 +71,37 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 
 ## Next to-dos (2026-07-20 end of session)
 
-Two parallel tracks on the same device. **pmOS is the recently-active track**
-(this session); **Lineage/Android is the primary long-term track** (its own
-work queue is [§1 below](#1-open-issues--the-work-queue)).
+Two tracks on the same device. **pmOS is now the primary track** (user pivot
+2026-07-20); **Lineage/Android is deferred** but intact — its work queue is
+kept at [§1 below](#1-open-issues--the-work-queue) for when/if we return.
 
 ### ▶ Next session — start here (2026-07-20 late)
 
-Boot chain is now solid on pmOS (durable `fdt` + upstream-matching lk2nd
-identity, both hardware-validated). Pick **one** track to resume:
+**pmOS is now the primary track** (user pivot 2026-07-20). Boot chain solid,
+Wi-Fi up, display up, **audio routing now up** (this session). Remaining pmOS
+functional gaps from the feature matrix, by value:
 
-- **pmOS bring-up (continues this session's momentum).** Top functional gaps
-  from the feature matrix, by value:
-  1. **Audio — perry UCM profile** (highest value; card `motorola-perry` +
-     Q6/WCD up but `alsaucm` → `-2`, `speaker-test` "no backend DAIs". Needs a
-     perry/msm89x7 UCM; siblings only ship montana/hannah/potter). Without it
-     the phone is mute.
-  2. **Modem / data — install & test ModemManager** (AT responds on
-     `/dev/wwan0at0`; no MM package; needs a SIM to test calls/SMS/data).
-  3. Sensors: **vibrator**, **prox/ALS** (missing nodes) — smaller wins.
-  4. Long tail / low priority: **cameras** (camss/cci disabled in DT — big
-     effort, wiki says broken), **GPS** (not present).
-  5. Cosmetics/minor: initramfs splash timeout (#6), USB-net autosuspend (#7).
-- **LineageOS/Android (the project's north-star goal).** **RIL / mobile
-  network** is the standing PRIORITY (untouched); then camera AF; then
-  sepolicy/hardware-audit/release hygiene. Board: [§1](#1-open-issues--the-work-queue).
+1. ✅ **Audio — perry UCM profile — DONE this session.** `motorola-perry` UCM
+   authored (potter HiFi verb + msm8x16-wcd); `alsaucm` loads, Speaker/Mic
+   routed, WirePlumber exposes a Speaker sink + Primary Microphone source.
+   Durable pmaport `pmos/alsa-ucm-motorola-perry/`. **Audible output
+   USER-CONFIRMED** (2026-07-20, speaker live). Remaining audio polish:
+   earpiece/headset-jack routing under phosh + call audio (with modem).
+2. **▶ NEXT — Modem / data: install & test ModemManager.** AT responds on
+   `/dev/wwan0at0`; no MM package installed; needs a SIM to test calls/SMS/data.
+   This is the next big end-user deliverable.
+3. Sensors: **vibrator**, **prox/ALS** (missing nodes) — smaller wins.
+4. Long tail / low priority: **cameras** (camss/cci disabled in DT — big
+   effort, wiki says broken; note the WirePlumber libcamera monitor is now
+   disabled, see audio entry), **GPS** (not present).
+5. Cosmetics/minor: initramfs splash timeout (#6), USB-net autosuspend (#7).
 
-**Recommendation:** if the aim is a usable pmOS Linux phone, do **audio UCM**
-next. If the aim is the daily-driver Android ROM (CLAUDE.md's actual goal),
-switch back to **Lineage RIL** — pmOS is explicitly a side quest.
+**Deferred — LineageOS/Android** (was the north-star; now parked behind pmOS).
+**RIL / mobile network** was the standing Android PRIORITY; board kept at
+[§1](#1-open-issues--the-work-queue) for when/if we return.
+
+**Recommendation:** do **ModemManager** next (biggest remaining end-user gap).
+Audio is confirmed working.
 
 **Housekeeping (no action now):** drop `pmos/lk2nd/0001-*` + the lk2nd
 `pkgrel` bump once pmaports bumps lk2nd past `d9ce4e70` (perry is already in
@@ -93,6 +109,16 @@ lk2nd `main`; our carry is a backport onto the pinned 22.0).
 
 ### Done this session (pmOS) — for context
 
+- ✅ **Audio — perry ALSA UCM profile** — was mute (`alsaucm -2`, "no backend
+  DAIs"); no perry UCM shipped by `alsa-ucm-conf`. Authored
+  `conf.d/motorola-perry/motorola-perry.conf` (potter HiFi verb + msm8x16-wcd
+  codec seqs, every control verified on-card). Routing works (`PRI_MI2S_RX ←
+  MultiMedia1` + `SPK DAC` on), `aplay hw:0,0` streams clean, WirePlumber
+  exposes Speaker sink + Primary Mic source. Also disabled the crash-looping
+  WirePlumber libcamera monitor and enabled `loginctl` linger (both flapped the
+  audio nodes, not the UCM). Durable: pmaport `pmos/alsa-ucm-motorola-perry/` +
+  `scripts/pmos-{apply,install}-perry-ucm.sh`. Details: porting-log 2026-07-20
+  "pmOS audio". **Audible output user-confirmed 2026-07-20.**
 - ✅ **lk2nd perry device node** — built (r3), flashed, hardware-validated:
   lk2nd now IDs `Motorola Moto E4 (perry)` (no FIXME/`-1`), pmOS boots through
   it. Already upstream (`d9ce4e70`); our patch is a temporary backport.
@@ -608,6 +634,9 @@ Meta: `config/mke2fs.conf`
 | Stock unpack | `~/android/stock-perry-NCQS26.69-64-21/` |
 | Extract wrapper | `~/GitHub/xylitol/scripts/extract-perry.sh` |
 | pmOS WCNSS NV installer | `scripts/pmos-install-wcnss-nv.sh` (blob not in git) |
+| pmOS audio UCM pmaport | `pmos/alsa-ucm-motorola-perry/` (APKBUILD + 2 confs) |
+| pmOS audio apply (durable) | `scripts/pmos-apply-perry-ucm.sh` |
+| pmOS audio install (runtime) | `scripts/pmos-install-perry-ucm.sh` |
 
 ---
 

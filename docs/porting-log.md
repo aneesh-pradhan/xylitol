@@ -1820,3 +1820,77 @@ result, which corroborates correctness; upstream also did the msm8920 variant.
 It is just not in the released `22.0` tag pmaports pins (`main` ~96 commits
 ahead). So **no PR** — `pmos/lk2nd/0001-*` is a temporary backport; drop it (and
 the pkgrel bump) when pmaports bumps lk2nd past `d9ce4e70`.
+
+## 2026-07-20 — pmOS audio: perry ALSA UCM profile (mute → Speaker + Mic working)
+
+**Strategic note:** user reprioritised — **pmOS is now the primary goal**, not a
+side quest ("Prioritize pmOS entirely… this is our ultimate goal. Let's focus
+on the big deliverables for a proper pmOS end-user experience; audio UCM would
+be the next step"). Android/Lineage RIL is deferred. Docs/side-quest framing
+updated to match (see handoff headline).
+
+**Symptom (from handoff):** card `motorola-perry` (Q6/msm8x16-wcd) enumerated,
+but `alsaucm` → `-2` and `speaker-test` → "no backend DAIs" — the phone was
+mute.
+
+**Root cause:** no UCM profile for perry. UCM2 matches by
+`conf.d/${CardDriver}/${CardDriver}.conf`; perry's `${CardDriver}` is
+`motorola-perry` (DTS sound node sets `model = "motorola-perry"`, no
+`driver_name`, so the ALSA ctl driver string falls back to the card name — 14
+chars, fits the 16-byte field; confirmed via the driver field in
+`/proc/asound/cards`). pmaports/`alsa-ucm-conf` ships montana/hannah/potter but
+**not perry**, so nothing routed the MultiMedia front-ends to a backend DAI.
+
+**Fix — author `conf.d/motorola-perry/motorola-perry.conf`.** perry uses the
+internal **msm8x16-wcd** codec (its `ADC1-3 Volume`, `RX1-3 Digital Volume`,
+`EAR_S`, `HPHL/R`, `SPK DAC Switch`, `DEC1/2 MUX` are the tell — same as MSM8917
+sibling montana and the potter/G5-Plus template). Chose the **potter HiFi verb**
+(`/Motorola/potter/HiFi.conf`) over montana's (montana → `Xiaomi/vince/HiFi.conf`
+has **no Speaker device** — vince uses an external TAS2557 amp) because perry
+exposes `SPK DAC Switch` (internal-codec speaker). Before adopting, verified
+**every** cset in potter/HiFi.conf + the `/codecs/msm8953-wcd/*` sequences
+exists on perry's card (`CIC1/RDAC2/ADC2/DEC1 MUX`, `SPK DAC Switch`, `RX*
+MIX1 INP1`, `RX1-3 Digital Volume`, `ADC1-3 Volume` — all OK; only unreferenced
+`DEC1/2 Volume` absent). BootSequence mirrors hannah (RX1/2/3=84, ADC1/2/3=6).
+
+**Validated (over SSH, this session):**
+- `alsaucm -c motorola-perry list _verbs` → `0: HiFi` (rc 0). Devices:
+  Speaker/Earpiece/Headphones/Mic1/Mic2/Headset.
+- `alsaucm set _verb HiFi set _enadev Speaker` → `PRI_MI2S_RX Audio Mixer
+  MultiMedia1` = **on**, `SPK DAC Switch` = **on** (backend DAI now connects).
+- `aplay -D hw:0,0` a 48 kHz tone → streams cleanly, **zero** ASoC/DAI/XRUN
+  kernel errors (the old "no backend DAIs" is gone). Repeatable.
+- **WirePlumber** then exposes a **`Built-in Audio Speaker playback`** sink +
+  **`Primary Microphone`** source (names come from potter/HiFi device Comments).
+
+**Two pre-existing pmOS stability bugs found+fixed while validating (they made
+the audio nodes flap, not the UCM):**
+1. **WirePlumber libcamera-monitor crash loop.** perry's cameras are off in the
+   DT; the WP libcamera monitor initialises libcamera then dies on the
+   half-present camera → new session-manager instance every ~20 s. Disabled via
+   `/etc/wireplumber/wireplumber.conf.d/50-perry-disable-libcamera.conf`
+   (`monitor.libcamera = disabled`; video-capture is a *wants* dep of the main
+   profile, so safe). WP 0.5.15.
+2. **No systemd linger.** In headless SSH bring-up (no phosh session) the user
+   systemd manager — and thus pipewire/wireplumber — is torn down whenever the
+   last login session closes; each short SSH command churned it (session ids
+   climbing 12→22→…, graceful "Stopping", no signal). `loginctl enable-linger
+   aneesh` → WP stays `active` across disconnect+reconnect, sink/source persist.
+   A real phone UI session would keep it alive; linger is a runtime step (not
+   packaged).
+
+**Durable artifacts (in xylitol):**
+- pmaport `pmos/alsa-ucm-motorola-perry/` (APKBUILD + `motorola-perry.conf` +
+  `50-perry-disable-libcamera.conf`; `depends="alsa-ucm-conf"`). Install-durable.
+- `scripts/pmos-apply-perry-ucm.sh` — drop the aport into the pmaports tree
+  (`pmbootstrap build … && install --add alsa-ucm-motorola-perry`).
+- `scripts/pmos-install-perry-ucm.sh` — runtime installer over SSH (idempotent;
+  copies both configs, enables linger, restarts WP). Ran green end-to-end.
+- On-device file == repo (sha512 match).
+
+**Audible output USER-CONFIRMED (2026-07-20):** played a beep+rising-sweep clip
+out the speaker; user reply "Audio works cleanly. I can confirm the speaker is
+live and well." So the full path (app/ALSA → UCM → msm8x16-wcd → speaker) is
+verified end-to-end, audibly. **Next:**
+earpiece/headset-jack routing under a UI (phosh), call audio (with modem), and
+per-route volume defaults. Modem/ModemManager is the next big pmOS deliverable.
