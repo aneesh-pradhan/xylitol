@@ -1,0 +1,255 @@
+From 6d78d8a8072f9d959d09f42d92a135a1840fc706 Mon Sep 17 00:00:00 2001
+From: xylitol <perry@xylitol.local>
+Date: Mon, 20 Jul 2026 14:56:43 -0700
+Subject: [PATCH 4/4] drm/panel: add motorola perry Tianma 499v1 panel
+
+Generated from msm89x7-mainline/linux-panel-drivers#6
+(config/motorola-perry.sh + dtb/motorola-perry.dtb) via lmdpdg --dumb-dcs.
+Compatible: motorola,perry-499v1-tianma
+---
+ .../gpu/drm/panel/msm89x7-generated/Kconfig   |   5 +
+ .../gpu/drm/panel/msm89x7-generated/Makefile  |   1 +
+ .../panel-motorola-perry-499v1-tianma.c       | 203 ++++++++++++++++++
+ 3 files changed, 209 insertions(+)
+ create mode 100644 drivers/gpu/drm/panel/msm89x7-generated/panel-motorola-perry-499v1-tianma.c
+
+diff --git a/drivers/gpu/drm/panel/msm89x7-generated/Kconfig b/drivers/gpu/drm/panel/msm89x7-generated/Kconfig
+index b6ca57833..115b57c6d 100644
+--- a/drivers/gpu/drm/panel/msm89x7-generated/Kconfig
++++ b/drivers/gpu/drm/panel/msm89x7-generated/Kconfig
+@@ -53,6 +53,11 @@ config DRM_PANEL_MOTOROLA_MONTANA_R63350_TIANMA
+ 	tristate "Motorola MONTANA R63350 TIANMA"
+ 	default DRM_PANEL_MSM89X7_GENERATED
+ 
++
++config DRM_PANEL_MOTOROLA_PERRY_499V1_TIANMA
++	tristate "Motorola PERRY 499V1 TIANMA"
++	default DRM_PANEL_MSM89X7_GENERATED
++
+ config DRM_PANEL_NOKIA_ND1_HX8394A
+ 	tristate "Nokia ND1 HX8394A"
+ 	default DRM_PANEL_MSM89X7_GENERATED
+diff --git a/drivers/gpu/drm/panel/msm89x7-generated/Makefile b/drivers/gpu/drm/panel/msm89x7-generated/Makefile
+index 252d09b27..f6e18384e 100644
+--- a/drivers/gpu/drm/panel/msm89x7-generated/Makefile
++++ b/drivers/gpu/drm/panel/msm89x7-generated/Makefile
+@@ -10,6 +10,7 @@ obj-$(CONFIG_DRM_PANEL_MOTOROLA_JETER_571_DJN) += panel-motorola-jeter-571-djn.o
+ obj-$(CONFIG_DRM_PANEL_MOTOROLA_JETER_571_TIANMA) += panel-motorola-jeter-571-tianma.o
+ obj-$(CONFIG_DRM_PANEL_MOTOROLA_MONTANA_NT35596_INX) += panel-motorola-montana-nt35596-inx.o
+ obj-$(CONFIG_DRM_PANEL_MOTOROLA_MONTANA_R63350_TIANMA) += panel-motorola-montana-r63350-tianma.o
++obj-$(CONFIG_DRM_PANEL_MOTOROLA_PERRY_499V1_TIANMA) += panel-motorola-perry-499v1-tianma.o
+ obj-$(CONFIG_DRM_PANEL_NOKIA_ND1_HX8394A) += panel-nokia-nd1-hx8394a.o
+ obj-$(CONFIG_DRM_PANEL_NOKIA_ND1_ILI7807E) += panel-nokia-nd1-ili7807e.o
+ obj-$(CONFIG_DRM_PANEL_NOKIA_ND1_NT35521) += panel-nokia-nd1-nt35521.o
+diff --git a/drivers/gpu/drm/panel/msm89x7-generated/panel-motorola-perry-499v1-tianma.c b/drivers/gpu/drm/panel/msm89x7-generated/panel-motorola-perry-499v1-tianma.c
+new file mode 100644
+index 000000000..71f38123d
+--- /dev/null
++++ b/drivers/gpu/drm/panel/msm89x7-generated/panel-motorola-perry-499v1-tianma.c
+@@ -0,0 +1,203 @@
++// SPDX-License-Identifier: GPL-2.0-only
++// Copyright (c) 2026 FIXME
++// Generated with linux-mdss-dsi-panel-driver-generator from vendor device tree:
++//   Copyright (c) 2013, The Linux Foundation. All rights reserved. (FIXME)
++
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_modes.h>
++#include <drm/drm_panel.h>
++#include <drm/drm_probe_helper.h>
++
++struct tianma_499_v1 {
++	struct drm_panel panel;
++	struct mipi_dsi_device *dsi;
++	struct gpio_desc *reset_gpio;
++};
++
++static inline struct tianma_499_v1 *to_tianma_499_v1(struct drm_panel *panel)
++{
++	return container_of_const(panel, struct tianma_499_v1, panel);
++}
++
++static void tianma_499_v1_reset(struct tianma_499_v1 *ctx)
++{
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
++	usleep_range(1000, 2000);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++	usleep_range(10000, 11000);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);
++	msleep(20);
++}
++
++static int tianma_499_v1_on(struct tianma_499_v1 *ctx)
++{
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xff, 0x98, 0x81, 0x02);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x06, 0x40);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x07, 0x02);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xff, 0x98, 0x81, 0x00);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x51, 0x0c, 0xf4);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x53, 0x2c);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x55, 0x01);
++	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0x68, 0x06);
++	mipi_dsi_dcs_exit_sleep_mode_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 120);
++	mipi_dsi_dcs_set_display_on_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 20);
++
++	return dsi_ctx.accum_err;
++}
++
++static int tianma_499_v1_off(struct tianma_499_v1 *ctx)
++{
++	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++
++	mipi_dsi_dcs_set_display_off_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 20);
++	mipi_dsi_dcs_enter_sleep_mode_multi(&dsi_ctx);
++	mipi_dsi_msleep(&dsi_ctx, 120);
++
++	return dsi_ctx.accum_err;
++}
++
++static int tianma_499_v1_prepare(struct drm_panel *panel)
++{
++	struct tianma_499_v1 *ctx = to_tianma_499_v1(panel);
++	struct device *dev = &ctx->dsi->dev;
++	int ret;
++
++	tianma_499_v1_reset(ctx);
++
++	ret = tianma_499_v1_on(ctx);
++	if (ret < 0) {
++		dev_err(dev, "Failed to initialize panel: %d\n", ret);
++		gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int tianma_499_v1_unprepare(struct drm_panel *panel)
++{
++	struct tianma_499_v1 *ctx = to_tianma_499_v1(panel);
++	struct device *dev = &ctx->dsi->dev;
++	int ret;
++
++	ret = tianma_499_v1_off(ctx);
++	if (ret < 0)
++		dev_err(dev, "Failed to un-initialize panel: %d\n", ret);
++
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++
++	return 0;
++}
++
++static const struct drm_display_mode tianma_499_v1_mode = {
++	.clock = (720 + 128 + 20 + 200) * (1280 + 20 + 8 + 20) * 60 / 1000,
++	.hdisplay = 720,
++	.hsync_start = 720 + 128,
++	.hsync_end = 720 + 128 + 20,
++	.htotal = 720 + 128 + 20 + 200,
++	.vdisplay = 1280,
++	.vsync_start = 1280 + 20,
++	.vsync_end = 1280 + 20 + 8,
++	.vtotal = 1280 + 20 + 8 + 20,
++	.width_mm = 62,
++	.height_mm = 110,
++	.type = DRM_MODE_TYPE_DRIVER,
++};
++
++static int tianma_499_v1_get_modes(struct drm_panel *panel,
++				   struct drm_connector *connector)
++{
++	return drm_connector_helper_get_modes_fixed(connector,
++						    &tianma_499_v1_mode);
++}
++
++static const struct drm_panel_funcs tianma_499_v1_panel_funcs = {
++	.prepare = tianma_499_v1_prepare,
++	.unprepare = tianma_499_v1_unprepare,
++	.get_modes = tianma_499_v1_get_modes,
++};
++
++static int tianma_499_v1_probe(struct mipi_dsi_device *dsi)
++{
++	struct device *dev = &dsi->dev;
++	struct tianma_499_v1 *ctx;
++	int ret;
++
++	ctx = devm_drm_panel_alloc(dev, struct tianma_499_v1, panel,
++				   &tianma_499_v1_panel_funcs,
++				   DRM_MODE_CONNECTOR_DSI);
++	if (IS_ERR(ctx))
++		return PTR_ERR(ctx);
++
++	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(ctx->reset_gpio))
++		return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio),
++				     "Failed to get reset-gpios\n");
++
++	ctx->dsi = dsi;
++	mipi_dsi_set_drvdata(dsi, ctx);
++
++	dsi->lanes = 4;
++	dsi->format = MIPI_DSI_FMT_RGB888;
++	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_BURST |
++			  MIPI_DSI_MODE_VIDEO_HSE |
++			  MIPI_DSI_CLOCK_NON_CONTINUOUS | MIPI_DSI_MODE_LPM;
++
++	ctx->panel.prepare_prev_first = true;
++
++	ret = drm_panel_of_backlight(&ctx->panel);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to get backlight\n");
++
++	drm_panel_add(&ctx->panel);
++
++	ret = mipi_dsi_attach(dsi);
++	if (ret < 0) {
++		drm_panel_remove(&ctx->panel);
++		return dev_err_probe(dev, ret, "Failed to attach to DSI host\n");
++	}
++
++	return 0;
++}
++
++static void tianma_499_v1_remove(struct mipi_dsi_device *dsi)
++{
++	struct tianma_499_v1 *ctx = mipi_dsi_get_drvdata(dsi);
++	int ret;
++
++	ret = mipi_dsi_detach(dsi);
++	if (ret < 0)
++		dev_err(&dsi->dev, "Failed to detach from DSI host: %d\n", ret);
++
++	drm_panel_remove(&ctx->panel);
++}
++
++static const struct of_device_id tianma_499_v1_of_match[] = {
++	{ .compatible = "motorola,perry-499v1-tianma" }, // FIXME
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, tianma_499_v1_of_match);
++
++static struct mipi_dsi_driver tianma_499_v1_driver = {
++	.probe = tianma_499_v1_probe,
++	.remove = tianma_499_v1_remove,
++	.driver = {
++		.name = "panel-motorola-perry-499v1-tianma",
++		.of_match_table = tianma_499_v1_of_match,
++	},
++};
++module_mipi_dsi_driver(tianma_499_v1_driver);
++
++MODULE_AUTHOR("linux-mdss-dsi-panel-driver-generator <fix@me>"); // FIXME
++MODULE_DESCRIPTION("DRM driver for mipi_mot_video_tianma_720p_499");
++MODULE_LICENSE("GPL");
+-- 
+2.53.0
+
