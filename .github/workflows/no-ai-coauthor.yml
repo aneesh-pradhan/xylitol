@@ -1,0 +1,32 @@
+name: No AI co-authors
+
+# Fail if any commit reachable from the push still has an AI Co-authored-by trailer.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject AI Co-authored-by trailers
+        run: |
+          set -euo pipefail
+          if git log --format='%H %s%n%b' origin/main..HEAD 2>/dev/null | \
+               grep -qiE '^[[:space:]]*Co-Authored-By:.*(Claude|Cursor|cursoragent|Copilot|ChatGPT|OpenAI|Gemini|Anthropic|noreply@anthropic|@cursor\.com)'; then
+            echo "Found forbidden AI Co-authored-by trailer(s):"
+            git log --format='%H %s%n%b' | grep -iE 'Co-Authored-By:.*(Claude|Cursor|cursoragent|Copilot|ChatGPT|OpenAI|Gemini|Anthropic)' || true
+            exit 1
+          fi
+          # Also scan full history on main pushes
+          if git log --format='%b' | grep -qiE '^[[:space:]]*Co-Authored-By:.*(Claude|Cursor|cursoragent|Copilot|ChatGPT|OpenAI|Gemini|Anthropic|noreply@anthropic|@cursor\.com)'; then
+            echo "Found forbidden AI Co-authored-by trailer(s) in history:"
+            git log --format='%H %s%n%b' | grep -n -iE 'Co-Authored-By:.*(Claude|Cursor|cursoragent|Copilot)' || true
+            exit 1
+          fi
+          echo "OK: no AI Co-authored-by trailers"

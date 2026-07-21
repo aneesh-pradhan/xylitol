@@ -1,0 +1,34 @@
+---
+description: HARD RULE — never attribute commits to any AI as author/co-author
+alwaysApply: true
+---
+
+# No AI commit attribution (HARD RULE)
+
+This is a **non-negotiable** project rule for every AI agent (Cursor, Claude,
+Copilot, ChatGPT, Gemini, or any other).
+
+## Forbidden
+
+- Adding `Co-authored-by:` / `Co-Authored-By:` trailers for any AI
+- Examples that must never appear:
+  - `Co-authored-by: Cursor <cursoragent@cursor.com>`
+  - `Co-Authored-By: Claude … <noreply@anthropic.com>`
+  - Any Copilot / ChatGPT / Gemini / OpenAI co-author line
+- Setting `GIT_AUTHOR_*` / `GIT_COMMITTER_*` to an AI identity
+- Leaving an auto-injected AI trailer in a commit that gets pushed
+
+## Required
+
+- Commits use **only** the human user's configured git identity
+- Prefer `git commit-tree` (or an equivalent path that cannot be injected) when
+  the environment is known to append Cursor/Claude trailers on `git commit`
+- If a trailer was already created: rewrite the message **before** push
+- Repo hooks under `scripts/git-hooks/` strip/reject AI trailers — do not
+  disable them
+
+## Why
+
+GitHub maps AI co-author emails (e.g. `cursoragent@cursor.com`) to public bot
+accounts and lists them as repo contributors. That is unacceptable for this
+project.

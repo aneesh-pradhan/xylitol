@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Strip AI co-author trailers that tools may auto-append (Cursor, Claude, etc.).
+# Installed via: git config core.hooksPath scripts/git-hooks
+set -euo pipefail
+MSG_FILE="${1:?}"
+
+# Portable in-place sed
+strip() {
+  local expr="$1"
+  if sed --version >/dev/null 2>&1; then
+    sed -i -E "$expr" "$MSG_FILE"
+  else
+    sed -i '' -E "$expr" "$MSG_FILE"
+  fi
+}
+
+# Drop any Co-authored-by line that looks like an AI / bot.
+strip '/^[[:space:]]*[Cc]o-[Aa]uthored-[Bb]y:.*(Claude|Cursor|cursoragent|Copilot|ChatGPT|OpenAI|Gemini|Anthropic|noreply@anthropic|@cursor\.com|claude\.ai)/Id'
+strip '/^[[:space:]]*[Cc]o-[Aa]uthored-[Bb]y:[[:space:]]*Cursor([[:space:]]|<|$)/Id'

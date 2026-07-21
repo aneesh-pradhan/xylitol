@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Reject commits that still carry AI co-author trailers after prepare-commit-msg.
+set -euo pipefail
+MSG_FILE="${1:?}"
+
+if grep -qiE '^[[:space:]]*Co-Authored-By:.*(Claude|Cursor|cursoragent|Copilot|ChatGPT|OpenAI|Gemini|Anthropic|noreply@anthropic|@cursor\.com|claude\.ai)' "$MSG_FILE"; then
+  echo "ERROR: AI Co-authored-by trailer is forbidden in this repo." >&2
+  echo "Remove the trailer and commit again (see AGENTS.md / .cursor/rules)." >&2
+  exit 1
+fi
+if grep -qiE '^[[:space:]]*Co-Authored-By:[[:space:]]*Cursor([[:space:]]|<|$)' "$MSG_FILE"; then
+  echo "ERROR: Cursor Co-authored-by trailer is forbidden in this repo." >&2
+  exit 1
+fi

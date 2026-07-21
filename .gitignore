@@ -1,6 +1,8 @@
 # Agent / editor local config (not part of the public build recipe)
 CLAUDE.md
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 .claude/
 
 # Accidental Android tree / build artifacts (never belong in this meta-repo)
