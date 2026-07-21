@@ -1786,3 +1786,26 @@ normal boot intact. Runbook: [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.
 Complementary to the deviceinfo `fdt` pin (both make boot durable; independent).
 Note: local pmaports `main/lk2nd` aport is now dirty (patch + pkgrel=3) — the
 xylitol patch+script reproduce it.
+
+### 2026-07-20 (same day) — lk2nd perry node FLASHED + VALIDATED
+
+Flashed the r3 build (above) from stock aboot fastboot (`ZY224TB8KZ`,
+`product: perry`) via `pmbootstrap flasher flash_lk2nd` — `Sending 'boot'
+(314 KB) OKAY`, `Writing 'boot' OKAY` ("Image not signed or corrupt" = normal
+unlocked-Moto warning). Rootfs chroot confirmed `lk2nd-msm8952 V:22.0-r3` and
+the flashed `lk2nd.img` carried the perry strings.
+
+Runtime validation (lk2nd fastboot serial `24b071b`):
+- `lk2nd:version` = `22.0-r3-postmarketos`, `product` = `lk2nd-msm8952`.
+- `fastboot oem log`: **`Detected device: Motorola Moto E4 (perry) (MSM8917)
+  (compatible: motorola,perry)`** — node matched; the prior
+  `Failed to find matching lk2nd device node: -1` / "Unknown (FIXME!)" is gone.
+  Log also shows `androidboot.device=perry`, panel
+  `qcom,mdss_dsi_mot_ofilm_499_720p_video_v0`, `androidboot.hardware.sku=XT1765`.
+- `fastboot continue` → pmOS booted through the new lk2nd: USB-net came up,
+  `ssh aneesh@172.16.42.1` → `Linux 7.0.9-msm89x7`, `up 0 min`, `wlan0` present.
+  **No boot regression.**
+
+So the device node fix is complete on hardware: identity fixed and `fdtdir`
+now resolves natively (belt-and-suspenders with the deviceinfo `fdt` pin — either
+alone boots). Only `boot` was written; sacred `persist`/`modemst*` untouched.

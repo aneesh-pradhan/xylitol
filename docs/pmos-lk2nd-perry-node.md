@@ -1,9 +1,11 @@
 # lk2nd perry device node — build + flash
 
-**Status (2026-07-20):** patch written, **built and binary-verified**; device-side
-flash + validation is a **gated runbook** below (not yet run — needs physical
-fastboot + a `boot`-partition reflash). Closes handoff to-do #5 on the build
-side.
+**Status (2026-07-20):** ✅ **DONE — FLASHED + VALIDATED ON HARDWARE.** Patch
+built (lk2nd **r3**), flashed to `boot`, and confirmed at runtime: lk2nd now
+reports `Detected device: Motorola Moto E4 (perry) (MSM8917) (compatible:
+motorola,perry)` (no more "Unknown (FIXME!)" / `-1`), and pmOS boots through it
+(kernel `7.0.9-msm89x7`, USB-net + SSH, `wlan0` up). Evidence in the "Flash +
+validation" result block below. **Closes handoff to-do #5.**
 
 ## Why (the gap)
 
@@ -71,7 +73,35 @@ Verified by extracting the built
 So the patch compiles and the node is embedded. Only flashing + on-device
 behaviour remain.
 
-## Device-side flash + validate — GATED RUNBOOK (not yet run)
+## Flash + validation — DONE (2026-07-20)
+
+Flashed from **stock** aboot fastboot (serial `ZY224TB8KZ`, `product: perry`) —
+the documented `flash_lk2nd` path:
+
+```
+pmbootstrap flasher flash_lk2nd     # Sending 'boot' (314 KB) OKAY; Writing 'boot' OKAY
+```
+
+("Image not signed or corrupt" = the normal unlocked-Moto warning.) Rootfs
+chroot confirmed `lk2nd-msm8952 V:22.0-r3` and the flashed `lk2nd.img` embeds the
+perry strings.
+
+Runtime evidence (rebooted into lk2nd fastboot, serial `24b071b`):
+
+- `fastboot getvar lk2nd:version` → **`22.0-r3-postmarketos`** (our build),
+  `product: lk2nd-msm8952`.
+- `fastboot oem log` → **`Detected device: Motorola Moto E4 (perry) (MSM8917)
+  (compatible: motorola,perry)`** — the node matched; the old
+  `Failed to find matching lk2nd device node: -1` / "Unknown (FIXME!)" is gone.
+  (Log also shows `androidboot.device=perry`, panel
+  `qcom,mdss_dsi_mot_ofilm_499_720p_video_v0`, `sku=XT1765` — our exact unit.)
+- `fastboot continue` → pmOS boots: USB-net up, `ssh aneesh@172.16.42.1` →
+  `Linux 7.0.9-msm89x7`, `up 0 min`, `wlan0` present. **New lk2nd boots the OS
+  cleanly (no regression).**
+
+Sacred `persist`/`modemst*` untouched; only `boot` (lk2nd) was written.
+
+## Device-side flash + validate — runbook (executed above; kept for reproducibility)
 
 **Rules:** reflashes the **`boot`** partition (where lk2nd lives) — reversible
 (handoff E-8: Lineage boot backup + stock fastboot). **Never** touch
