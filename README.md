@@ -11,8 +11,16 @@ to `lineage-17.1` and forward-ported here via patches; common, kernel, and
 vendor repos are already on `lineage-18.1`.
 
 **Status (2026-07-20):** boots with UI, touch, adb, Wi-Fi, soft navbar, FM
-radio, and camera open/still. SELinux Enforcing. RIL / autofocus still in
-progress — see [`docs/handoff.md`](docs/handoff.md) for the live work queue.
+radio, and camera open/still (preview restored by perry **0015**;
+**autofocus remains open research** — OTP path **0014** broke preview).
+SELinux Enforcing. RIL still in progress — see
+[`docs/handoff.md`](docs/handoff.md) for the live work queue.
+
+**Second track — postmarketOS (mainline Linux):** a separate experiment on the
+same device. Boots to a mainline `7.0.9` aarch64 userspace with **display
+(Ofilm panel), Wi-Fi, and USB/SSH** working. Reversible; Android untouched
+(`system`/`oem`). Not a daily driver. Reproduction:
+[`docs/pmos.md`](docs/pmos.md).
 
 | Doc | Purpose |
 |---|---|
@@ -21,6 +29,10 @@ progress — see [`docs/handoff.md`](docs/handoff.md) for the live work queue.
 | [`docs/known-good.md`](docs/known-good.md) | Patch tips / rebuild pins |
 | [`docs/porting-log.md`](docs/porting-log.md) | Chronology and root-cause notes |
 | [`docs/handoff.md`](docs/handoff.md) | Maintainer session state (not the user guide) |
+| [`docs/pmos.md`](docs/pmos.md) | **postmarketOS (mainline): status + reproduction guide** |
+| [`docs/pmos-perry.md`](docs/pmos-perry.md) | postmarketOS plan / rationale |
+| [`docs/pmos-runbook.md`](docs/pmos-runbook.md) | pmOS executor checklist |
+| [`docs/pmos-ofilm-panel.md`](docs/pmos-ofilm-panel.md) | Ofilm 499 panel research (first-light confirmed) |
 
 License: [Apache-2.0](LICENSE) for this repo’s scripts, manifests, patches, and
 docs. LineageOS, moto-msm89xx trees, and proprietary blobs have their own

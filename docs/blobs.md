@@ -75,4 +75,13 @@ Stock XT1765 does not ship every path listed in older `proprietary-files.txt`
 entries (partial sets are normal). Patches in this repo harden extract for that
 and ship camera packaging fixes that montana/common alone do not cover.
 
+**Do not** ship XT1765 stock `libmmcamera2_sensor_modules.so` with the
+montana ISP stack (**0014** lesson / **0015** revert): preview dies with
+`sensor resolution: 0x0`. Platform libs stay montana via `camera-vendor.mk`.
+Stock sensor/chromatix/actuator libs remain under
+`vendor/motorola/perry/proprietary/` from extract. **Camera AF is open
+research** (not fixed): OTP AF needs a different approach (full stock
+stack, eeprom shim, or actuator params from DAC ranges captured under
+0014).
+
 Never commit extracted blobs into xylitol.
