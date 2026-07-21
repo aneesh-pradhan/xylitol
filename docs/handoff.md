@@ -73,8 +73,9 @@ work queue is [§1 below](#1-open-issues--the-work-queue)).
   audio needs UCM; cameras/vibrator/prox/ALS/GPS missing or disabled; modem
   AT OK (no SIM). See porting-log 2026-07-20 feature-matrix.
 - ✅ **Durable extlinux `fdt`** — `/etc/deviceinfo` + pmaport
-  `deviceinfo-motorola-perry`; mkinitfs emits `fdt` (verified after
-  delete+regen). Runtime: `scripts/pmos-install-perry-deviceinfo.sh`.
+  `deviceinfo-motorola-perry`; **runbook-validated** (apk-regen +
+  cold reboot PASS). Runtime: `scripts/pmos-install-perry-deviceinfo.sh`.
+  Plan/runbook: `pmos-fdt-brick-fix-plan.md` / `pmos-fdt-fix-runbook.md`.
 
 ### pmOS — next (prioritized)
 

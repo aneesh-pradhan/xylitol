@@ -1655,3 +1655,46 @@ runtime install scripts). Build-validated; installed on the live rootfs via
 `apk add --allow-untrusted`. This is the pragmatic durable fix; a perry
 lk2nd device node remains the "proper" upstream fix (also unlocks panel
 auto-select and clears "Unknown (FIXME!)").
+
+## 2026-07-20 — Validate durable fdt fix (runbook `pmos-fdt-fix-runbook.md`)
+
+Executor ran [`docs/pmos-fdt-fix-runbook.md`](pmos-fdt-fix-runbook.md) after
+maintainer go-ahead past the STOP GATE.
+
+### Steps 0–5 (pre-reboot) — PASS
+
+- **Step 0:** `deviceinfo_dtb="qcom/msm8917-motorola-perry"`; file sha512
+  matches APKBUILD (`9901e23e…`).
+- **Step 1:** USB-net up (`enxa2746e711a5e` → `172.16.42.1` ping OK).
+- **Step 2 BEFORE:** already `fdt /msm8917-motorola-perry.dtb`;
+  `/etc/deviceinfo` present (from earlier live install of the pmaport).
+- **Step 3:** `pmos-install-perry-deviceinfo.sh` → regenerated extlinux with
+  `fdt /msm8917-motorola-perry.dtb` (no `fdtdir`).
+- **Step 4:** `dtb_count=1`; flat `/boot/msm8917-motorola-perry.dtb` present.
+- **Step 5:** `apk add tree` (triggers mkinitfs/boot-deploy) → still
+  `fdt /msm8917-motorola-perry.dtb`; same after `apk del tree`. **The exact
+  regen path that previously bricked us no longer flips to `fdtdir`.**
+
+### Step 6 — reboot confidence check
+
+- **Issued** `sysrq-trigger b` over SSH (pre-uptime 5175 s).
+- Device returned on USB-net ~45 s later (post-uptime **45 s**).
+- Post-boot: still `fdt /msm8917-motorola-perry.dtb`; `/etc/deviceinfo`
+  present; `deviceinfo-motorola-perry` apk installed. **STEP 6 PASS** —
+  cold boot through lk2nd + explicit `fdt` succeeds.
+
+### Step 7 — durable build-time path
+
+- `./scripts/pmos-apply-perry-deviceinfo.sh` → pmaports copy updated.
+- `pmbootstrap build deviceinfo-motorola-perry` → **up to date** (exit 0);
+  **no `checksum` step needed** (sha512 already matched).
+- Apk at `~/pmos/work/packages/edge/x86_64/deviceinfo-motorola-perry-1-r0.apk`
+  contains `etc/deviceinfo`. **STEP 7 PASS.**
+  (Did **not** run full `pmbootstrap install` reflash — out of scope.)
+
+### Verdict
+
+Durable `fdt` fix is **validated end-to-end**: apk-triggered regen keeps
+`fdt`, and a real cold reboot through lk2nd boots pmOS with the same
+extlinux line. Runtime path (`pmos-install-perry-deviceinfo.sh`) and
+build-time path (`deviceinfo-motorola-perry` pmaport) both good.
