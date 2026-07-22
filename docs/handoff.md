@@ -4,13 +4,13 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-## ▶ Next session — start here (2026-07-22 EOD — full-apps on glass)
+## ▶ Next session — start here (2026-07-22 EOD)
 
 **⚑ PRIORITY:** **pmOS is primary.** Device runs **7.1.3 first-class full-apps**
 Phosh (flashed + SSH-validated). GitHub Release
 **[pmos-perry-2026-07-22](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22)**
-is the public artifact. Upstream kernel/panel PRs **waiting review**; rpmcc
-mail **parked**. Android / modem deferred.
+is the public artifact. Upstream kernel/panel PRs waiting review; rpmcc
+mail parked. Android / modem deferred.
 
 **⛔ Authorship hard rule:** every commit/patch SoB =
 `Aneesh Pradhan <aneeshpradhan@acm.org>` only (see `AGENTS.md`; hooks enforce).
@@ -18,38 +18,79 @@ Verify: `git log --format='%an <%ae>' origin/main..HEAD`.
 
 ---
 
-### ⇒ FIRST ACTION NEXT SESSION: pick from the polish / upstream queue
+### ⇒ FIRST ACTION NEXT SESSION: **lk2nd 23.1 bump / RFT** (priority #1)
+
+**Goal:** move perry off our local `22.0-r3` + `pmos/lk2nd/0001-*` backport
+onto **upstream lk2nd 23.1**, where the perry device node already ships.
+
+#### Facts (recon 2026-07-22 — do not re-derive from memory)
+
+| Item | Truth |
+|---|---|
+| Live upstream | [`msm8916-mainline/lk2nd`](https://github.com/msm8916-mainline/lk2nd) — **not** the archived [`msm89x7-mainline/lk2nd`](https://github.com/msm89x7-mainline/lk2nd) |
+| Latest release | **[23.1](https://github.com/msm8916-mainline/lk2nd/releases/tag/23.1)** (2026-07-14); 23.0 was a short-lived prerelease |
+| Perry upstream | Already in tree — [`d9ce4e70`](https://github.com/msm8916-mainline/lk2nd/commit/d9ce4e70e) (*dts: msm8917 & msm8920: add support for Motorola Moto E4 (perry)*). Byte-identical to our carry. Listed under “New devices” in the 23.0 notes |
+| 22.0 → 23.1 | **93 commits** ahead; 23.0→23.1 is **9 commits** (MMU crash fix, panic→fastboot default, etc.) |
+| pmaports today | Still **`pkgver=22.0`** (our local dirty aport is `22.0-r3` + perry patch via `scripts/pmos-apply-lk2nd-perry.sh`) |
+| pmaports MR | Draft **[!9076 — main/lk2nd: Upgrade to 23.1](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076)** by barni2000, label `request-for-test` (updated 2026-07-19) |
+| xylitol PRs needed? | **None** to lk2nd upstream (perry already there). **No** competing pmaports MR — ride !9076 |
+
+#### Why it matters for perry
+
+- Drop `pmos/lk2nd/0001-*` + apply-script path once 23.0+ is what we build/flash
+- Panic default becomes **fastboot** (not EDL) — safer recovery
+- Extlinux memory sizing for large kernels; MMC erase fix; rng/kaslr seed to Linux
+- 23.1 specifically: incorrect-MMU crash fix (23.0 notes said it “may be broken on some devices”)
+
+#### Suggested session recipe (ask before flashing `boot`)
+
+1. Re-check !9076 state + whether edge `lk2nd` has moved past 22.0.
+2. Build `lk2nd-msm8952` **23.1** locally (pmaports MR branch, or temporary
+   APKBUILD `pkgver=23.1` **without** our perry patch — it must apply clean
+   / be omitted). Produce both NORMAL and FORCE-FASTBOOT; **never** poison
+   the NORMAL apk with FORCE (prior session gotcha).
+3. From stock fastboot: flash NORMAL to `boot` only (or `fastboot boot` first
+   for a RAM test). Sacred partitions untouched.
+4. Validate: `product: lk2nd-msm8952`, model = Motorola Moto E4 (perry),
+   `oem log` has no `device node: -1`, `fdtdir`/`fdt` still boots our
+   7.1.3 full-apps rootfs, USB-net + SSH.
+5. Comment RFT on !9076 with perry results.
+6. If green: remove xylitol carry (`pmos/lk2nd/0001-*`,
+   `scripts/pmos-apply-lk2nd-perry.sh` wiring), update
+   [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md) + release
+   `FLASH.md` / stage scripts to stop injecting the patch.
+
+**Do not** open a PR against `msm89x7-mainline/lk2nd` (archived) or
+re-submit perry to `msm8916-mainline/lk2nd`.
+
+---
+
+### Device / release baseline (unchanged)
 
 | Dir / URL | Kernel | Role |
 |---|---|---|
-| `artifacts/pmos-release/pmos-perry-2026-07-21/` | 7.0.9 overlay | **Rollback** (validated again this session) |
+| `artifacts/pmos-release/pmos-perry-2026-07-21/` | 7.0.9 overlay | **Rollback** |
 | `artifacts/pmos-release/pmos-perry-2026-07-22/` | **7.1.3** first-class **full apps** | **On phone + GitHub Release** |
 | [Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) | same | Public `.zst` + lk2nd + `FLASH.md` |
 
 **On-phone truth (SSH 2026-07-22 ~15:38):**
-- `uname -r` = **`7.1.3-msm89x7`**; modules dir matches
-- `device-motorola-perry` / `linux-motorola-perry` first-class path
+- `uname -r` = **`7.1.3-msm89x7`**; first-class `linux-motorola-perry` /
+  `device-motorola-perry`
 - `graphical.target` + greetd **active**; **83** desktop entries
-  (Calculator / Firefox / Console present)
-- P1.5 **off**; build recipe `LEAN=0 ./scripts/pmos-build-phase-b.sh`
+- P1.5 **off**; image built with `LEAN=0 ./scripts/pmos-build-phase-b.sh`
+- **lk2nd on `boot`:** still our **22.0-r3** perry-node build until #1 lands
 
-**Suggested next (priority order — ask before starting):**
-1. **Smoke full-apps UX on glass** — drawer apps, Firefox, Wi‑Fi, audio
-   paths still OK after `LEAN=0` flash (hardware audio/suspend were
-   validated on the *lean* image earlier; confirm no full-apps regression).
-2. **Upstream wait / respond** — [linux#57](https://github.com/msm89x7-mainline/linux/pull/57),
+**After #1 (secondary queue):**
+2. Full-apps UX smoke on glass (drawer / Firefox / audio / Wi‑Fi).
+3. Upstream wait/respond — [linux#57](https://github.com/msm89x7-mainline/linux/pull/57),
    panel [#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8).
-3. **Notification LED recon** — no LPG/RGB node in live DT; may be N/A.
-4. **Headset mic** — optional; needs TRRS hardware.
-5. **rpmcc / Step A mail** — still **parked** until explicitly asked
-   (`upstream/rpmcc-msm8920/`).
-6. **P1.5 redesign** — research only; do not re-enable (hang root cause).
+4. Notification LED recon (likely N/A); headset mic (needs TRRS).
+5. rpmcc / Step A mail — **parked** (`upstream/rpmcc-msm8920/`).
+6. P1.5 redesign — research only; do not re-enable.
 
-**Incident note (this session):** brief “backlight-on / no video” scare →
-device was recoverable to stock fastboot. Code-red path auto-rolled to
-`pmos-perry-2026-07-21` (PASS), then full-apps 7.1.3 re-flashed
-(`FLASH_COMPLETE`). Prefer stock fastboot +
-`scripts/pmos-rollback-known-good.sh` if it recurs.
+**Incident note:** backlight-on / no-video scare this session → stock
+fastboot → auto-rollback to 2026-07-21 (PASS) → full-apps 7.1.3 reflash
+(`FLASH_COMPLETE`). Recovery: `scripts/pmos-rollback-known-good.sh`.
 
 ---
 
@@ -71,9 +112,11 @@ device was recoverable to stock fastboot. Code-red path auto-rolled to
 | **RC publish 7.1.3** | ✅ Full-apps staged + [GitHub Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) |
 | **Full-apps flash** | ✅ `FLASH_COMPLETE` + SSH: `7.1.3-msm89x7`, 83 desktops, greetd active |
 | **Code-red rollback drill** | ✅ Auto-rollback to 2026-07-21 then re-flash full-apps |
+| **lk2nd 23.1 bump / RFT** | ⬜ **NEXT SESSION #1** — see top-of-file; pmaports !9076 |
+| **Drop perry lk2nd carry** | ⬜ After 23.1 validates — remove `pmos/lk2nd/0001-*` |
 | **Notification LED** | ⬜ Recon only (no LPG node in DT; maybe N/A) |
 | **Headset mic** | ⬜ Optional (needs TRRS) |
-| **Full-apps UX smoke** | ⬜ Next session — confirm drawer/Firefox/audio on glass |
+| **Full-apps UX smoke** | ⬜ After #1 (or opportunistic) — drawer/Firefox/audio |
 
 **Audio stack note:** PulseAudio owns ALSA/UCM in full Phosh session; empty
 `wpctl` Audio is expected (`51-pulseaudio.conf`), not a bug.
@@ -345,7 +388,8 @@ redesign exists.
 | ~~**2**~~ | ~~**Finish upstream contribution**~~ | ✅ **POSTED 2026-07-22.** Panel [#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) SoB fixed+force-pushed; `dtbs_check`/DTB build green (nora parity); kernel [#57](https://github.com/msm89x7-mainline/linux/pull/57) open (supersedes #48); agrecascino reply on panel #6. **Still parked:** rpmcc/step-A mail until asked. |
 | ~~**P**~~ | ~~**Productize first-class Phase B**~~ | ✅ **DONE 2026-07-22.** Rebuilt from `main` (P1.5 off), flashed from stock fastboot (`FLASH_COMPLETE`). On-device validated: `device` **1-r5**, kernel **7.0.9-r1**, initramfs **3.12.0-r0 unpatched**, P1.5 absent; Phosh + Wi‑Fi + audio all up. Later same day: image on phone is **7.1.3-r1**. |
 | ~~**3**~~ | ~~**RC publish 7.1.3**~~ | ✅ **DONE 2026-07-22** — full-apps (`LEAN=0`) rebuilt, staged, [GitHub Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22), **flashed + SSH OK**. |
-| **3b** | Full-apps UX smoke on glass | Drawer apps / Firefox / audio / Wi‑Fi after `LEAN=0` flash |
+| **3b** | **lk2nd 23.1 bump / RFT** | **NEXT #1** — build/flash `lk2nd-msm8952` 23.1 (no local perry patch); validate boot; RFT on pmaports [!9076](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076); then drop xylitol carry. |
+| **3c** | Full-apps UX smoke on glass | Drawer apps / Firefox / audio / Wi‑Fi after `LEAN=0` flash |
 | ~~**4a**~~ | ~~**Audio paths**~~ | ✅ Speaker + Headphones + Earpiece user-confirmed (headset mic optional) |
 | ~~**4b**~~ | ~~**Suspend/resume + Wi‑Fi after wake**~~ | ✅ **PASS** — `rtcwake -m mem -s 20` s2idle; Wi‑Fi stayed up |
 | ~~**4b-usb**~~ | ~~**USB-net physical unplug/replug**~~ | ✅ **PASS** — multi-cycle; host recover; user confirmed |
@@ -382,12 +426,13 @@ no competing `getvar` loops.
 ssh xylitol@172.16.42.1   # pw xylitol; host 172.16.42.2/24 on enx*
 ```
 
-### Headlines (current truth) — full-apps on glass 2026-07-22
+### Headlines (current truth) — 2026-07-22 EOD
 
 - **On-phone = `7.1.3-msm89x7` full-apps** — Phosh, 83 desktops, greetd active.
 - **Published:** [pmos-perry-2026-07-22](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22).
-- **Rollback remains** `pmos-perry-2026-07-21` (7.0.9) — re-validated this session.
-- **Next:** glass UX smoke; upstream review wait; LED/headset optional; rpmcc parked.
+- **lk2nd on device:** still **22.0-r3** + local perry carry.
+- **Next session #1:** **lk2nd 23.1** RFT (pmaports [!9076](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076)); drop carry if green. No lk2nd upstream PR needed.
+- **Rollback remains** `pmos-perry-2026-07-21` (7.0.9).
 - **⛔ Authorship:** `Aneesh Pradhan <aneeshpradhan@acm.org>` only.
 
 **pmOS:** `~/pmos` · pmbootstrap 3.11.1 · kernel tree
@@ -751,8 +796,10 @@ fix". Tracked as [GitHub #4](https://github.com/aneesh-pradhan/xylitol/issues/4)
 Published overlay path (`qcom-msm89x7` + `pmos-build-phosh-release.sh`) still
 valid.
 
-**Housekeeping (no action now):** drop `pmos/lk2nd/0001-*` + lk2nd `pkgrel`
-bump once pmaports bumps lk2nd past `d9ce4e70`.
+**Housekeeping → promoted to next-session #1:** drop `pmos/lk2nd/0001-*` after
+**lk2nd 23.1** validates on perry (perry node already in upstream 23.0+;
+pmaports draft [!9076](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076)).
+See top-of-file ▶ Next session.
 
 ### ▶ Prior next-session note (2026-07-20 late) — archived
 
