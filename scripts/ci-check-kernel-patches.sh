@@ -28,9 +28,12 @@ val() {
   printf '%s' "${line//\"/}"
 }
 pkgver="$(val pkgver)"
-srcrel="$(val _srcrel)"
 url="$(val url)"
-: "${pkgver:?missing pkgver}" "${srcrel:?missing _srcrel}" "${url:?missing url}"
+# _srcrel is optional (the upstream tag's -rN suffix). Older APKBUILDs pinned
+# _tag="$pkgver-r0" directly and have no _srcrel — default to 0 for those.
+srcrel="$(val _srcrel)"
+srcrel="${srcrel:-0}"
+: "${pkgver:?missing pkgver}" "${url:?missing url}"
 tag="v${pkgver}-r${srcrel}"
 tarball_url="${url}/archive/${tag}.tar.gz"
 
