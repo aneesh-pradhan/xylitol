@@ -1,7 +1,10 @@
 # Phase B boot-hang bisect (2026-07-21 → 2026-07-22)
 
-**Status:** Hang **confirmed** in first-class Phase B path. Device recovered
-on known-good overlay release. Isolation queue for next session below.
+**Status:** Hang **root-caused** — **P1.5** (initramfs framebuffer-wait patch +
+`deviceinfo_framebuffer_wait_seconds=35`). **Bisect D PASS** (SSH + Ofilm DRM).
+First-class `device-motorola-perry` + `linux-motorola-perry` boots when P1.5 is
+absent. Default Phase B build should **not** apply P1.5 until a safe splash
+fix is re-designed.
 
 **Related:** [`handoff.md`](handoff.md) · [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md) ·
 [`porting-log.md`](porting-log.md)
@@ -25,19 +28,16 @@ the same hardware.
 
 ## 2. Paths compared
 
-| | **Known-good (boots)** | **Phase B (hangs)** |
-|---|---|---|
-| Device | `device-qcom-msm89x7` + `deviceinfo-motorola-perry` | `device-motorola-perry` |
-| Kernel | `linux-postmarketos-qcom-msm89x7` | `linux-motorola-perry` |
-| Build | `scripts/pmos-build-phosh-release.sh` | `scripts/pmos-build-phase-b.sh` |
-| Artifact | `artifacts/pmos-release/pmos-perry-2026-07-21/` | `artifacts/pmos-phase-b/motorola-perry-phosh*.img` |
-| Initramfs modules | ~44 (generic msm89x7 panel soup) | ~16 (minimal touch/DRM set) |
-| P1.5 fb wait | no (default 10s) | yes (`deviceinfo_framebuffer_wait_seconds=35` + initramfs patch) |
-| SSH (live) | `xylitol@172.16.42.1` pw `xylitol` | n/a (no USB) |
+| | **Known-good overlay** | **Phase B + P1.5 (hangs)** | **Phase B Bisect D (boots)** |
+|---|---|---|---|
+| Device | `device-qcom-msm89x7` + `deviceinfo-motorola-perry` | `device-motorola-perry` | same, **no** `framebuffer_wait_seconds` |
+| Kernel | `linux-postmarketos-qcom-msm89x7` | `linux-motorola-perry` | `linux-motorola-perry` **7.0.9-r1** (scrubbed, HZ=250) |
+| Build | `scripts/pmos-build-phosh-release.sh` | `pmos-build-phase-b.sh` (P1.5 on) | `DROP_P15=1 pmos-build-phase-b.sh` |
+| Initramfs | stock wait (~10s) | **patched** wait knob + 35s | **unpatched** `postmarketos-initramfs` **3.12.0-r0** |
+| SSH | yes | no (hang) | **yes** (~25s after continue) |
 
-Live known-good check (2026-07-22): kernel `7.0.9-msm89x7`,
-`CONFIG_HZ=300`, Ofilm panel **loaded from rootfs** (not early initramfs),
-DSI-1 720×1280, Wi‑Fi up.
+Live Bisect D check (2026-07-22): kernel `7.0.9-msm89x7` **#2-perry-xylitol**,
+`CONFIG_HZ=250`, Ofilm panel loaded, DSI-1 720×1280, USB-net + SSH.
 
 ---
 
@@ -48,80 +48,63 @@ DSI-1 720×1280, Wi‑Fi up.
 | **A** | Drop `panel_motorola_perry_499v0_ofilm` from `modules-initfs` early load (`device` pkgrel=4) | `motorola-perry-phosh-bisectA.*` | ❌ hang |
 | **B** | A + `CONFIG_HZ=300` (was 250); rest of P1 scrub kept (`linux` pkgrel=2) | `motorola-perry-phosh-bisectB.*` | ❌ hang |
 | **C** | A + **full** upstream msm89x7 defconfig (undo entire P1.1 scrub; `linux` pkgrel=3) | `motorola-perry-phosh-bisectC.*` | ❌ hang |
+| **D** | A + **drop P1.5 only** (unpatched initramfs r0; no `deviceinfo_framebuffer_wait_seconds`; scrubbed HZ=250 kernel r1) | `motorola-perry-phosh-bisectD.*` | ✅ **boot + SSH** (~25s) |
 | **Rollback** | Known-good release sparse + release NORMAL lk2nd | `pmos-perry-2026-07-21` | ✅ boot + SSH |
 
 ### Ruled out as sole cause
 
 1. Early Ofilm panel `modprobe` in initramfs.
-2. `CONFIG_HZ=250` (P1.6).
-3. Entire P1.1 defconfig scrub (tracers, dynamic debug, panel module pruning, etc.).
+2. `CONFIG_HZ=250` (P1.6) — **present on the green Bisect D boot**.
+3. Entire P1.1 defconfig scrub — scrubbed kernel boots on D.
+4. First-class `linux-motorola-perry` / `device-motorola-perry` packages as a
+   set (they boot once P1.5 is removed).
 
-### Still in the regression surface
+### Root cause (confirmed by D)
 
-Anything shared by all Phase B images and absent/different on known-good:
+**P1.5** — `pmos/postmarketos-initramfs/0001-make-framebuffer-wait-timeout-device-configurable.patch`
+plus perry `deviceinfo_framebuffer_wait_seconds="35"`. With that combo, boot
+stalls: backlight on, black screen, **no USB**. Without it, first-class path
+reaches userspace (USB-net + SSH, Ofilm DRM 720×1280).
 
-1. **`linux-motorola-perry` package** as a whole (build flags, modules install layout, flavor, DT packaging) vs `linux-postmarketos-qcom-msm89x7` + same 0001–0006 patches applied to the generic aport.
-2. **`device-motorola-perry`** as a whole (depends, deviceinfo extras, presets, zram 100%, udev rules) vs `device-qcom-msm89x7` + `deviceinfo-motorola-perry`.
-3. **P1.5** — `postmarketos-initramfs` framebuffer-wait patch + perry `deviceinfo_framebuffer_wait_seconds=35`.
-4. **Minimal `modules-initfs`** (~16 lines) vs generic ~44 — may omit a module needed early (unlikely sole cause after A, but still a delta).
-5. **Install recipe** differences (`pmbootstrap install` options, package set).
+Mechanism still open (busy-wait starving gadget? patch bug? interaction with
+perry DRM bind timing?) — do **not** re-enable until understood. Splash gap
+is cosmetic; hang is not.
+
+Evidence: `artifacts/pmos-phase-b/evidence-bisectD-boot/`,
+`artifacts/pmos-phase-b/flash-bisectD.log`, `auto-bisect.result`.
 
 ---
 
-## 4. Next tasks (ordered for “break the phone” sessions)
+## 4. Next tasks (post–Bisect D)
 
-Do **one variable at a time**. Always keep a known-good sparse ready. Only one
-agent holds fastboot. Sacred: never `persist` / `modemst*`.
+Hang isolation queue **closed**. Prefer non-destructive / product work:
 
-### T1 — Bisect D: drop P1.5 only (medium effort)
+### T1 — ~~Bisect D~~ ✅ DONE (2026-07-22)
 
-**Hypothesis:** long initramfs fb wait or patched `init_functions.sh` wedging boot.
+### T6 — On-device metrics + P1.3 (unblocked)
 
-1. Remove `deviceinfo_framebuffer_wait_seconds` from
-   `pmos/device-motorola-perry/deviceinfo` (or set empty).
-2. Do **not** apply `scripts/pmos-apply-initramfs-perry.sh` (use unpatched
-   upstream `postmarketos-initramfs`).
-3. Keep: scrubbed defconfig, modules-initfs without early ofilm, rest of device pkg.
-4. Build → flash → pass if USB-net/SSH within ~60s.
+Device is on first-class Phase B (Bisect D image). Safe over SSH:
 
-### T2 — Kernel-only swap (high value)
-
-**Hypothesis:** `linux-motorola-perry` APKBUILD/build differs from generic
-msm89x7 even with the same defconfig/patches.
-
-1. Build known-good overlay image but force install of `linux-motorola-perry`
-   (or reverse: Phase B device + generic msm89x7 kernel).
-2. Isolates kernel aport vs device aport.
-
-### T3 — Device-only swap
-
-**Hypothesis:** `device-motorola-perry` depends/deviceinfo/presets break boot.
-
-1. `device-qcom-msm89x7` + `deviceinfo-motorola-perry` + `linux-motorola-perry`.
-2. Or Phase B device package with generic kernel.
-
-### T4 — modules-initfs parity
-
-Copy known-good `device-qcom-msm89x7` `modules-initfs` (full panel soup)
-into `device-motorola-perry`, still without requiring ofilm early if preferred.
-Rebuild device pkg only.
-
-### T5 — Overlay control rebuild
-
-Re-run `scripts/pmos-build-phosh-release.sh` (no first-class aports). Flash.
-**Must boot** — if not, host/flash path regressed.
-
-### T6 — After a Phase B variant boots
-
-- On-device metrics (plan §5): `systemd-analyze`, `free`, governors, scheduler.
+- `systemd-analyze`, `free`, governors, eMMC scheduler (plan §5).
 - P1.3 GPU opp baselines ([#3](https://github.com/aneesh-pradhan/xylitol/issues/3)).
-- Revisit P1.5 splash confirmation ([#4](https://github.com/aneesh-pradhan/xylitol/issues/4)).
-- Park P1.1 scrub / HZ=250 until boot is green; re-introduce one at a time.
+- User visual: Phosh greeter / soft navbar / any splash gap (expected without P1.5).
+
+### P1.5 follow-up (do not flash a re-enable blindly)
+
+- Keep patch in-tree for research; **default build must not apply it**.
+- Redesign splash: shorter non-blocking wait, or wait only after USB gadget is
+  up, or drop splash on perry entirely ([#4](https://github.com/aneesh-pradhan/xylitol/issues/4)).
+- Optional single-variable re-test later: patched initramfs with default 10s
+  only (no 35) — **only** if recovery image is staged.
+
+### T2–T5 — deprioritized
+
+No longer required for hang isolation. Revisit only if a new regression
+appears when re-introducing splash work.
 
 ### Non-break work (no flash)
 
 - Upstream kernel/panel adoption: [`pmos-upstream-kernel-plan.md`](pmos-upstream-kernel-plan.md) / [#13](https://github.com/aneesh-pradhan/xylitol/issues/13).
-- Improve flash tooling (see §5) — already partially done this session.
 
 ---
 
@@ -162,12 +145,14 @@ SSH: `ssh xylitol@172.16.42.1` (password `xylitol`; host `172.16.42.2/24` on cdc
 
 ---
 
-## 7. In-repo package state after this write-up
+## 7. In-repo package state after Bisect D
 
-| Package | Intent after docs PR |
+| Package | Intent |
 |---|---|
-| `device-motorola-perry` | pkgrel **4** — ofilm **not** early-loaded in `modules-initfs` (matches known-good early-load policy for ofilm) |
-| `linux-motorola-perry` | pkgrel **1** — **scrubbed** defconfig + HZ=250 (product intent; not proven boot-safe until T1–T3 pass) |
-| Release path | Untouched; still the daily-driver / recovery image |
+| `device-motorola-perry` | pkgrel **4** — ofilm **not** early-loaded; **no** `deviceinfo_framebuffer_wait_seconds` (P1.5 off) |
+| `linux-motorola-perry` | pkgrel **1** — scrubbed defconfig + HZ=250 — **hardware-validated** on Bisect D |
+| `postmarketos-initramfs` | Default Phase B: **unpatched** upstream (do not apply P1.5 patch) |
+| Release path | Untouched overlay daily-driver / recovery: `pmos-perry-2026-07-21` |
 
-Do **not** treat Phase B images as flashable daily-drivers until a bisect variant boots.
+First-class Phase B **boots** without P1.5. Prefer staging a non-P1.5 product
+image before treating it as daily-driver; keep rollback sparse ready.

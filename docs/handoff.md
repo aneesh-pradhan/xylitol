@@ -4,49 +4,44 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-## ▶ Next session — start here (2026-07-22)
+## ▶ Next session — start here (2026-07-22, post Bisect D)
 
-**Device state:** **ONLINE on known-good** release
-[`pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
-(overlay path). SSH: `xylitol@172.16.42.1` (pw `xylitol`); USB-net host
-`172.16.42.2/24` on cdc_ncm; Wi‑Fi also up. Kernel `7.0.9-msm89x7`.
+**Device state:** **ONLINE on first-class Phase B / Bisect D** (not the
+overlay release). SSH: `xylitol@172.16.42.1` (pw `xylitol`); USB-net host
+`172.16.42.2/24` on cdc_ncm. Kernel `7.0.9-msm89x7` **#2-perry-xylitol**
+(`linux-motorola-perry` **7.0.9-r1**, HZ=250). Packages:
+`device-motorola-perry` **1-r4**, unpatched `postmarketos-initramfs`
+**3.12.0-r0**. Ofilm DRM 720×1280 + USB-net confirmed.
 
-**Phase B boot hang:** **bisected A/B/C — all FAIL.** First-class
-`device-motorola-perry` + `linux-motorola-perry` images hang (black
-screen + backlight, no USB). Full matrix, recovery, and **ordered next
-isolation tasks (T1–T6):**
-[`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+**Phase B boot hang:** **ROOT-CAUSED — P1.5.** A/B/C failed; **D PASS**
+(drop framebuffer-wait patch + `deviceinfo_framebuffer_wait_seconds`).
+Canonical write-up: [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+**Do not re-enable P1.5** until a safe splash redesign exists.
 
-**Do next (pick one “break the phone” track):**
+**Do next:**
 
 | # | Task | Goal |
 |---|---|---|
-| **T1** | Bisect D: drop P1.5 framebuffer-wait only | Rule out initramfs 35s wait patch |
-| **T2** | Kernel-only swap (Phase B kernel on overlay device, or reverse) | Isolate `linux-motorola-perry` aport |
-| **T3** | Device-only swap | Isolate `device-motorola-perry` aport |
-| **T4** | `modules-initfs` parity with generic msm89x7 | Rule out minimal early module set |
-| **T5** | Rebuild overlay release control | Confirm host/flash path still green |
-| **T6** | After any Phase B boot: metrics + P1.3 | [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md) §5 |
+| **1** | ~~T6 metrics + P1.3 baselines~~ | ✅ 2026-07-22 — see plan §5; no GPU DT yet |
+| **2** | ~~Productize no-P1.5 Phase B~~ | ✅ default build P1.5 off; deviceinfo disabled |
+| **3** | ~~Audio smoke~~ | ✅ Speaker sink + `speaker-test` OK on Bisect D |
+| **4** | Optional: upstream kernel/panel | [`pmos-upstream-kernel-plan.md`](pmos-upstream-kernel-plan.md) / [#13](https://github.com/aneesh-pradhan/xylitol/issues/13) |
+| **5** | P1.5 redesign (research) | Safe splash without hang — do not re-enable old patch |
+| **6** | Publish first-class image (optional) | Stage no-P1.5 Phase B as release candidate vs overlay |
 
-**Safe no-flash track:** upstream kernel/panel
-[`pmos-upstream-kernel-plan.md`](pmos-upstream-kernel-plan.md) /
-[GitHub #13](https://github.com/aneesh-pradhan/xylitol/issues/13).
-
-**Do not** flash Phase B images as daily-driver until a bisect boots.
-Recovery: `scripts/pmos-rollback-known-good.sh` or env-override force-flash
-of release sparse (see bisect doc §6).
+**Recovery:** still `scripts/pmos-rollback-known-good.sh` → release
+`pmos-perry-2026-07-21` if anything goes sideways.
 
 **⚑ PRIORITY:** **pmOS is primary.** Android/Lineage deferred. Modem is
 **out of scope** (no usable bands for this unit) — do not schedule modem
 work.
 
-**Headline (pmOS UI):** perry boots working Phosh on the **overlay** path
-(release `pmos-perry-2026-07-21`). First-class custom kernel/device path is
-**blocked on boot hang** (A/B/C failed).  
-**Headline (custom kernel packages):** in-repo scaffold remains; `device`
-pkgrel **4** (no early ofilm); `linux` pkgrel **1** (scrubbed defconfig +
-HZ=250 restored as product intent — **not boot-validated** on hardware).
-Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).  
+**Headline (pmOS UI):** perry boots Phosh on **overlay** release
+`pmos-perry-2026-07-21` **and** on **first-class** Phase B when P1.5 is off
+(Bisect D).  
+**Headline (custom kernel packages):** `device` pkgrel **4** (no early ofilm,
+no fb-wait); `linux` pkgrel **1** (scrubbed + HZ=250) — **boot-validated** on
+Bisect D. Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).  
 **Headline (pmOS audio):** **perry now has working audio routing.** Authored the
 `motorola-perry` ALSA UCM profile (was mute: `alsaucm -2` / "no backend DAIs").
 `alsaucm` loads HiFi, `PRI_MI2S_RX ← MultiMedia1` + `SPK DAC` engage,

@@ -7,7 +7,7 @@
 pkgname=device-motorola-perry
 pkgdesc="Motorola Moto E4 (perry / XT1765, MSM8917)"
 pkgver=1
-pkgrel=4
+pkgrel=5
 url="https://github.com/aneesh-pradhan/xylitol"
 license="MIT"
 arch="aarch64"
@@ -63,7 +63,7 @@ package() {
 }
 
 sha512sums="
-23be897d5b755ddde816b8cf1839ec21ec4f668679c1ddd1cb74e1ac41ecd383b3a39de379f5b09f70045c42b24faffd457d4db595fdad14d3a1e4e09c934202  deviceinfo
+7dbe373b6d57fd756c7a2e791d6c515e4027201e484e107640469fe4bb79e76c4575b45e95c7d5bb7345547c4bc7fb7562ea2e04614dcc3f9ddbef6e01fe79db  deviceinfo
 b179d1a607e98d82facf9e87d9493258224176e24b3937e58a83815c132f35e4855de3ce68a4882798a3d0c4e0600bf674e93f51dfaf6adb07681993dc99928d  modules-initfs
 27f38c63d99408c4e4f76075f9bdf579a2d12c722bbb2f8fd6371a5aa2999000f7f5bec7c57e85a0e8a4ba2d3008d2a67360aee48781f5083de331bf022d958c  50-perry-wlr.conf
 bcfc4e18bcaf1b252f701620a0007f6cf4f485ceeb606c2a79a5d42bd240fdd1880d13b5be12ce4b434c77924c91f95170f83e53f1b2e2966c84ddb0d51fa12f  50-perry-usb-nosuspend.rules

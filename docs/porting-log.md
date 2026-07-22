@@ -2391,3 +2391,32 @@ In-repo after docs PR: `device-motorola-perry` pkgrel 4 (no early ofilm);
 `linux-motorola-perry` pkgrel 1 (scrubbed defconfig + HZ=250 restored as
 product intent — **not boot-validated**). Flash tooling: env overrides +
 `grep -aFq` FORCE check; `scripts/pmos-rollback-known-good.sh`.
+
+## 2026-07-22 — Bisect D PASS (P1.5 hang root cause); T6 baselines
+
+**Hang root cause:** P1.5 framebuffer-wait initramfs patch +
+`deviceinfo_framebuffer_wait_seconds=35`. A/B/C still failed with that
+combo present; **Bisect D** (drop P1.5 only; scrubbed HZ=250 kernel r1;
+device r4 no early ofilm; unpatched initramfs r0) **boots**.
+
+- Flash: `FLASH_COMPLETE` ~305s userdata (chunk 12 ~187s eMMC).
+- USB-net ~5s; SSH ~25s after continue.
+- Live: `linux-motorola-perry` 7.0.9-r1 `#2-perry-xylitol`, Phosh,
+  Ofilm 720×1280, Wi‑Fi + Developer Mode USB-net.
+- Product: default Phase B build **P1.5 off** (`ENABLE_P15=1` research-only);
+  deviceinfo documents disabled wait; device pkgrel **5**.
+
+**T6 idle baselines** (Phosh up; raw under
+`artifacts/pmos-phase-b/evidence-bisectD-boot/`):
+
+| Metric | Value |
+|---|---|
+| Boot | kernel 19.9s + userspace 26.6s = **46.5s**; graphical @ 23.9s userspace |
+| RAM | ~447 MiB used / 1.8 GiB; zram 1.8 GiB zstd idle |
+| CPU | schedutil; OPPs 960–1401.6 MHz; HZ=250 |
+| eMMC | mq-deadline |
+| GPU | simple_ondemand; 19.2–598 MHz OPPs |
+| Audio | Speaker + Mic1 sinks; `speaker-test` 880 Hz sine OK |
+
+P1.3: baselines only — no GPU DT until a measured need. See plan §5 and
+`phase-b-boot-hang-bisect.md`.

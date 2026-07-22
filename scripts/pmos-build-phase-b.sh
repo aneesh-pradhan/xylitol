@@ -10,6 +10,11 @@
 # Env overrides:
 #   PMOS_USER / PMOS_PASSWORD  (default: xylitol / xylitol)
 #   PMOS_EXTRA_SPACE           (default: 2048 MiB)
+#   ENABLE_P15=1               DANGEROUS: apply P1.5 framebuffer-wait patch
+#                              (known boot hang on perry — Bisect D 2026-07-22).
+#                              Default is OFF (unpatched initramfs).
+#   DROP_P15=1                 Legacy alias for default (no-op / force-off).
+#   BISECT_TAG=...             Optional artifact name suffix (raw/sparse).
 set -euo pipefail
 
 XYLITOL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,8 +23,14 @@ cd "$XYLITOL_ROOT"
 PMOS_USER="${PMOS_USER:-xylitol}"
 PMOS_PASSWORD="${PMOS_PASSWORD:-xylitol}"
 PMOS_EXTRA_SPACE="${PMOS_EXTRA_SPACE:-2048}"
+# Default OFF: P1.5 hard-hangs perry (phase-b-boot-hang-bisect.md Bisect D).
+ENABLE_P15="${ENABLE_P15:-0}"
+if [[ "${DROP_P15:-}" == "1" ]]; then
+  ENABLE_P15=0
+fi
 OUT_DIR="$XYLITOL_ROOT/artifacts/pmos-phase-b"
 DATE_UTC="$(date -u +%Y-%m-%dT%H%MZ)"
+BISECT_TAG="${BISECT_TAG:-}"
 
 export PATH="${HOME}/bin:${PATH}"
 command -v pmbootstrap >/dev/null || {
@@ -29,13 +40,41 @@ command -v pmbootstrap >/dev/null || {
 
 mkdir -p "$OUT_DIR"
 
+if [[ -n "${PMAPORTS:-}" ]]; then
+  :
+elif [[ -f "${HOME}/.config/pmbootstrap_v3.cfg" ]]; then
+  PMAPORTS="$(awk -F' = ' '/^aports = /{print $2; exit}' "${HOME}/.config/pmbootstrap_v3.cfg")"
+else
+  echo "ERROR: set PMAPORTS or run pmbootstrap init first" >&2
+  exit 1
+fi
+
 echo "==> Applying xylitol perry packages into live pmaports"
 ./scripts/pmos-apply-perry-firmware.sh
 ./scripts/pmos-apply-perry-ucm.sh
 ./scripts/pmos-apply-lk2nd-perry.sh
 ./scripts/pmos-apply-kernel-perry.sh
 ./scripts/pmos-apply-device-perry.sh
-./scripts/pmos-apply-initramfs-perry.sh
+
+if [[ "$ENABLE_P15" == "1" ]]; then
+  echo "==> ENABLE_P15=1: applying P1.5 (KNOWN HANG on perry — research only)"
+  ./scripts/pmos-apply-initramfs-perry.sh
+else
+  echo "==> P1.5 off (default): restore unpatched postmarketos-initramfs"
+  # Undo any prior pmos-apply-initramfs-perry.sh edits in this local pmaports.
+  if [[ -d "$PMAPORTS/.git" ]]; then
+    git -C "$PMAPORTS" checkout -- main/postmarketos-initramfs/APKBUILD
+    rm -f "$PMAPORTS/main/postmarketos-initramfs/0001-make-framebuffer-wait-timeout-device-configurable.patch"
+  else
+    echo "ERROR: pmaports is not a git checkout; cannot restore clean initramfs" >&2
+    exit 1
+  fi
+  DEVICEINFO_DST="$PMAPORTS/device/testing/device-motorola-perry/deviceinfo"
+  if grep -q 'deviceinfo_framebuffer_wait_seconds' "$DEVICEINFO_DST"; then
+    sed -i '/deviceinfo_framebuffer_wait_seconds/d' "$DEVICEINFO_DST"
+    echo "stripped deviceinfo_framebuffer_wait_seconds from live pmaports deviceinfo"
+  fi
+fi
 
 echo "==> pmbootstrap config: device=motorola-perry ui=phosh user=${PMOS_USER}"
 pmbootstrap config device motorola-perry
@@ -56,11 +95,43 @@ pmbootstrap build lk2nd --lax
 # native host arch; without an explicit aarch64 build+index entry, apk
 # silently falls back to the unpatched upstream binary during install.
 # --lax: skip post-build zap (this host hits intermittent umount busy races).
-pmbootstrap build postmarketos-initramfs --arch aarch64 --lax
-pmbootstrap build linux-motorola-perry --lax
-pmbootstrap build device-motorola-perry --lax
+if [[ "$ENABLE_P15" == "1" ]]; then
+  pmbootstrap build postmarketos-initramfs --arch aarch64 --lax
+  pmbootstrap build linux-motorola-perry --lax
+  pmbootstrap build device-motorola-perry --lax
+else
+  # Force rebuild so we do not reuse a previously patched initramfs apk.
+  pmbootstrap build postmarketos-initramfs --arch aarch64 --force --lax
+  pmbootstrap build device-motorola-perry --force --lax
+  pmbootstrap build linux-motorola-perry --force --lax
+fi
 
 echo "==> pmbootstrap install (Phosh, --no-recommends = P0.2 lean)"
+# Ensure no stale chroot mounts (prior --zap umount races on this host).
+pmbootstrap shutdown || true
+
+if [[ "$ENABLE_P15" != "1" ]]; then
+  # apk installs the *highest* pkgrel present in the local index. Prior bisects
+  # leave postmarketos-initramfs-r1 (P1.5 patch) and linux-motorola-perry-r2/r3
+  # which would silently win over the packages we just built.
+  PKGDIR="${HOME}/pmos/work/packages/edge/aarch64"
+  if [[ -d "$PKGDIR" ]]; then
+    echo "==> purge conflicting local apks that would win version select"
+    sudo rm -fv "$PKGDIR"/postmarketos-initramfs-*-r[1-9]*.apk 2>/dev/null || true
+    LINUX_REL="$(awk -F= '/^pkgrel=/{print $2; exit}' \
+      "$PMAPORTS/device/testing/linux-motorola-perry/APKBUILD")"
+    for apk in "$PKGDIR"/linux-motorola-perry-*.apk; do
+      [[ -f "$apk" ]] || continue
+      base="$(basename "$apk" .apk)"
+      rel="${base##*-r}"
+      if [[ "$rel" != "$LINUX_REL" ]]; then
+        sudo rm -fv "$apk"
+      fi
+    done
+    pmbootstrap index || true
+  fi
+fi
+
 # --zap: clean chroots. --no-recommends: drop firefox/cups/flatpak/etc.
 pmbootstrap install --zap --password "$PMOS_PASSWORD" --no-recommends
 
@@ -91,9 +162,14 @@ done
 [[ -n "$ROOTFS_SRC" ]] || { echo "ERROR: rootfs image not found after export" >&2; exit 1; }
 [[ -n "$LK2ND_SRC" ]] || { echo "ERROR: lk2nd image not found after export" >&2; exit 1; }
 
-ROOTFS_NAME="motorola-perry-phosh.img"
+if [[ -n "$BISECT_TAG" ]]; then
+  ROOTFS_NAME="motorola-perry-phosh-${BISECT_TAG}.img"
+  SPARSE_NAME="motorola-perry-phosh-${BISECT_TAG}.sparse.img"
+else
+  ROOTFS_NAME="motorola-perry-phosh.img"
+  SPARSE_NAME="motorola-perry-phosh.sparse.img"
+fi
 LK2ND_NAME="lk2nd-msm8952-perry.img"
-SPARSE_NAME="motorola-perry-phosh.sparse.img"
 cp -v "$ROOTFS_SRC" "$OUT_DIR/$ROOTFS_NAME"
 cp -v "$LK2ND_SRC" "$OUT_DIR/$LK2ND_NAME"
 
@@ -140,11 +216,22 @@ sudo test -f /mnt/pmos-b-root/lib/firmware/qcom/msm8917/motorola/perry/WCNSS_qco
   || { echo "ERROR: WCNSS NV missing" >&2; exit 1; }
 sudo test -f /mnt/pmos-b-root/usr/share/alsa/ucm2/conf.d/motorola-perry/motorola-perry.conf \
   || { echo "ERROR: perry UCM missing" >&2; exit 1; }
-# P1.5 — configurable framebuffer-wait patch + perry's raised timeout
-sudo grep -q 'deviceinfo_framebuffer_wait_seconds' /mnt/pmos-b-root/usr/share/initramfs/init_functions.sh \
-  || { echo "ERROR: patched postmarketos-initramfs (framebuffer wait) missing" >&2; exit 1; }
-sudo grep -q 'deviceinfo_framebuffer_wait_seconds="35"' /mnt/pmos-b-root/usr/share/deviceinfo/deviceinfo \
-  || { echo "ERROR: perry deviceinfo_framebuffer_wait_seconds override missing" >&2; exit 1; }
+# P1.5 — default ABSENT (hang root cause); optional ENABLE_P15 asserts present
+if [[ "$ENABLE_P15" == "1" ]]; then
+  sudo grep -q 'deviceinfo_framebuffer_wait_seconds' /mnt/pmos-b-root/usr/share/initramfs/init_functions.sh \
+    || { echo "ERROR: ENABLE_P15=1 but initramfs missing framebuffer wait patch" >&2; exit 1; }
+  echo "WARNING: image contains P1.5 — known hang on perry hardware"
+else
+  if sudo grep -q 'deviceinfo_framebuffer_wait_seconds' /mnt/pmos-b-root/usr/share/initramfs/init_functions.sh 2>/dev/null; then
+    echo "ERROR: P1.5 patch present in initramfs (default build must not apply it)" >&2
+    exit 1
+  fi
+  if sudo grep -q 'deviceinfo_framebuffer_wait_seconds' /mnt/pmos-b-root/usr/share/deviceinfo/deviceinfo 2>/dev/null; then
+    echo "ERROR: deviceinfo still has framebuffer_wait_seconds" >&2
+    exit 1
+  fi
+  echo "OK: P1.5 absent from initramfs + deviceinfo (boot-safe default)"
+fi
 # Kernel flavor: custom perry package, not generic msm89x7
 if ! sudo grep -q motorola-perry /mnt/pmos-b-boot/extlinux/extlinux.conf \
   && ! sudo test -e /mnt/pmos-b-root/usr/share/kernel/motorola-perry/kernel.release; then
@@ -168,10 +255,15 @@ trap - EXIT
 
 cat > "$OUT_DIR/FLASH.md" <<EOF
 # Phase B — motorola-perry + linux-motorola-perry (${DATE_UTC})
+$([ -n "$BISECT_TAG" ] && echo "Variant: **${BISECT_TAG}**")
+ENABLE_P15=${ENABLE_P15}
 
 First-class \`device-motorola-perry\` / \`linux-motorola-perry\` Phosh image
 with P0 userspace (zram via deviceinfo, \`WLR_DRM_NO_ATOMIC=1\`, lean
 \`--no-recommends\`, USB nosuspend udev, service presets).
+
+**P1.5:** default OFF (Bisect D: framebuffer-wait patch hung perry). Splash
+gap may remain until a safe redesign.
 
 Default login: **${PMOS_USER}** / **${PMOS_PASSWORD}**
 SSH USB-net: \`${PMOS_USER}@172.16.42.1\` (host \`172.16.42.2/24\`,
@@ -181,13 +273,15 @@ Sacred: never touch \`persist\` / \`modemst1\` / \`modemst2\`.
 
 \`\`\`bash
 # Prefer scripts/pmos-flash-phase-b-force.sh (chunked sparse + NORMAL≠FORCE asserts).
+RAW=$OUT_DIR/${ROOTFS_NAME} SPARSE=$OUT_DIR/${SPARSE_NAME} \\
+  ./scripts/pmos-flash-phase-b-force.sh
 # Manual path (lk2nd fastboot, product: lk2nd-msm8952):
 fastboot flash -S 100M userdata ${SPARSE_NAME}
 fastboot flash boot ${LK2ND_NAME}   # must NOT contain force-fastboot string
 fastboot continue
 \`\`\`
 
-Build: \`scripts/pmos-build-phase-b.sh\`
+Build: \`ENABLE_P15=${ENABLE_P15} scripts/pmos-build-phase-b.sh\`
 EOF
 
 (

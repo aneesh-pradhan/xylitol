@@ -1,19 +1,16 @@
 # Perry custom device tree + kernel (in-repo) — plan & performance backlog
 
-**Date:** 2026-07-21 (updated 2026-07-22 after boot-hang bisect)  
+**Date:** 2026-07-21 (updated 2026-07-22 after Bisect D)  
 **Track:** postmarketOS (primary). Lineage 3.18 / staging-4.9 stay out of
 scope here — different ABI, different goals.  
-**Status:** In-repo device + custom kernel packages exist, but **Phase B
-images hang on hardware** (black screen + backlight, no USB). Bisect A/B/C
-failed; device recovered on known-good overlay release
-`pmos-perry-2026-07-21`. **Do not treat Phase B as flashable daily-driver.**
-Full matrix + next isolation tasks (T1–T6):
-[`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+**Status:** First-class Phase B **boots** when **P1.5 is off** (Bisect D PASS).
+Hang root-caused: framebuffer-wait initramfs patch + 35s deviceinfo.
+Full matrix: [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+Default build must not apply P1.5. Overlay release `pmos-perry-2026-07-21`
+remains the rollback image.
 
-P1 repo-side work is committed (scrub, eMMC udev, P1.5, etc.) but **P1.1
-scrub / HZ=250 / P1.5 are not hardware-validated** until a Phase B variant
-boots. P1.3 GPU baselines wait on a booting first-class image (or run on
-known-good for overlay baselines only).
+P1.1 scrub + HZ=250 **hardware-validated** on Bisect D. P1.5 **disabled**
+(product). T6 idle baselines captured 2026-07-22 (see §5).
 
 ---
 
@@ -138,7 +135,8 @@ expected win, risk, and deps.
 |---|---|---|---|---|
 | P1.1 | **Production defconfig scrub** | ✅ 2026-07-21 | kernel config | Dropped function tracer / dynamic ftrace (kept `FTRACE`/tracepoints), `DYNAMIC_DEBUG`, `FW_LOADER_DEBUG`, `CIFS_DEBUG*`, `BLK_DEBUG_FS`; disabled non-perry Motorola/Xiaomi panel modules (kept Ofilm + Tianma). Alpine/clang options preserved (no host `olddefconfig`). `linux-motorola-perry` **pkgrel=1**. |
 | P1.2 | CPUFreq / schedutil tuning | ✅ audited | DT + config | `msm8917.dtsi` already has OPPs 960 / 1094.4 / 1248 / 1401.6 MHz + cooling-cells; perry enables `&gpu`; default gov **schedutil**. No DT patch until on-device baselines. |
-| P1.3 | GPU opp / cooling | ⏳ unblocked, not started | DT + mesa | Device flashed 2026-07-21 — capture baselines, then reserved `0101` in patches README. [GitHub #3](https://github.com/aneesh-pradhan/xylitol/issues/3). |
+| P1.3 | GPU opp / cooling | ⏳ baselines captured; no DT yet | DT + mesa | Idle GPU `simple_ondemand` 19.2–598 MHz (cur often max). No DT `0101` until a measured need. [GitHub #3](https://github.com/aneesh-pradhan/xylitol/issues/3). |
+| P1.5 | Earlier DRM splash wait | ❌ **disabled** (hang) | initramfs | Bisect D: patch + 35s wait hard-hangs (no USB). Keep patch in-tree for research; default build unpatched. |
 | P1.4 | eMMC: MQ / scheduler | ✅ udev | udev | `60-perry-emmc-scheduler.rules` → `mq-deadline` on `mmcblk0`; `device-motorola-perry` **pkgrel=2**. |
 | P1.5 | Earlier DRM console / shorter splash | ✅ 2026-07-21 (repo-side; needs flash to confirm) | initramfs + deviceinfo | `pmos/postmarketos-initramfs/0001-*.patch` adds `deviceinfo_framebuffer_wait_seconds` (default 10, unchanged elsewhere); perry sets 35 (observed ~27s DPU/DSI bind + margin). `device-motorola-perry` **pkgrel=3**. Not simplefb. [GitHub #4](https://github.com/aneesh-pradhan/xylitol/issues/4). |
 | P1.6 | Reduce kernel timer / tick noise | ✅ with P1.1 | config | `HZ` **300 → 250**; left `NO_HZ_IDLE` (no `NO_HZ_FULL` on 4‑core phone). |
@@ -187,6 +185,31 @@ cat /sys/block/mmcblk0/queue/scheduler
 
 Record numbers in `docs/porting-log.md` with date before/after each P0/P1 change.
 
+### First-class Phase B baselines (Bisect D, 2026-07-22)
+
+Image: `linux-motorola-perry` **7.0.9-r1**, `device-motorola-perry` **1-r4**,
+unpatched `postmarketos-initramfs` **3.12.0-r0**, Phosh up, Wi‑Fi + USB-net.
+Raw: `artifacts/pmos-phase-b/evidence-bisectD-boot/t6-baselines-20260722T1855Z.txt`
+(gitignored).
+
+| Metric | Value |
+|---|---|
+| `systemd-analyze` | kernel **19.9s** + userspace **26.6s** = **46.5s**; graphical @ **23.9s** userspace |
+| Top blame | mmc devices ~8s, `msm-modem-uim-selection` ~7.8s, `user@` ~6.4s, hwdb/sshdgenkeys ~4–5s |
+| RAM (idle Phosh) | **1.8 GiB** total; ~**447 MiB** used; ~**1.0 GiB** available |
+| zram | **1.8 GiB** zstd swap (100% RAM policy), idle |
+| CPU governor | **schedutil** (all 4 cores) |
+| CPU OPPs | 960 / 1094.4 / 1248 / **1401.6 MHz** (idle often 960) |
+| eMMC scheduler | **mq-deadline** (P1.4 udev) |
+| GPU devfreq | `1c00000.gpu`, gov **simple_ondemand**, OPPs 19.2 / 270 / 400 / 484.8 / 523.2 / **598 MHz** |
+| Display | DSI-1 connected **720×1280**, enabled |
+| HZ | **250** |
+| Audio smoke | ALSA card `motorola-perry`; pulse Speaker + Mic1; `speaker-test` sine OK |
+
+**P1.3 note:** GPU already exposes a full opp table and ondemand governor.
+Do not author DT cooling/opp patches until a workload shows clipping or
+thermal issues.
+
 ---
 
 ## 6. Phased execution
@@ -194,11 +217,11 @@ Record numbers in `docs/porting-log.md` with date before/after each P0/P1 change
 | Phase | Deliverable | Gate |
 |---|---|---|
 | **A** | Scaffold `device-motorola-perry` + `linux-motorola-perry` in xylitol | ✅ DONE |
-| **B** | Apply scripts; build kernel+device; Phosh image staged | ✅ build DONE; flash **hangs** (see bisect doc) |
+| **B** | Apply scripts; build kernel+device; Phosh image staged | ✅ build + flash (with P1.5 off) |
 | **C** | P0 userspace (zram pct, `--no-recommends`, WLR env, USB udev, presets) | ✅ in device package + Phase B image recipe |
-| **D** | P1 defconfig scrub + eMMC udev + cpufreq audit + P1.5 framebuffer-wait | ⚠️ repo-side DONE; **boot hang blocks validation** |
-| **D2** | Boot-hang isolation (T1–T5 in bisect doc) | 🔄 **active** — device on known-good until a variant boots |
-| **E** | Optional upstream deviceaport / drop generic msm89x7 dependency | Community readiness; blocked on D2 |
+| **D** | P1 scrub + eMMC + cpufreq; P1.5 **off** by default | ✅ scrub/HZ/eMMC validated; P1.5 disabled (hang) |
+| **D2** | Boot-hang isolation | ✅ **closed** — P1.5 root cause (Bisect D) |
+| **E** | Optional upstream deviceaport / drop generic msm89x7 dependency | Community readiness; unblocked for research |
 
 ---
 
