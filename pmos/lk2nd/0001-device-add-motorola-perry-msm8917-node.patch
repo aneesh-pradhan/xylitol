@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
 Date: Mon, 20 Jul 2026 21:05:11 -0700
 Subject: [PATCH] device: add motorola-perry (XT1765) node to msm8917-mtp
 

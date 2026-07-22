@@ -1,4 +1,4 @@
-From da5bc6a484b7a0ef87c6a925d4f7682a0a527dc4 Mon Sep 17 00:00:00 2001
+From deef8875d82eb1b398caf4e9e67e8bfc12e485dd Mon Sep 17 00:00:00 2001
 From: "Catherine Frederick (coolguy)" <serenity@floorchan.org>
 Date: Wed, 22 Jul 2026 14:17:02 -0700
 Subject: [PATCH 2/4] clk: qcom: smd-rpm: add MSM8920 support
@@ -20,7 +20,7 @@ Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
  1 file changed, 31 insertions(+)
 
 diff --git a/drivers/clk/qcom/clk-smd-rpm.c b/drivers/clk/qcom/clk-smd-rpm.c
-index 103db98..cdabe37 100644
+index 103db984a40b..cdabe373aabc 100644
 --- a/drivers/clk/qcom/clk-smd-rpm.c
 +++ b/drivers/clk/qcom/clk-smd-rpm.c
 @@ -666,6 +666,36 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8917 = {

@@ -1,4 +1,4 @@
-From ba61f5e62f9b87961e5d5c38564934634d409f04 Mon Sep 17 00:00:00 2001
+From 7843a788c3722a4c84e561a980c98de2a26741cb Mon Sep 17 00:00:00 2001
 From: "Catherine Frederick (coolguy)" <serenity@floorchan.org>
 Date: Wed, 22 Jul 2026 14:17:03 -0700
 Subject: [PATCH 4/4] arm64: dts: qcom: add Motorola Moto E4 (perry)
@@ -26,16 +26,16 @@ Signed-off-by: Catherine Frederick (coolguy) <serenity@floorchan.org>
 Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 ---
  arch/arm64/boot/dts/qcom/Makefile             |   2 +
- .../qcom/msm8917-motorola-perry-common.dtsi   | 525 ++++++++++++++++++
+ .../qcom/msm8917-motorola-perry-common.dtsi   | 524 ++++++++++++++++++
  .../boot/dts/qcom/msm8917-motorola-perry.dts  |  33 ++
  .../boot/dts/qcom/msm8920-motorola-perry.dts  |  29 +
- 4 files changed, 589 insertions(+)
+ 4 files changed, 588 insertions(+)
  create mode 100644 arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
  create mode 100644 arch/arm64/boot/dts/qcom/msm8917-motorola-perry.dts
  create mode 100644 arch/arm64/boot/dts/qcom/msm8920-motorola-perry.dts
 
 diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
-index 111bbc1..4d42b1c 100644
+index 111bbc10453c..4d42b1c29db0 100644
 --- a/arch/arm64/boot/dts/qcom/Makefile
 +++ b/arch/arm64/boot/dts/qcom/Makefile
 @@ -118,10 +118,12 @@ dtb-$(CONFIG_ARCH_QCOM)	+= msm8916-xiaoxun-jz0145-v33.dtb
@@ -53,10 +53,10 @@ index 111bbc1..4d42b1c 100644
  dtb-$(CONFIG_ARCH_QCOM)	+= msm8937-motorola-hannah.dtb
 diff --git a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
 new file mode 100644
-index 0000000..44353e7
+index 000000000000..ca05d02da37f
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
-@@ -0,0 +1,525 @@
+@@ -0,0 +1,524 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +
 +#include <dt-bindings/arm/qcom,ids.h>
@@ -515,7 +515,6 @@ index 0000000..44353e7
 +		bias-pull-up;
 +	};
 +
-+
 +	ts_default: ts-default-state {
 +		pins = "gpio64";
 +		function = "gpio";
@@ -584,7 +583,7 @@ index 0000000..44353e7
 +};
 diff --git a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry.dts b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry.dts
 new file mode 100644
-index 0000000..c3ff774
+index 000000000000..c3ff7747f1f0
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry.dts
 @@ -0,0 +1,33 @@
@@ -623,7 +622,7 @@ index 0000000..c3ff774
 +};
 diff --git a/arch/arm64/boot/dts/qcom/msm8920-motorola-perry.dts b/arch/arm64/boot/dts/qcom/msm8920-motorola-perry.dts
 new file mode 100644
-index 0000000..18b3798
+index 000000000000..18b3798a9476
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8920-motorola-perry.dts
 @@ -0,0 +1,29 @@

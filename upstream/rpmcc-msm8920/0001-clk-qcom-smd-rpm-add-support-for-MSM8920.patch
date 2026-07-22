@@ -1,5 +1,5 @@
 From 88cb7ceff2c46fc9d74ab180203612bee5114240 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
 Date: Wed, 22 Jul 2026 12:08:41 -0700
 Subject: [PATCH] clk: qcom: smd-rpm: add support for MSM8920
 
@@ -14,7 +14,7 @@ include/dt-bindings/clock/qcom,rpmcc.h for other SoCs.
 DT binding: add qcom,rpmcc-msm8920 to the compatible enum and the
 pxo+cxo clock-names group used by sibling 89x7 parts.
 
-Signed-off-by: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 ---
  .../devicetree/bindings/clock/qcom,rpmcc.yaml |  2 ++
  drivers/clk/qcom/clk-smd-rpm.c                | 31 +++++++++++++++++++

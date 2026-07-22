@@ -88,11 +88,19 @@ policy; the fork is titled msm8916 internally but same repo/policy):
 | Signed-off-by (DCO) | ✅ Frederick's preserved + ours added; DCO's own "someone else can pick up your work" rationale is exactly this pickup |
 | Shared upstream files submitted upstream first | ✅ rpmcc (`clk-smd-rpm.c` + `qcom,rpmcc.yaml`) split to 0001+0002 for linux-arm-msm |
 
+## Posted (2026-07-22)
+
+- Fresh PR: **[msm89x7-mainline/linux#57](https://github.com/msm89x7-mainline/linux/pull/57)**
+  (base `msm89x7/7.1.3`, includes rmi_i2c + this 4-patch re-roll).
+- Supersedes #48 (comment left on #48).
+- **`dtbs_check` / DTB build**: both perry DTBs build clean; `dtbs_check`
+  warning count/class matches in-tree **nora** (shared SoC/schema gaps — not
+  new perry regressions). `dt-doc-validate` on rpmcc yaml clean.
+
 ## Still open / judgment calls for the maintainer
-1. **Target branch**: re-rolled on `msm89x7/7.1.3` (current) vs PR #48's `6.19.5`. Confirm
-   the fork wants new work on 7.1.3.
-2. **Fresh PR vs push to #48**: #48's author has been silent since April and just (2026-07-22)
-   said they're fine with someone else picking perry up — leaning fresh PR that supersedes #48.
+1. **Target branch**: re-rolled on `msm89x7/7.1.3` (current) vs PR #48's `6.19.5` — #57 uses 7.1.3.
+2. **Fresh PR vs push to #48**: chose fresh **#57**; offered to force-push onto #48 if preferred.
 3. **rpmcc upstream mail (Step A)**: 0001+0002 are the upstream-first pieces; sending them to
    linux-arm-msm is **still parked** per the project hold — do not `git send-email` until asked.
-4. **`dtbs_check` / dtb build**: not run here (sparse checkout, no full build). Run before posting.
+4. Optional follow-up: document `motorola,perry` / `qcom,msm8920` in `arm/qcom.yaml`
+   (in-tree nora is also undocumented there today).

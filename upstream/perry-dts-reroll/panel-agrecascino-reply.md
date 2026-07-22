@@ -1,6 +1,8 @@
-# DRAFT reply to agrecascino (post on linux-panel-drivers#6, and/or link from #48)
+# Reply to agrecascino — POSTED (2026-07-22)
 
-> Do NOT post without user OK. Choose the email/identity first (see note below).
+Posted on [linux-panel-drivers#6](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/6#issuecomment-5051820706).
+Cross-links also on [kernel#48](https://github.com/msm89x7-mainline/linux/pull/48#issuecomment-5051820877)
+and [panel#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8#issuecomment-5051821082).
 
 ---
 
@@ -19,8 +21,8 @@ driver as separate patches, upstream-first), the redundant msm8920.dtsi memory
 overrides dropped, GPL-2.0-only relicense, panel pinctrl moved onto `panel@0`
 with a single `panel_default` state (matching nora), and the .dts file-mode/
 license fixes. Your and Catherine Frederick's authorship + Signed-off-by are
-preserved on the carried commits. I'll open that as a fresh PR that references
-#48; shout if you'd rather I push onto #48 directly.
+preserved on the carried commits. Fresh PR: msm89x7-mainline/linux#57
+(references #48); shout if you'd rather I push onto #48 directly.
 
 ---
 
@@ -30,11 +32,7 @@ project hard rule (CLAUDE.md / AGENTS.md, enforced by `scripts/git-hooks/pre-com
 
     Aneesh Pradhan <aneeshpradhan@acm.org>
 
-- Kernel re-roll drafts: ✅ re-stamped (committer + Signed-off-by + DTS copyright
-  headers all `aneeshpradhan@acm.org`; author line preserved as Catherine Frederick).
-- **PR #8 — ACTION NEEDED:** its commit Signed-off-by is still
-  `Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>`. Since #8 is already posted,
-  fixing it means amending that commit's SoB (and author/committer email) to
-  `aneeshpradhan@acm.org` and **force-pushing the PR branch**. Do this before the
-  maintainer reviews it (they are strict about attribution). Needs your go-ahead
-  to force-push.
+- Kernel re-roll: ✅ author lines preserved (Frederick / Kaechele); committer +
+  Signed-off-by + DTS copyright = `aneeshpradhan@acm.org`. Posted as **#57**.
+- **PR #8:** ✅ tip commit amended + force-pushed; author/committer/SoB all
+  `aneeshpradhan@acm.org`.

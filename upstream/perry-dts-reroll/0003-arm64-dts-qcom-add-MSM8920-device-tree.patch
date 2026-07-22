@@ -1,4 +1,4 @@
-From ac52f8cbf605bbb0ba4e35381293379103b54b0a Mon Sep 17 00:00:00 2001
+From 040b9a8e4516d22bc24580f45b49700644523490 Mon Sep 17 00:00:00 2001
 From: "Catherine Frederick (coolguy)" <serenity@floorchan.org>
 Date: Wed, 22 Jul 2026 14:17:02 -0700
 Subject: [PATCH 3/4] arm64: dts: qcom: add MSM8920 device tree
@@ -29,7 +29,7 @@ Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 
 diff --git a/arch/arm64/boot/dts/qcom/msm8920.dtsi b/arch/arm64/boot/dts/qcom/msm8920.dtsi
 new file mode 100644
-index 0000000..041a085
+index 000000000000..041a085c8eed
 --- /dev/null
 +++ b/arch/arm64/boot/dts/qcom/msm8920.dtsi
 @@ -0,0 +1,35 @@
