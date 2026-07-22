@@ -2420,3 +2420,11 @@ device r4 no early ofilm; unpatched initramfs r0) **boots**.
 
 P1.3: baselines only — no GPU DT until a measured need. See plan §5 and
 `phase-b-boot-hang-bisect.md`.
+
+## 2026-07-22 — Upstream #13: panel-drivers#8 (Ofilm) + linux#48 adoption note
+
+Pushed xylitol `24d149e` (Bisect D / P1.5 off). Then started [issue #13](https://github.com/aneesh-pradhan/xylitol/issues/13):
+
+- Opened [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8): perry config for Tianma 499v1 + Ofilm 499v0; DTB from #6 lineage (already contains ofilm MDSS node); generator verified.
+- Commented on panel #6 and kernel #48 (adoption + multi-panel evidence).
+- Next upstream: rpmcc split (step A), then msm8920.dtsi / perry DTS re-roll.

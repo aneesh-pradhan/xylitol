@@ -25,8 +25,8 @@ Canonical write-up: [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md)
 | **1** | ~~T6 metrics + P1.3 baselines~~ | ✅ 2026-07-22 — see plan §5; no GPU DT yet |
 | **2** | ~~Productize no-P1.5 Phase B~~ | ✅ default build P1.5 off; deviceinfo disabled |
 | **3** | ~~Audio smoke~~ | ✅ Speaker sink + `speaker-test` OK on Bisect D |
-| **4** | Optional: upstream kernel/panel | [`pmos-upstream-kernel-plan.md`](pmos-upstream-kernel-plan.md) / [#13](https://github.com/aneesh-pradhan/xylitol/issues/13) |
-| **5** | P1.5 redesign (research) | Safe splash without hang — do not re-enable old patch |
+| **4** | **Upstream kernel/panel (#13)** | In progress — panel [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) open (Tianma+Ofilm); adoption note on [linux#48](https://github.com/msm89x7-mainline/linux/pull/48). Next: rpmcc split + DTS re-roll |
+| **5** | P1.5 redesign (research) | Safe splash without hang — see bisect doc §4; do not re-enable old patch |
 | **6** | Publish first-class image (optional) | Stage no-P1.5 Phase B as release candidate vs overlay |
 
 **Recovery:** still `scripts/pmos-rollback-known-good.sh` → release

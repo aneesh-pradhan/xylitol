@@ -2,9 +2,12 @@
 
 **Date opened:** 2026-07-21. **Tracking issue:** [xylitol#13](https://github.com/aneesh-pradhan/xylitol/issues/13).
 **Track:** postmarketOS mainline kernel, upstream contribution work.
-**Status:** Not started. Pure research + patch-writing — **no device needed,
-no flash, no Android/Lineage changes.** Safe to work on in any session,
-anywhere, with zero risk to the phone.
+**Status (2026-07-22):** **In progress.** Step D (panels) started:
+[linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8)
+(Tianma + Ofilm; supersedes #6). Courtesy adoption comment posted on
+[linux#48](https://github.com/msm89x7-mainline/linux/pull/48). Steps A–C
+(rpmcc → msm8920.dtsi → perry DTS re-roll) still open. Pure research +
+patch-writing — **no flash required** for the next kernel steps.
 
 ---
 

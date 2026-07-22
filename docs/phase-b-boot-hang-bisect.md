@@ -89,13 +89,19 @@ Device is on first-class Phase B (Bisect D image). Safe over SSH:
 - P1.3 GPU opp baselines ([#3](https://github.com/aneesh-pradhan/xylitol/issues/3)).
 - User visual: Phosh greeter / soft navbar / any splash gap (expected without P1.5).
 
-### P1.5 follow-up (do not flash a re-enable blindly)
+### P1.5 follow-up / redesign sketch (do not flash a re-enable blindly)
 
 - Keep patch in-tree for research; **default build must not apply it**.
-- Redesign splash: shorter non-blocking wait, or wait only after USB gadget is
-  up, or drop splash on perry entirely ([#4](https://github.com/aneesh-pradhan/xylitol/issues/4)).
-- Optional single-variable re-test later: patched initramfs with default 10s
-  only (no 35) — **only** if recovery image is staged.
+- Hypotheses for the hang (unproven): long busy-wait before USB gadget setup;
+  patch interaction with perry DRM bind; starvation in initramfs poll loop.
+- **Safe redesign directions** (pick one, single-variable test, recovery staged):
+  1. **No splash on perry** — accept ~27s black until DRM binds (current default).
+  2. **Wait after gadget** — ensure USB/network path is up before any fb wait.
+  3. **Non-blocking / short poll** — e.g. cap wait ≤10s with sleep yielding, never 35s.
+  4. **Patched initramfs, default 10 only** — no deviceinfo override; isolate “patch
+     present” vs “35s duration” if ever re-tested.
+- Optional single-variable re-test later — **only** with known-good sparse ready
+  and stock fastboot recovery rehearsed ([#4](https://github.com/aneesh-pradhan/xylitol/issues/4)).
 
 ### T2–T5 — deprioritized
 
