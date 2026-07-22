@@ -1,28 +1,29 @@
-# lk2nd perry device node — build + flash
+# lk2nd perry device node
 
-**Status (2026-07-20):** ✅ **DONE — FLASHED + VALIDATED ON HARDWARE.** Patch
-built (lk2nd **r3**), flashed to `boot`, and confirmed at runtime: lk2nd now
-reports `Detected device: Motorola Moto E4 (perry) (MSM8917) (compatible:
-motorola,perry)` (no more "Unknown (FIXME!)" / `-1`), and pmOS boots through it
-(kernel `7.0.9-msm89x7`, USB-net + SSH, `wlan0` up). Evidence in the "Flash +
-validation" result block below. **Closes handoff to-do #5.**
+**Status (2026-07-22):** ✅ **UPSTREAM + ON DEVICE as 23.1.** Perry node is in
+[`msm8916-mainline/lk2nd`](https://github.com/msm8916-mainline/lk2nd) since
+[`d9ce4e70`](https://github.com/msm8916-mainline/lk2nd/commit/d9ce4e70e)
+(also listed under “New devices” in 23.0 notes). **lk2nd 23.1** is flashed on
+this unit and validated. Local xylitol carry (`pmos/lk2nd/0001-*`,
+`scripts/pmos-apply-lk2nd-perry.sh`) was **removed** after RFT.
 
-## Why (the gap)
+| Item | Value |
+|---|---|
+| On-phone `lk2nd:version` | **`23.1-r0-postmarketos`** |
+| `lk2nd:model` | Motorola Moto E4 (perry) (MSM8917) |
+| `lk2nd:device` / compatible | `perry` / `motorola,perry` |
+| `oem log` | `Detected device: … (compatible: motorola,perry)` — no FIXME / `-1` |
+| OS through it | `7.1.3-msm89x7` Phosh, USB-net + SSH |
+| pmaports | Ride **[!9076](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076)** (main/lk2nd → 23.1); edge still 22.0 until merge |
+| RFT text | `artifacts/pmos-phase-b/lk2nd-23.1-rft-comment.md` |
 
-Perry (Moto E4, XT1765, MSM8917) had **no lk2nd device node** upstream. lk2nd
-(`msm8916-mainline/lk2nd` v22.0, `lk2nd-msm8952` build) therefore:
+## Why the node exists
 
-- showed **"Unknown (FIXME!)"** and logged
-  `Failed to find matching lk2nd device node: -1`;
-- returned NULL from `lk2nd_device_get_dtb_hints()`, so an extlinux
-  **`fdtdir /`** line could not be resolved (`"The dtb-files for this device is
-  not set"`) → boot fell back to fastboot. This is the root of the whole
-  extlinux bricking saga (Blocker A).
+Without a perry device node, lk2nd (`lk2nd-msm8952`) showed
+**"Unknown (FIXME!)"**, logged `Failed to find matching lk2nd device node: -1`,
+and could not resolve extlinux **`fdtdir /`** (Blocker A / extlinux brick class).
 
-## The fix (verified against lk2nd source, tag 22.0)
-
-Add a `motorola-perry` node to `lk2nd/device/dts/msm8952/msm8917-mtp.dts`,
-alongside perry's already-present MSM8917 siblings **nora** and **hannah**:
+Upstream node (byte-identical to our historical local backport):
 
 ```
 motorola-perry {
@@ -33,134 +34,76 @@ motorola-perry {
 };
 ```
 
-How each line was confirmed in source:
+(Also an MSM8920 variant in the same commit.)
 
-| Prop | Source evidence | Effect |
-|---|---|---|
-| `lk2nd,match-device = "perry"` | `device/2nd/match.c` matches it against `lk2nd_dev.device`; that value is already `perry` at runtime (proven: `fastboot getvar lk2nd:device` → `perry`) | node binds |
-| `model` | `device/device.c:124` reads `model` into `lk2nd_dev.model` | clears "Unknown (FIXME!)" |
-| `lk2nd,dtb-files` | `device/device.c:130` → `lk2nd_dev.dtbfiles`, returned by `lk2nd_device_get_dtb_hints()`, consumed by `boot/extlinux.c` for `fdtdir` | `fdtdir /` now resolves `msm8917-motorola-perry.dtb` |
+## Flash recipe (permanent update)
 
-No `board-id` research needed: the generic `msm8917-mtp.dts` (msm-id 8917,
-board MTP) is the DTB the primary bootloader already loads for perry (that's how
-nora/hannah bind); the device-level match is done by `lk2nd,match-device`.
-No panel sub-node / `match-panel` (perry ships a single Ofilm DTB — nothing to
-switch), mirroring the jeter template.
+**Must flash from stock Motorola fastboot** (`product: perry`). Flashing `boot`
+from *inside* an older lk2nd session did **not** update `lk2nd:version` on this
+unit (writes reported OKAY; getvar stayed on the previous build until stock
+flash).
 
-## Artifacts (in this repo)
+Sacred: only `boot`. Never touch `persist` / `modemst1` / `modemst2`.
 
-- Patch: [`../pmos/lk2nd/0001-device-add-motorola-perry-msm8917-node.patch`](../pmos/lk2nd/0001-device-add-motorola-perry-msm8917-node.patch)
-- Apply/build tooling: [`../scripts/pmos-apply-lk2nd-perry.sh`](../scripts/pmos-apply-lk2nd-perry.sh)
-  (injects the patch into the local pmaports `main/lk2nd` aport, bumps
-  `pkgrel` 2→3 for a version tell, re-checksums)
+```bash
+# 1) Stock aboot
+timeout 8 fastboot getvar product   # expect: perry
 
-## Build validation (done, host-side — no device)
+# 2) NORMAL only — never flash FORCE as boot
+NORMAL=artifacts/pmos-phase-b/lk2nd-msm8952-23.1-r0.img
+MARKER='Fastboot mode was forced with compile-time flag.'
+grep -aFq "$MARKER" "$NORMAL" && { echo "FATAL: NORMAL is FORCE"; exit 1; }
 
-```
-./scripts/pmos-apply-lk2nd-perry.sh
-pmbootstrap build lk2nd            # exit 0, cross-compiled
-```
+fastboot flash boot "$NORMAL"
+# stock may print "Image not signed or corrupt" — expected when unlocked
 
-Verified by extracting the built
-`packages/edge/aarch64/lk2nd-msm8952-22.0-r3.apk` and `strings lk2nd.img`:
+# 3) Cold boot into lk2nd (stock "reboot bootloader" stays on aboot)
+fastboot reboot
+# hold Vol-Down during boot for lk2nd fastboot menu; else NORMAL auto-continues to OS
 
-- **present now:** `Motorola Moto E4 (perry) (MSM8917)`, `motorola,perry`,
-  `perry` (match-device), `msm8917-motorola-perry` (dtb-files),
-  `22.0-r3-postmarketos` (version tell).
-- **siblings intact:** `msm8917-motorola-nora`, `msm8917-motorola-hannah`.
-- **the shipped r2 apk had ZERO** perry references (control).
+# 4) In lk2nd fastboot:
+fastboot getvar product            # lk2nd-msm8952
+fastboot getvar lk2nd:version      # 23.1-r0-postmarketos
+fastboot getvar lk2nd:model        # Motorola Moto E4 (perry) (MSM8917)
+fastboot oem log && fastboot get_staged /tmp/lk2nd-oem.log
+# expect: Detected device: Motorola Moto E4 (perry) …
 
-So the patch compiles and the node is embedded. Only flashing + on-device
-behaviour remain.
-
-## Flash + validation — DONE (2026-07-20)
-
-Flashed from **stock** aboot fastboot (serial `ZY224TB8KZ`, `product: perry`) —
-the documented `flash_lk2nd` path:
-
-```
-pmbootstrap flasher flash_lk2nd     # Sending 'boot' (314 KB) OKAY; Writing 'boot' OKAY
+fastboot continue                  # boot pmOS rootfs on userdata
 ```
 
-("Image not signed or corrupt" = the normal unlocked-Moto warning.) Rootfs
-chroot confirmed `lk2nd-msm8952 V:22.0-r3` and the flashed `lk2nd.img` embeds the
-perry strings.
+**FORCE-FASTBOOT** twin (`artifacts/pmos-phase-b/lk2nd-force-fastboot-23.1.img`):
+RAM-boot only (`fastboot boot …`) for recovery; never flash as NORMAL.
+Marker string: `Fastboot mode was forced with compile-time flag.`
 
-Runtime evidence (rebooted into lk2nd fastboot, serial `24b071b`):
+## Build (no xylitol patch)
 
-- `fastboot getvar lk2nd:version` → **`22.0-r3-postmarketos`** (our build),
-  `product: lk2nd-msm8952`.
-- `fastboot oem log` → **`Detected device: Motorola Moto E4 (perry) (MSM8917)
-  (compatible: motorola,perry)`** — the node matched; the old
-  `Failed to find matching lk2nd device node: -1` / "Unknown (FIXME!)" is gone.
-  (Log also shows `androidboot.device=perry`, panel
-  `qcom,mdss_dsi_mot_ofilm_499_720p_video_v0`, `sku=XT1765` — our exact unit.)
-- `fastboot continue` → pmOS boots: USB-net up, `ssh xylitol@172.16.42.1` →
-  `Linux 7.0.9-msm89x7`, `up 0 min`, `wlan0` present. **New lk2nd boots the OS
-  cleanly (no regression).**
+Until !9076 merges, use the MR APKBUILD (or temporarily set `pkgver=23.1` in
+local pmaports `main/lk2nd`) **without** any perry patch:
 
-Sacred `persist`/`modemst*` untouched; only `boot` (lk2nd) was written.
+```bash
+# pmaports main/lk2nd at 23.1-r0 (MR head), no 0001-perry patch
+pmbootstrap build lk2nd --arch aarch64
+# extract: packages/edge/aarch64/lk2nd-msm8952-23.1-r0.apk → boot/lk2nd.img
+```
 
-## Device-side flash + validate — runbook (executed above; kept for reproducibility)
+FORCE (host toolchain, does not touch the apk cache):
 
-**Rules:** reflashes the **`boot`** partition (where lk2nd lives) — reversible
-(handoff E-8: Lineage boot backup + stock fastboot). **Never** touch
-`persist`/`modemst1`/`modemst2`. lk2nd runs from RAM once loaded, so overwriting
-`boot` while in lk2nd fastboot is safe. Requires physical volume-key holds —
-this is why it is not automated.
+```bash
+make -C /path/to/lk2nd-23.1 -j$(nproc) lk2nd-msm8952 \
+  LK2ND_VERSION="23.1-r0-postmarketos-FORCE" \
+  TOOLCHAIN_PREFIX=arm-none-eabi- \
+  LK2ND_FORCE_FASTBOOT=1
+```
 
-1. **Enter lk2nd fastboot:** power off (hold Power ~10–15 s), then hold
-   **Vol-Down + tap Power**. Confirm:
-   `timeout 8 fastboot getvar product` → `lk2nd-msm8952`
-   (lk2nd USB serial is `24b071b`; stock aboot serial is `ZY224TB8KZ`).
-2. **Grab the BEFORE log (optional evidence):** `fastboot oem log` then
-   `fastboot get_staged /tmp/lk2nd-before.log` — expect the `-1` "no matching
-   device node" line.
-3. **Flash our r3:** `pmbootstrap flasher flash_lk2nd` — writes the locally
-   built `lk2nd-msm8952-22.0-r3` (the perry-node build) to `boot`. The
-   "Image not signed or corrupt" line is the normal unlocked-Moto warning.
-   **STOP and report if** it errors or refuses; do not force.
-4. **Verify the running lk2nd is ours:** reboot to lk2nd fastboot again
-   (Vol-Down + Power) →
-   - `fastboot getvar lk2nd:version` → **`22.0-r3-postmarketos`** (our build).
-   - On-screen identity now reads **"Motorola Moto E4 (perry)"**, not
-     "Unknown (FIXME!)".
-   - `fastboot oem log` → the `Failed to find matching lk2nd device node: -1`
-     line is **gone**.
-5. **Confirm normal boot still works:** `fastboot continue` (or reboot). pmOS
-   should boot as before (the durable `fdt` deviceinfo fix is still in place, so
-   this is belt-and-suspenders). **STOP and report if it does not boot** —
-   roll back per handoff E-8.
-6. **(optional) Prove the node fixes `fdtdir`:** temporarily set the boot line
-   back to `fdtdir /` (loop-mount `pmOS_boot`, edit `extlinux/extlinux.conf`),
-   reboot; with the perry node it should now resolve `msm8917-motorola-perry.dtb`
-   and boot (where it previously bricked). Restore `fdt` after. This is the
-   direct proof of the node's dtb-hint; skip if you don't want to disturb the
-   working boot line.
+## Historical note (22.0-r3 local carry — retired)
 
-## Already upstream — this is a backport, not a new contribution (no PR)
+2026-07-20: temporary backport of `d9ce4e70` onto pmaports-pinned **22.0** as
+`pmos/lk2nd/0001-*` + `scripts/pmos-apply-lk2nd-perry.sh` (`pkgrel` 2→3). Validated
+as `22.0-r3-postmarketos` on hardware. **Retired 2026-07-22** after 23.1 stock
+flash + RFT; do not re-add.
 
-Checked 2026-07-20: perry is **already in lk2nd upstream `main`**, added by
-[`d9ce4e70`](https://github.com/msm8916-mainline/lk2nd/commit/d9ce4e70e)
-(2026-04-09, "dts: msm8917 & msm8920: add support for the Motorola Moto E4
-(perry)"). The upstream node is **byte-for-byte identical** to ours (same
-`model` / `compatible` / `lk2nd,match-device` / `lk2nd,dtb-files`) — independent
-derivation, same result, which corroborates correctness. Upstream also covers
-the msm8920 variant.
+## Relationship to the deviceinfo `fdt` pin
 
-It is simply **not in the released `22.0` tag** that pmaports pins (`main` is
-~96 commits ahead of `22.0`). So **no upstream PR is warranted** — our
-`pmos/lk2nd/0001-*` patch is a **temporary backport** of `d9ce4e70` onto the
-22.0-pinned build. **Drop the patch + the `pkgrel` bump** once pmaports bumps
-`lk2nd` to a release that includes `d9ce4e70` (or once we base the build on
-upstream `main`); the carry becomes redundant then.
-
-## Relationship to the deviceinfo `fdt` fix
-
-The deviceinfo pin (`deviceinfo-motorola-perry`) already makes boot durable by
-emitting an explicit `fdt`. This device node is the **complementary upstream-shaped
-fix**: it makes lk2nd resolve `fdtdir` on its own *and* fixes device identity.
-Both can coexist; neither depends on the other. The node is already upstream
-(`d9ce4e70`); once a pmaports lk2nd release carries it, this node ships for free
-and the deviceinfo pin becomes optional (but harmless — keep it as the portable,
-bootloader-independent guarantee).
+`deviceinfo-motorola-perry` still pins `fdt /msm8917-motorola-perry.dtb` for a
+bootloader-independent guarantee. With the perry node, `fdtdir /` also works.
+Keep the pin; it is harmless belt-and-suspenders.

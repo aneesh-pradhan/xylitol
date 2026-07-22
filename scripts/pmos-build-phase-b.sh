@@ -58,7 +58,9 @@ fi
 echo "==> Applying xylitol perry packages into live pmaports"
 ./scripts/pmos-apply-perry-firmware.sh
 ./scripts/pmos-apply-perry-ucm.sh
-./scripts/pmos-apply-lk2nd-perry.sh
+# lk2nd perry node: upstream in 23.0+ (d9ce4e70). No local carry — use
+# pmaports main/lk2nd ≥23.1 (MR !9076) or edge once merged. Flash NORMAL
+# from stock Motorola fastboot only (see docs/pmos-lk2nd-perry-node.md).
 ./scripts/pmos-apply-kernel-perry.sh
 ./scripts/pmos-apply-device-perry.sh
 

@@ -2451,3 +2451,31 @@ Session pause. Handoff top rewritten for next session:
 - Upstream mail (rpmcc step A) **held** per maintainer; patch stays in
   `upstream/rpmcc-msm8920/`.
 - Git tip `03e911e` on origin/main.
+
+## 2026-07-22 late — lk2nd 23.1 on device; drop local perry carry
+
+**Goal:** ride pmaports [!9076](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076)
+(main/lk2nd → 23.1) instead of xylitol's 22.0-r3 + `pmos/lk2nd/0001-*` backport
+of upstream `d9ce4e70`.
+
+**Build:** local pmaports `main/lk2nd` set to MR 23.1-r0 (onclite patch only; no
+perry patch). `pmbootstrap build lk2nd` → `lk2nd-msm8952-23.1-r0.apk`. FORCE twin
+built on host with `LK2ND_FORCE_FASTBOOT=1` (not installed into apk cache).
+
+**Flash:** permanent update required **stock Motorola fastboot** (`product:
+perry`). Flashing `boot` from inside older lk2nd reported OKAY but left
+`lk2nd:version` at `22.0-r3-postmarketos` until stock flash.
+
+**On-device (after stock flash):**
+- `lk2nd:version` = **`23.1-r0-postmarketos`**
+- `lk2nd:device` / `model` = perry / Motorola Moto E4 (perry) (MSM8917)
+- `oem log`: Detected device … (compatible: motorola,perry) — no FIXME/`-1`
+- `fastboot continue` → OS `7.1.3-msm89x7`, Phosh/greetd active, USB-net+SSH
+
+**Repo cleanup:** deleted `pmos/lk2nd/0001-*` and
+`scripts/pmos-apply-lk2nd-perry.sh`; unhooked from
+`pmos-build-phase-b.sh` / `pmos-build-phosh-release.sh`. Docs:
+[`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md), handoff top-of-file.
+
+**RFT:** text at `artifacts/pmos-phase-b/lk2nd-23.1-rft-comment.md` for !9076
+(Tested-by: Aneesh Pradhan \<aneeshpradhan@acm.org\>).

@@ -61,11 +61,12 @@ see [`../docs/pmos.md`](../docs/pmos.md) step 6.
 
 ## Extlinux `fdt` pin (`deviceinfo-motorola-perry`)
 
-lk2nd has no perry device node, so the generic `qcom-msm89x7` multi-DTB glob
-makes boot-deploy emit `fdtdir /` and boot aborts. This aport installs
-`/etc/deviceinfo` pinning `deviceinfo_dtb` to `qcom/msm8917-motorola-perry`,
-so every `mkinitfs`/`boot-deploy` run emits
-`fdt /msm8917-motorola-perry.dtb`. Verified: survives `apk add` + `mkinitfs`.
+lk2nd **≥23.0** ships a perry device node upstream (`d9ce4e70`), so `fdtdir /`
+can resolve. This aport still installs `/etc/deviceinfo` pinning
+`deviceinfo_dtb` to `qcom/msm8917-motorola-perry`, so every `mkinitfs` /
+`boot-deploy` emits `fdt /msm8917-motorola-perry.dtb` (bootloader-independent
+belt-and-suspenders). Verified: survives `apk add` + `mkinitfs`. See
+[`../docs/pmos-lk2nd-perry-node.md`](../docs/pmos-lk2nd-perry-node.md).
 
 ```bash
 ./scripts/pmos-apply-perry-deviceinfo.sh

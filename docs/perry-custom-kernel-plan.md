@@ -25,7 +25,7 @@ carries under `pmos/`:
 | Boot `fdt` pin + linger | `pmos/deviceinfo-motorola-perry` |
 | Wi-Fi NV | `pmos/firmware-motorola-perry-nv` |
 | Audio UCM | `pmos/alsa-ucm-motorola-perry` |
-| lk2nd node | `pmos/lk2nd/0001-*` |
+| lk2nd node | upstream 23.0+ (`d9ce4e70`); no local carry |
 
 That worked for bring-up. It does **not** scale for:
 
@@ -74,7 +74,7 @@ scripts/
 `device-motorola-perry` should eventually `depends=` on:
 
 - `linux-motorola-perry` (not the generic msm89x7 kernel)
-- `lk2nd-msm8952` (+ our perry node carry until upstream pkgrel catches up)
+- `lk2nd-msm8952` ≥23.1 (perry node upstream; no local carry)
 - `firmware-qcom-msm89x7`, `firmware-qcom-adreno-a300`, `msm-firmware-loader`
 - `firmware-motorola-perry-nv`
 - `alsa-ucm-motorola-perry`

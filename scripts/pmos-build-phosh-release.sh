@@ -66,8 +66,7 @@ echo "==> Applying xylitol pmos overlays into live pmaports"
 ./scripts/pmos-apply-perry-firmware.sh
 ./scripts/pmos-apply-perry-deviceinfo.sh
 ./scripts/pmos-apply-perry-ucm.sh
-./scripts/pmos-apply-lk2nd-perry.sh
-
+# lk2nd: no local perry carry (upstream 23.0+). Build edge/MR ≥23.1.
 echo "==> pmbootstrap config: user=${PMOS_USER}, ui=phosh, extra_space=${PMOS_EXTRA_SPACE}"
 pmbootstrap config ui phosh
 pmbootstrap config user "$PMOS_USER"
