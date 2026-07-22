@@ -1,14 +1,19 @@
 # Perry custom device tree + kernel (in-repo) — plan & performance backlog
 
-**Date:** 2026-07-21  
+**Date:** 2026-07-21 (updated 2026-07-22 after boot-hang bisect)  
 **Track:** postmarketOS (primary). Lineage 3.18 / staging-4.9 stay out of
 scope here — different ABI, different goals.  
-**Status:** In-repo **device + custom kernel packages are the active work**.
-Phase B image built (P0 included), **flashed to hardware 2026-07-21**
-(see porting-log "flash checkpoint"). **P1 repo-side work is done**
-(defconfig scrub, eMMC udev, cpufreq audit, P1.5 framebuffer-wait fix);
-**P1.3 is now unblocked** — device is flashed, so on-device
-`mangohud`/`govstat` baselines can be captured whenever someone picks it up.
+**Status:** In-repo device + custom kernel packages exist, but **Phase B
+images hang on hardware** (black screen + backlight, no USB). Bisect A/B/C
+failed; device recovered on known-good overlay release
+`pmos-perry-2026-07-21`. **Do not treat Phase B as flashable daily-driver.**
+Full matrix + next isolation tasks (T1–T6):
+[`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+
+P1 repo-side work is committed (scrub, eMMC udev, P1.5, etc.) but **P1.1
+scrub / HZ=250 / P1.5 are not hardware-validated** until a Phase B variant
+boots. P1.3 GPU baselines wait on a booting first-class image (or run on
+known-good for overlay baselines only).
 
 ---
 
@@ -189,10 +194,11 @@ Record numbers in `docs/porting-log.md` with date before/after each P0/P1 change
 | Phase | Deliverable | Gate |
 |---|---|---|
 | **A** | Scaffold `device-motorola-perry` + `linux-motorola-perry` in xylitol | ✅ DONE |
-| **B** | Apply scripts; build kernel+device; Phosh image staged | ✅ build DONE; **flashed to hardware** 2026-07-21 |
+| **B** | Apply scripts; build kernel+device; Phosh image staged | ✅ build DONE; flash **hangs** (see bisect doc) |
 | **C** | P0 userspace (zram pct, `--no-recommends`, WLR env, USB udev, presets) | ✅ in device package + Phase B image recipe |
-| **D** | P1 defconfig scrub + eMMC udev + cpufreq audit + P1.5 framebuffer-wait | ✅ repo-side DONE; P1.3 + on-device metrics still open |
-| **E** | Optional upstream deviceaport / drop generic msm89x7 dependency | Community readiness |
+| **D** | P1 defconfig scrub + eMMC udev + cpufreq audit + P1.5 framebuffer-wait | ⚠️ repo-side DONE; **boot hang blocks validation** |
+| **D2** | Boot-hang isolation (T1–T5 in bisect doc) | 🔄 **active** — device on known-good until a variant boots |
+| **E** | Optional upstream deviceaport / drop generic msm89x7 dependency | Community readiness; blocked on D2 |
 
 ---
 

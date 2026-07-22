@@ -43,6 +43,7 @@ pmbootstrap build    linux-motorola-perry
 Archived pmaports conflict: apply script removes local
 `device/archived/linux-motorola-perry` (stale 3.18 fork, same pkgname).
 
-**Hardware flash is parked** (2026-07-21). Use
-`scripts/pmos-build-phase-b.sh` / flash helpers only when explicitly
-resuming device validation.
+**Hardware:** Phase B images **hang** on XT1765 (2026-07-21 bisect A/B/C
+all failed). Use known-good overlay release for a working phone. Isolation
+queue: [`docs/phase-b-boot-hang-bisect.md`](../../docs/phase-b-boot-hang-bisect.md).
+`scripts/pmos-build-phase-b.sh` only when deliberately bisecting.

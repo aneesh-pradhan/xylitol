@@ -29,4 +29,10 @@ Removes local `device/archived/device-motorola-perry` on apply (pkgname clash
 with upstream’s archived 3.18 aport).
 
 Published Phosh release path still uses `qcom-msm89x7` + overlays until an
-explicit cutover. Hardware flash of this package is **parked**.
+explicit cutover.
+
+**Boot status (2026-07-22):** Phase B images using this package **hang** on
+hardware (black screen + backlight, no USB). Bisect A kept ofilm out of
+early `modules-initfs` (pkgrel 4) — not sufficient alone. See
+[`docs/phase-b-boot-hang-bisect.md`](../../docs/phase-b-boot-hang-bisect.md).
+Daily-driver flash: release `pmos-perry-2026-07-21` only.

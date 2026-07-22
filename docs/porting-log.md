@@ -2236,3 +2236,158 @@ do** (they explicitly asked to verify themselves) — specifically whether
 Phosh boots normally and whether the P1.5 splash now renders instead of the
 ~27s black screen. See handoff.md "Next session — start here (post-flash
 checkpoint)" for the follow-up.
+
+## 2026-07-21 (afternoon) — incident recovery: clean rebuilds, rollback boots, bisect A launched
+
+Recovery session for the boot-hang + fastboot-wedge incident (see handoff.md
+"Boot-hang incident" + its RESOLUTION UPDATE). Host-first strategy per user:
+purge caches, rebuild everything clean, only then touch the device.
+
+**Root causes established (host side):**
+
+1. **lk2nd package-cache poisoning** — the Phase B FORCE_FASTBOOT lk2nd
+   build overwrote `lk2nd-msm8952-22.0-r3.apk` in `~/pmos/work/packages`
+   without a pkgrel bump. Every subsequent install saw "up to date" and
+   embedded the FORCE binary as the *normal* boot lk2nd (`b884ee70…` — the
+   mystery second SHA from the flash checkpoint entry is exactly this).
+   Fixed: purged poisoned apks, `pmbootstrap build lk2nd --force` from a
+   pristine APKBUILD → clean NORMAL matches the release SHA `8d7851b4…`.
+   Both build and flash scripts now hard-fail if the NORMAL image contains
+   the force-fastboot marker string, and the flash script refuses a sparse
+   image older than its raw.
+2. **Raw-image SHA dirtying** — RW loop-mount inspection had modified
+   journal/superblock bytes of flashable raws. Dirtied copies quarantined
+   (`artifacts/quarantine-2026-07-21/`); rebuilt release raw from the
+   SHA-verified `.zst`. All inspection mounts are now `ro,noload`.
+3. Full clean Phase B rebuild: initramfs (aarch64), kernel `7.0.9`
+   (`--force`), device pkg, `install --zap`, export, fresh `img2simg`
+   sparse, SHA256SUMS. `--lax` used on builds to dodge the recurring busy-
+   chroot `umount` failure on this host.
+
+**Device recovery (single controller, flock-guarded):**
+
+- User physically reset the phone into stock fastboot → Symptom 2 (protocol
+  hang) *gone*: `getvar product` in 6 ms, 10/10 stability probes over 2.5
+  min, full `getvar all` OK. Verdict: transient bootloader/USB wedge cleared
+  by power-cycle; host and cable exonerated.
+- Rollback flash (release NORMAL lk2nd → `boot`; FORCE RAM-boot only;
+  release sparse → `userdata`, 20 chunks, 360 s total, last chunk 62 s —
+  again `D`-state I/O, not a hang) → `fastboot continue` →
+  **device boots to Phosh, user-confirmed login** (creds `xylitol`/`xylitol`
+  — NOT the pmOS default 147147; worth remembering, user hit this).
+- USB-net gotcha: the gadget MAC is randomized per boot, so the host iface
+  is a new `enx…` name each time — a previous session's static-IP
+  assignment lands on the wrong iface. Assign `172.16.42.2/24` to the
+  *current* `enx…` (check `dmesg | grep cdc_ncm`).
+
+**Decision-tree outcome: Symptom 1 = Phase B image content**, not
+flash/eMMC/hardware. Differential evidence from the running known-good
+system (`artifacts/pmos-phase-b/evidence-rollback-boot/`):
+
+- Known-good initramfs never early-loads the perry Ofilm panel driver —
+  its `initramfs.load` is the generic msm89x7 set (ofilm binds later from
+  rootfs udev). Phase B's `modules-initfs` *added*
+  `panel_motorola_perry_499v0_ofilm` to early boot → prime suspect: early
+  `modprobe -a` hang before USB gadget setup (matches "zero USB, black
+  screen" exactly).
+- Known-good kernel: `CONFIG_HZ=300`; Phase B P1 scrub: `CONFIG_HZ=250`
+  (verified in both artifacts) — bisect variant B if A doesn't clear it.
+
+**Bisect A prepared:** `device-motorola-perry` r4 drops ofilm from
+`modules-initfs`; clean `motorola-perry-phosh-bisectA.img` built via
+`install --zap` (first attempt failed on `mkfs.ext4 /dev/installp2` due to
+stale chroot mounts from the prior install — cleared with `pmbootstrap
+shutdown` + lazy umounts + retry). Pass criterion: USB-net/SSH within ~30 s
+of `continue`. Kernel stays the P1 scrub (HZ=250) so A isolates the
+modules-initfs variable only.
+
+## 2026-07-21 (evening) — Bisect A FAIL; Bisect B (HZ=300) building
+
+**Bisect A flash** (ofilm out of `modules-initfs`, kernel still HZ=250):
+- Flash via `pmos-flash-phase-b-force.sh` with bisectA sparse — clean
+  `FLASH_COMPLETE` (~307s userdata; chunk 12/12 write 188s, normal eMMC).
+- NORMAL lk2nd `8d7851b4…`, FORCE RAM-boot only. Sacred partitions untouched.
+- **User-confirmed hang:** same Symptom 1 — backlight on, black screen,
+  frozen, no USB. Early ofilm modprobe is **not** the sole hang cause.
+
+**Flash-script bug fixed mid-session:** `strings | grep -q` under `set -o
+pipefail` false-negatived the FORCE marker (SIGPIPE). Switched to
+`grep -aFq` on the binary in both flash and build scripts.
+
+**Bisect B:** activated `CONFIG_HZ=300` (rest of P1 scrub kept),
+`linux-motorola-perry` pkgrel=2, modules-initfs still = A. Full
+`pmos-build-phase-b.sh` running → `motorola-perry-phosh-bisectB.*`.
+
+## 2026-07-21 (evening) — Bisect B FAIL; Bisect C (full upstream defconfig) building
+
+**Bisect B:** `linux-motorola-perry` pkgrel=2, `CONFIG_HZ=300`, modules-initfs
+still without ofilm early load. Built clean (HZ=300 verified in boot
+partition). Flashed ~21:53Z, `FLASH_COMPLETE` (~306s). USB/SSH probe 150s
+→ **FAIL** (same black-screen hang class). **HZ is not the root cause.**
+
+**Bisect C:** replace perry scrubbed defconfig with full upstream
+`config-postmarketos-qcom-msm89x7.aarch64` (pkgrel=3). Isolates entire P1.1
+scrub. Build + auto-flash via CDE orchestrator; on fail → known-good
+rollback.
+
+## 2026-07-21 (evening) — Bisect C image READY; flash blocked on device access
+
+Bisect C image built and verified (`FUNCTION_TRACER=y`, `DYNAMIC_DEBUG=y`,
+`HZ=300`, pkgrel=3):
+`artifacts/pmos-phase-b/motorola-perry-phosh-bisectC.{,sparse.}img`.
+
+Host waited 20 min for stock fastboot after Bisect B hang — **no USB
+enumeration at all** (no 22b8/18d1 in lsusb). Phone either unplugged,
+still hung with USB dead, or needs a different cable/port.
+
+Waiter restarted for 60 min (`waiter2.pid`): on `product: perry` will
+flash C → SSH probe → known-good rollback if C fails.
+
+**User action:** force power-off + stock fastboot (Vol-Down+Power), confirm
+USB cable to host.
+
+## 2026-07-21 (night) — Bisect C FAIL; known-good rollback pending
+
+**Bisect C flash** (full upstream msm89x7 defconfig, `linux-motorola-perry`
+pkgrel=3, ofilm still out of early modules-initfs): clean `FLASH_COMPLETE`
+(~306s, 13 sparse chunks). User-confirmed: **same hang** — backlight on,
+black screen, frozen, no USB.
+
+**A/B/C all FAIL** → hang is not ofilm-early-load, not HZ=250, not the
+P1.1 defconfig scrub. Regression surface is the first-class
+`device-motorola-perry` + `linux-motorola-perry` Phase B path (or shared
+P1.5 initramfs / install recipe). Known-good remains
+`qcom-msm89x7` overlay release `pmos-perry-2026-07-21`.
+
+**Rollback:** waiter armed for stock fastboot → flash
+`qcom-msm89x7-perry-phosh.sparse.clean.img` + release lk2nd.
+
+## 2026-07-22 (early) — known-good rollback FLASH_COMPLETE
+
+After Bisect C hang, interrupted partial rollback (chunk 6/20) was discarded.
+Clean rollback from **stock** fastboot (`product: perry`, ZY224TB8KZ):
+
+- Image: `pmos-perry-2026-07-21` sparse.clean + release NORMAL lk2nd
+- Flash: 20/20 chunks OK (~356s), `FLASH_COMPLETE`, normal lk2nd restored,
+  `continue`
+- Post-flash: USB gadget enumerated (`18d1:d001` / cdc_ncm `enx…`); brief
+  ping success then flaky (autosuspend / late boot). SSH not confirmed from
+  host in the probe window — **user should confirm Phosh on glass**.
+
+**Bisect summary:** A (ofilm early) / B (HZ) / C (full defconfig) all hang.
+Phase B first-class path regresses boot; known-good `qcom-msm89x7` path is
+the recovery baseline.
+
+## 2026-07-22 — docs PR: Phase B hang bisect closed out on known-good
+
+Device **SSH-confirmed** on known-good overlay release
+`pmos-perry-2026-07-21` (`7.0.9-msm89x7`, `deviceinfo-motorola-perry`,
+Ofilm from rootfs, Wi‑Fi + USB-net).
+
+Canonical bisect report + next isolation tasks **T1–T6**:
+`docs/phase-b-boot-hang-bisect.md`. Handoff top rewritten for next session.
+
+In-repo after docs PR: `device-motorola-perry` pkgrel 4 (no early ofilm);
+`linux-motorola-perry` pkgrel 1 (scrubbed defconfig + HZ=250 restored as
+product intent — **not boot-validated**). Flash tooling: env overrides +
+`grep -aFq` FORCE check; `scripts/pmos-rollback-known-good.sh`.
