@@ -1,0 +1,26 @@
+name: kernel-patches
+
+# Verify the linux-motorola-perry patch series still applies against the exact
+# upstream kernel tag pinned in the APKBUILD. This is the check that silently
+# breaks on a rebase: bump the tag, forget to re-roll a patch, and the next
+# image build fails deep in a chroot. Only runs when the kernel package changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pmos/linux-motorola-perry/**'
+      - 'scripts/ci-check-kernel-patches.sh'
+      - '.github/workflows/kernel-patches.yml'
+  pull_request:
+    paths:
+      - 'pmos/linux-motorola-perry/**'
+      - 'scripts/ci-check-kernel-patches.sh'
+      - '.github/workflows/kernel-patches.yml'
+
+jobs:
+  patch-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: patches apply against the pinned upstream tag
+        run: ./scripts/ci-check-kernel-patches.sh
