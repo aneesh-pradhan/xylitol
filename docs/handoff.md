@@ -10,23 +10,109 @@
 **parked** (do not `git send-email` rpmcc until asked). Android/Lineage
 deferred. Modem **out of scope**.
 
+**⇒ FIRST ACTION NEXT SESSION: flash the 7.1.3 image + validate on hardware.**
+The **kernel 7.1.3 rebase is committed to `main` and a full flashable image is
+built**, but it is **NOT yet flashed / hardware-validated** — the phone still
+runs the validated **r5 / 7.0.9** productize image. Deferred to next session by
+the user. Details in [▶ 7.1.3 kernel rebase](#-71-kernel-rebase--staged-built-not-flashed)
+below. After a green 7.1.3 boot, that section's "on flash success" doc edits
+are the only follow-up.
+
 ### Device (live)
 
 | Item | Value |
 |---|---|
 | Unit | XT1765 / `ZY224TB8KZ` |
-| Image on phone | **First-class Phase B / Bisect D** (not overlay release) |
+| Image on phone | **First-class product image** (clean build from `main`, P1.5 off) |
 | Kernel | `7.0.9-msm89x7` **#2-perry-xylitol** — `linux-motorola-perry` **7.0.9-r1**, **HZ=250** |
-| Device pkg (on phone) | `device-motorola-perry` **1-r4** (no early ofilm; no fb-wait) |
+| Device pkg (on phone) | `device-motorola-perry` **1-r5** (no early ofilm; no fb-wait; P1.5 off by default) |
 | Initramfs (on phone) | `postmarketos-initramfs` **3.12.0-r0** **unpatched** (no P1.5) |
 | UI | **Phosh running**; Ofilm panel DSI-1 **720×1280** |
 | Net | USB-net `xylitol@172.16.42.1` (pw `xylitol`; host `172.16.42.2/24` on `enx*` / cdc_ncm); Wi‑Fi works (user associated; NM “Developer Mode” on usb0) |
 | Audio | Speaker sink + Mic1; `speaker-test` OK on this image |
-| Last checked | 2026-07-22 ~12:15 local — SSH up, load idle |
+| Last checked | 2026-07-22 ~12:44 local — productize flash validated: r5 on-device, Phosh + Wi‑Fi (`SnugglesCoffee`) + ALSA card/UCM/PW-WP all up, no bootloop |
 
-**Gap:** phone still runs **bisect** packages (`device` **r4**). Repo `main` has
-`device` **pkgrel 5** + default build **P1.5 off** — **not yet rebuilt/flashed**
-as a clean product image.
+**Gap: CLOSED (2026-07-22).** Phone rebuilt from `main` and flashed to the
+first-class product image (`device` **1-r5**, kernel **7.0.9-r1**, initramfs
+**3.12.0-r0 unpatched**, **P1.5 absent** — verified on-device). No longer on
+bisect r4. Flash was clean (`FLASH_COMPLETE`, 306s sparse write); on-device
+SSH confirmed kernel/pkg versions, Phosh (`phoc`+greetd), Wi‑Fi connected, and
+audio stack (card 0 `motorola-perry` + perry UCM + PipeWire/WirePlumber).
+**Reconnect gotcha (confirmed again this flash):** the host `enx*` iface name
+changes every boot (random gadget MAC), so a pinned `172.16.42.2` strands on a
+dead iface and you get "no route to host" even though the device is healthy —
+re-bind `172.16.42.2/24` to the *current* live `enx*` each reconnect, then ssh.
+
+### ▶ 7.1.3 kernel rebase — STAGED (built, NOT flashed)
+
+**Goal (user, 2026-07-22):** get perry production-grade on **upstream latest
+Linux (7.1+)**, *then* contribute to the upstream PRs and send mail. This is
+the new north star; the rebase below is step 1.
+
+**What's done and committed to `main`:**
+- **`linux-motorola-perry` bumped `7.0.9-r0` → `7.1.3-r1`** — newest
+  `msm89x7-mainline/linux` tag ("MSM8937 venus", 2026-07-19). APKBUILD:
+  `pkgver=7.1.3`, new `_srcrel=1` + `_tag="$pkgver-r$_srcrel"` (release suffix
+  decoupled from `pkgrel`), tarball sha512 updated + verified reproducible
+  (pmbootstrap's independent download matched).
+- **All 6 perry patches apply CLEAN on 7.1.3** — scouted before bumping; zero
+  conflicts, none upstream yet (so still all carried). Only a pre-existing
+  trailing-whitespace warning on `0002` (cosmetic, `git apply` exit 0).
+- **Kernel compiles green on 7.1.3** — `pmbootstrap build linux-motorola-perry`
+  ✅ (~18 min, no patch/config errors), `linux-motorola-perry-7.1.3-r1.apk`.
+  7.0.9 config carried over with no unmet-symbol issues.
+- **Full flashable image built** — `./scripts/pmos-build-phase-b.sh` produced
+  `artifacts/pmos-phase-b/motorola-perry-phosh.{img,sparse.img}` (2026-07-22
+  13:15), self-checks passed (**P1.5 absent**, kernel flavor **`7.1.3-msm89x7`**,
+  device r5, unpatched initramfs). **NOTE: this overwrote the r5/7.0.9
+  productize image (same filename)** — the on-disk artifact is now 7.1.3.
+
+**NOT done (next session):**
+1. **Flash the 7.1.3 image** — same procedure as productize: from **stock**
+   fastboot (`product: perry`), `./scripts/pmos-flash-phase-b-force.sh`
+   (defaults to the built 7.1.3 artifacts). Phone is currently on r5/7.0.9,
+   likely booted into pmOS — get it into stock fastboot first.
+2. **Validate on hardware** — SSH, confirm `uname -r` = **`7.1.3-msm89x7`**,
+   Phosh, Wi‑Fi, audio (ALSA card + UCM + PW/WP), Ofilm panel. Watch for any
+   7.1.x-vs-7.0.9 regression (panel/touch/USB/charger).
+3. **On flash success:** update the Device table above to 7.1.3, flip these
+   headlines, and (if wanted) re-roll the overlay/RC. If it regresses, rollback
+   is `pmos-perry-2026-07-21` (still known-good) and bisect 7.0.9↔7.1.3.
+
+**Rebase safety net (new this session):** CI now guards the rebase —
+`.github/workflows/kernel-patches.yml` runs `scripts/ci-check-kernel-patches.sh`
+which downloads the exact pinned upstream tag and asserts all 6 patches still
+apply (catches "bump tag, forget to re-roll a patch"). Plus
+`.github/workflows/lint.yml` (shellcheck + apkbuild-lint). Merged in
+[PR #18](https://github.com/aneesh-pradhan/xylitol/pull/18).
+
+### CI / repo hygiene (this session)
+
+- **[PR #17](https://github.com/aneesh-pradhan/xylitol/pull/17) merged** —
+  `.gitignore` now ignores **future** `.github/` additions (existing tracked
+  workflows stay tracked; `no-ai-coauthor.yml` + `twrp.yml` still run).
+  `.cursor/` was already covered — left as-is. New tracked workflow files must
+  be `git add -f`'d past this rule.
+- **[PR #18](https://github.com/aneesh-pradhan/xylitol/pull/18) merged** — the
+  CI above. Gotcha found + fixed while writing it: `grep|head`/`find|head`
+  under `set -o pipefail` race (SIGPIPE→141), and `_srcrel` must default to `0`
+  for pre-rebase APKBUILDs. Both fixed; self-tested green.
+
+### Checklist gap-scan (`~/Downloads/perry.txt`, 2026-07-22)
+
+Measured perry against a generic MSM8916-era port checklist. **Functionally
+ahead of it** (device boots: Phosh/Wi‑Fi/audio/touch/display/charging/USB-net).
+Real remaining gaps, priority order: (1) CI to build kernel+device pkg — **CI
+patch-check + lint now DONE (§11)**; a full pmbootstrap image build in Actions
+is still optional/heavy; (2) firmware pkg breadth + README — we package only
+WCNSS Wi‑Fi NV (`firmware-motorola-perry-nv`); GPU fw is generic, BT/modem out
+of scope; (3) UCM earpiece/headset verbs (already on polish list); (4) confirm
+the notification-LED node is actually enabled (`leds_qcom_lpg` loaded, node
+unverified); (5) doc niceties (`README.panel.md`/`README.power.md`). Items the
+checklist wants done differently are **correct perry adaptations**, not gaps:
+dwc3→chipidea USB, pm8916→pm8937/pmi8950, panel-simple DTSI→DRM panel drivers,
+RNDIS→CDC-NCM. DTS itself is genuinely perry-tailored (memory carveouts,
+regulators, pinctrl — see patch `0003`).
 
 ### Hang status (closed)
 
@@ -55,10 +141,12 @@ redesign exists.
 
 | # | Task | How |
 |---|---|---|
-| **1** | **Productize first-class Phase B** | Rebuild from current `main`: `./scripts/pmos-build-phase-b.sh` (default **no** P1.5). Expect `device` **1-r5**, unpatched initramfs, scrubbed kernel r1. Flash with `scripts/pmos-flash-phase-b-force.sh` from **stock** fastboot (`product: perry`). Validate: SSH ~25s, Phosh, Wi‑Fi, audio. |
-| **2** | Optional RC publish | After (1) is green, stage/publish first-class image alongside overlay release `pmos-perry-2026-07-21` |
-| **3** | Daily-driver polish (no rebuild) | Suspend/resume, Wi‑Fi after sleep, USB-net replug, earpiece/headset UCM if wanted |
-| **4** | P1.5 redesign | Research only — bisect doc §4; single-variable tests only with recovery staged |
+| **1** | **Flash + validate the 7.1.3 image** (built, staged) | From **stock** fastboot: `./scripts/pmos-flash-phase-b-force.sh` (defaults to the built 7.1.3 artifacts). SSH-validate `uname -r`=`7.1.3-msm89x7`, Phosh/Wi‑Fi/audio/panel. See [▶ 7.1.3 kernel rebase](#-71-kernel-rebase--staged-built-not-flashed). Rollback = `pmos-perry-2026-07-21` if it regresses. |
+| **2** | Then: contribute upstream (per user goal) | After 7.1.3 boots green: further work on [panel PR #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) / adopt [DTS #48](https://github.com/msm89x7-mainline/linux/pull/48), and (only when asked) mail the rpmcc/step-A patch. |
+| ~~**P**~~ | ~~**Productize first-class Phase B**~~ | ✅ **DONE 2026-07-22.** Rebuilt from `main` (P1.5 off), flashed from stock fastboot (`FLASH_COMPLETE`). On-device validated: `device` **1-r5**, kernel **7.0.9-r1**, initramfs **3.12.0-r0 unpatched**, P1.5 absent; Phosh + Wi‑Fi + audio all up. |
+| **3** | Optional RC publish | Stage/publish first-class image alongside overlay release `pmos-perry-2026-07-21` |
+| **4** | Daily-driver polish (no rebuild) | Suspend/resume, Wi‑Fi after sleep, USB-net replug, earpiece/headset UCM; confirm notification-LED node |
+| **5** | P1.5 redesign | Research only — bisect doc §4; single-variable tests only with recovery staged |
 
 ### Parked (do not start unprompted)
 
@@ -92,14 +180,18 @@ ssh xylitol@172.16.42.1   # pw xylitol; host 172.16.42.2/24 on enx*
 
 ### Headlines (current truth)
 
-- **pmOS first-class path boots** when P1.5 is off (Bisect D validated).
+- **On-phone = r5 / `7.0.9-msm89x7`** productize image — **hardware-validated**
+  2026-07-22 (Phosh/Wi‑Fi/audio/no-bootloop). This is the current known-good.
+- **`7.1.3` rebase committed to `main` + image built, NOT yet flashed** — flash
+  is the first action next session. All 6 patches apply clean; kernel compiles;
+  CI guards it.
+- **CI added** (PR #18): kernel-patch-apply + shellcheck/apkbuild-lint.
 - **Overlay release** `pmos-perry-2026-07-21` remains known-good rollback.
-- **In-repo device pkgrel 5** (docs P1.5 disabled); **on-phone still r4** until productize flash.
-- **linux-motorola-perry 7.0.9-r1** scrubbed + HZ=250 — hardware-validated.
-- **Audio / Wi‑Fi / Ofilm / USB-net / Phosh** all work on the live Bisect D image.
-- **Upstream #13** in progress but **not blocking** device productize.
+- **Audio / Wi‑Fi / Ofilm / USB-net / Phosh** all work on the live r5 image.
+- **User goal:** production-grade on Linux **7.1+**, *then* upstream PRs + mail.
 
-**Meta-repo:** `main` @ `03e911e` (synced to origin)  
+**Meta-repo:** `main` synced to origin — PRs #17 (gitignore) + #18 (CI) merged;
+7.1.3 APKBUILD rebase committed (see `git log`)  
 **Lineage tree:** `~/android/lineage` (deferred)  
 **pmOS work:** `~/pmos` · pmbootstrap 3.11.1  
 **Device:** XT1765 / `ZY224TB8KZ`  
