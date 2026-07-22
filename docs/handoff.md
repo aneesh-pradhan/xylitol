@@ -4,76 +4,169 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-## ▶ Next session — start here (2026-07-22 EOD)
+## ▶ Next session — start here (2026-07-22 EOD — full-apps on glass)
 
-**⚑ PRIORITY:** **pmOS is primary.** Device track first. Upstream mail is
-**parked** (do not `git send-email` rpmcc until asked). Android/Lineage
-deferred. Modem **out of scope**.
+**⚑ PRIORITY:** **pmOS is primary.** Device runs **7.1.3 first-class full-apps**
+Phosh (flashed + SSH-validated). GitHub Release
+**[pmos-perry-2026-07-22](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22)**
+is the public artifact. Upstream kernel/panel PRs **waiting review**; rpmcc
+mail **parked**. Android / modem deferred.
 
-**✅ 7.1.3 FLASHED + HARDWARE-VALIDATED (2026-07-22).** The phone now runs
-**kernel `7.1.3-msm89x7`** (`linux-motorola-perry` **7.1.3-r1**). Clean flash
-(`FLASH_COMPLETE`, 13/13 sparse chunks, 304s; chunk 12 = 187s eMMC latency,
-not a hang). On-device SSH validated all green: `uname -r`=**`7.1.3-msm89x7`**,
-Phosh (phoc PID + greetd + phrog greeter), Wi‑Fi `wlan0` connected
-(`SnugglesCoffee`), ALSA card 0 `motorola-perry` + perry UCM + `speaker-test`
-opens `hw:0,0`, Ofilm DSI-1 **connected**, **dmesg clean** (no call
-trace/oops/panic — no 7.1.x kernel regression). No bootloop. Details in
-[▶ 7.1.3 kernel rebase](#-71-kernel-rebase--flashed--validated) below.
+**⛔ Authorship hard rule:** every commit/patch SoB =
+`Aneesh Pradhan <aneeshpradhan@acm.org>` only (see `AGENTS.md`; hooks enforce).
+Verify: `git log --format='%an <%ae>' origin/main..HEAD`.
 
-**⛔ HARD RULE — commit/patch authorship (copyright-critical, must NOT slip).**
-Every commit here AND every upstream patch (kernel `Signed-off-by`, DTS
-`Copyright` headers) MUST use **exactly `Aneesh Pradhan <aneeshpradhan@acm.org>`** —
-never `apradhan5@horizon.csueastbay.edu`, `zen7370@outlook.com`, or
-`perry@xylitol.local`. When picking up someone else's work, **preserve their
-name as the From: author** and add ours as `[aneesh: …]` change-note +
-`Signed-off-by`. Enforced by `scripts/git-hooks/pre-commit`
-(`git config core.hooksPath scripts/git-hooks`); documented in
-[`../AGENTS.md`](../AGENTS.md). Verify before any push:
-`git log --format='%an <%ae>' origin/main..HEAD`.
+---
 
-**⇒ FIRST ACTION NEXT SESSION: finish the upstream contribution** (post-7.1.3
-north star). The **kernel/DTS re-roll for [#48](https://github.com/msm89x7-mainline/linux/pull/48)
-is DONE as drafts** in [`../upstream/perry-dts-reroll/`](../upstream/perry-dts-reroll/)
-(4 checkpatch-clean patches + `REVIEW-RESPONSE.md`). What's LEFT: (1) **fix
-[panel PR #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8)'s
-SoB email** — it still says `apradhan5@…csueastbay.edu`; amend + **force-push
-the PR branch** (needs user OK); (2) run `dtbs_check`/dtb build on the re-roll,
-then **open a fresh kernel PR** superseding #48 (needs user OK); (3) post the
-drafted agrecascino reply; (4) mail rpmcc/step-A **only when the user asks**
-(still parked). Full state + checklist in
-[▶ Upstream kernel/DTS re-roll](#-upstream-kerneldts-re-roll--drafted-2026-07-22)
-below. Optional device polish (§4) and RC publish (§3) remain available.
+### ⇒ FIRST ACTION NEXT SESSION: pick from the polish / upstream queue
 
-**One caveat to re-check:** PipeWire/WirePlumber read `inactive` because the
-device sits at the **greeter** (nobody logged into a full Phosh session);
-linger is on, the user manager session exists, and ALSA opens `hw:0,0`, so
-audio is healthy — but do a post-login `wpctl status` (Speaker sink + Mic
-source) next time a full session is up to close the loop.
+| Dir / URL | Kernel | Role |
+|---|---|---|
+| `artifacts/pmos-release/pmos-perry-2026-07-21/` | 7.0.9 overlay | **Rollback** (validated again this session) |
+| `artifacts/pmos-release/pmos-perry-2026-07-22/` | **7.1.3** first-class **full apps** | **On phone + GitHub Release** |
+| [Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) | same | Public `.zst` + lk2nd + `FLASH.md` |
+
+**On-phone truth (SSH 2026-07-22 ~15:38):**
+- `uname -r` = **`7.1.3-msm89x7`**; modules dir matches
+- `device-motorola-perry` / `linux-motorola-perry` first-class path
+- `graphical.target` + greetd **active**; **83** desktop entries
+  (Calculator / Firefox / Console present)
+- P1.5 **off**; build recipe `LEAN=0 ./scripts/pmos-build-phase-b.sh`
+
+**Suggested next (priority order — ask before starting):**
+1. **Smoke full-apps UX on glass** — drawer apps, Firefox, Wi‑Fi, audio
+   paths still OK after `LEAN=0` flash (hardware audio/suspend were
+   validated on the *lean* image earlier; confirm no full-apps regression).
+2. **Upstream wait / respond** — [linux#57](https://github.com/msm89x7-mainline/linux/pull/57),
+   panel [#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8).
+3. **Notification LED recon** — no LPG/RGB node in live DT; may be N/A.
+4. **Headset mic** — optional; needs TRRS hardware.
+5. **rpmcc / Step A mail** — still **parked** until explicitly asked
+   (`upstream/rpmcc-msm8920/`).
+6. **P1.5 redesign** — research only; do not re-enable (hang root cause).
+
+**Incident note (this session):** brief “backlight-on / no video” scare →
+device was recoverable to stock fastboot. Code-red path auto-rolled to
+`pmos-perry-2026-07-21` (PASS), then full-apps 7.1.3 re-flashed
+(`FLASH_COMPLETE`). Prefer stock fastboot +
+`scripts/pmos-rollback-known-good.sh` if it recurs.
+
+---
+
+### Session closed (2026-07-22) — full checklist
+
+| Track | Status |
+|---|---|
+| **7.1.3 flash + validate** | ✅ On glass: `7.1.3-msm89x7`, Phosh, Wi‑Fi, panel, dmesg clean |
+| **Upstream panel #8 SoB** | ✅ Fixed + force-pushed (`aneeshpradhan@acm.org`) |
+| **Upstream kernel PR** | ✅ [linux#57](https://github.com/msm89x7-mainline/linux/pull/57) open (supersedes #48) |
+| **dtbs_check / DTB build** | ✅ Perry DTBs clean; nora-parity warnings |
+| **agrecascino reply** | ✅ Posted on panel #6; cross-links #48 / #8 |
+| **rpmcc mail** | ⏸ Parked until user asks |
+| **Speaker audio** | ✅ User / ALSA+Pulse confirmed |
+| **Headphones 3.5 mm** | ✅ User heard beep; jack detect `on` |
+| **Earpiece** | ✅ User confirmed top earpiece |
+| **Suspend/resume s2idle** | ✅ `rtcwake -m mem -s 20`; Wi‑Fi stayed up |
+| **USB-net unplug/replug** | ✅ 3+ cycles; host recover; user confirmed multiple replugs |
+| **RC publish 7.1.3** | ✅ Full-apps staged + [GitHub Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) |
+| **Full-apps flash** | ✅ `FLASH_COMPLETE` + SSH: `7.1.3-msm89x7`, 83 desktops, greetd active |
+| **Code-red rollback drill** | ✅ Auto-rollback to 2026-07-21 then re-flash full-apps |
+| **Notification LED** | ⬜ Recon only (no LPG node in DT; maybe N/A) |
+| **Headset mic** | ⬜ Optional (needs TRRS) |
+| **Full-apps UX smoke** | ⬜ Next session — confirm drawer/Firefox/audio on glass |
+
+**Audio stack note:** PulseAudio owns ALSA/UCM in full Phosh session; empty
+`wpctl` Audio is expected (`51-pulseaudio.conf`), not a bug.
+
+**Also this session:** `LEAN=0` in `pmos-build-phase-b.sh`;
+`scripts/pmos-stage-phase-b-release.sh`; global git `user.email` → acm.org;
+SoB email fixes; upstream re-roll drafts + rmi `0000`.
+
+**Meta-repo:** see git history / open PR for this freeze — artifacts under
+`artifacts/pmos-release/` remain gitignored.
 
 ### Device (live)
 
 | Item | Value |
 |---|---|
 | Unit | XT1765 / `ZY224TB8KZ` |
-| Image on phone | **7.1.3 first-class product image** (clean build from `main`, P1.5 off) |
-| Kernel | **`7.1.3-msm89x7`** — `linux-motorola-perry` **7.1.3-r1** (newest `msm89x7-mainline/linux` tag; HZ=250) |
-| Device pkg (on phone) | `device-motorola-perry` **1-r5** (no early ofilm; no fb-wait; P1.5 off by default) |
-| Initramfs (on phone) | `postmarketos-initramfs` **3.12.0-r0** **unpatched** (no P1.5) |
-| UI | **Phosh running** (phoc + greetd + phrog); Ofilm panel DSI-1 **720×1280**, connected |
-| Net | USB-net `xylitol@172.16.42.1` (pw `xylitol`; host `172.16.42.2/24` on `enx*` / cdc_ncm); Wi‑Fi works (`wlan0` connected `SnugglesCoffee`) |
-| Audio | ALSA card 0 `motorola-perry` + perry UCM; `speaker-test` opens `hw:0,0` (verify PW sink/source post-login) |
-| Last checked | 2026-07-22 ~13:50 local — **7.1.3 flash validated**: `uname -r`=`7.1.3-msm89x7`, Phosh + Wi‑Fi + ALSA/UCM all up, DSI-1 connected, dmesg clean, no bootloop |
+| Image | **7.1.3 first-class full-apps** — on glass + GitHub Release |
+| Kernel | **`7.1.3-msm89x7`** / `linux-motorola-perry` **7.1.3-r1** |
+| Device pkg | `device-motorola-perry` **1-r5** |
+| Initramfs | `postmarketos-initramfs` **3.12.0-r0** unpatched |
+| UI | Phosh full recommends (**83** desktop entries); greetd active |
+| Net | USB-net `xylitol@172.16.42.1` (pw `xylitol`); host `enx*` + `172.16.42.2/24` |
+| Audio | Speaker + Headphones + Earpiece confirmed earlier (lean); re-smoke on full-apps |
+| Power | s2idle suspend/resume **PASS** (lean); re-smoke optional |
+| USB | Physical unplug/replug **PASS** (lean) |
+| RC path | `artifacts/pmos-release/pmos-perry-2026-07-22/` |
+| GitHub | https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22 |
+| Rollback | `artifacts/pmos-release/pmos-perry-2026-07-21/` (7.0.9) — still known-good |
+| Last checked | 2026-07-22 ~15:38 SSH post full-apps flash |
 
-**Gap: CLOSED (2026-07-22).** Phone rebuilt from `main` and flashed to the
-first-class product image (`device` **1-r5**, kernel **7.0.9-r1**, initramfs
-**3.12.0-r0 unpatched**, **P1.5 absent** — verified on-device). No longer on
-bisect r4. Flash was clean (`FLASH_COMPLETE`, 306s sparse write); on-device
-SSH confirmed kernel/pkg versions, Phosh (`phoc`+greetd), Wi‑Fi connected, and
-audio stack (card 0 `motorola-perry` + perry UCM + PipeWire/WirePlumber).
-**Reconnect gotcha (confirmed again this flash):** the host `enx*` iface name
-changes every boot (random gadget MAC), so a pinned `172.16.42.2` strands on a
-dead iface and you get "no route to host" even though the device is healthy —
-re-bind `172.16.42.2/24` to the *current* live `enx*` each reconnect, then ssh.
+**Reconnect gotchas:** re-bind host `172.16.42.2/24` on current `enx*` after
+reboot/replug; `ssh-keygen -R 172.16.42.1` after reflash; Wi‑Fi SSH backup
+`xylitol@192.168.1.151` when USB is out (IP may change).
+
+### ▶ USB-net physical unplug/replug (2026-07-22)
+
+**Method:** 90s host monitor of `ping 172.16.42.1` + `enx*` presence; on
+each reconnect run recover (`ip link set up` + ensure `172.16.42.2/24`).
+Wi‑Fi SSH backup path also verified (`xylitol@192.168.1.151`).
+
+| Check | Result |
+|---|---|
+| Baseline USB-net | `enx7ac7afa3d400` + `172.16.42.2/24`; SSH OK |
+| Unplug | Host loses `enx*`; ping DOWN (expected) |
+| Replug | `enx*` returns (same name within this boot); ping OK after recover |
+| Cycles observed | **3** unplug/replug during window — **all recovered** |
+| Final SSH | `USB_SSH_OK`; `usb0` Developer Mode; Wi‑Fi still SnugglesCoffee |
+| Wi‑Fi backup SSH | Works while USB unplugged (`192.168.1.151`) |
+
+**Host recipe after replug:**
+
+```bash
+# if "no route to host" after cable back:
+IFACE=$(ip -o link show | awk -F': ' '/enx/{print $2; exit}' | sed 's/@.*//')
+sudo ip link set "$IFACE" up
+sudo ip addr add 172.16.42.2/24 dev "$IFACE" 2>/dev/null || true
+ssh xylitol@172.16.42.1
+```
+
+**Note:** gadget MAC / `enx*` name still randomizes across **full reboots**;
+within a single boot, unplug/replug kept the same `enx7ac7afa3d400` this test.
+
+### ▶ Suspend/resume + Wi‑Fi after wake (2026-07-22)
+
+**Method:** `rtcwake -m mem -s 20` (s2idle — only mode advertised in
+`/sys/power/mem_sleep`). Pre-condition: Wi‑Fi reconnected to `SnugglesCoffee`
+(was soft-blocked/`unavailable` at start of test; unblocked +
+`nmcli connection up`).
+
+| Check | Result |
+|---|---|
+| Suspend entry | `PM: suspend entry (s2idle)` — freeze userspace OK |
+| Resume | `PM: suspend exit` — `Restarting tasks: Done`; `RTCWAKE_EXIT=0` |
+| Reboot? | **No** — uptime continuous (~1h) |
+| Host USB-net during sleep | Ping fail ~14s (expected while gadget suspended) |
+| Host USB-net after wake | **Recovered** same `enx*` (~t+16s); SSH OK |
+| Wi‑Fi after wake | **Still connected** `SnugglesCoffee` (`192.168.1.151`); ping 8.8.8.8 OK (first RTT elevated, then normal) |
+| Phosh / DSI-1 | Still up / connected |
+| ALSA card | Still present |
+| dmesg health | No oops/panic/call trace around suspend cycle |
+| Note | PMIC RTC wall-clock is epoch-wrong (`rtctime` ~1970) but relative
+  `rtcwake -s N` alarm still works. Optional polish: sync RTC from NTP. |
+
+**Recipe for next time:**
+
+```bash
+# device (Wi-Fi unblocked first if needed)
+sudo rfkill unblock wifi && sudo nmcli radio wifi on
+sudo nmcli connection up SnugglesCoffee ifname wlan0
+sudo rtcwake -v -m mem -s 20
+# host if ping fails after wake:
+#   ip addr add 172.16.42.2/24 dev enx…   # current enx*
+```
 
 ### ▶ 7.1.3 kernel rebase — FLASHED + VALIDATED
 
@@ -91,8 +184,9 @@ post-reflash). On-device SSH: `uname -r`=**`7.1.3-msm89x7`**, postmarketOS edge,
 (`SnugglesCoffee`), ALSA card 0 `motorola-perry` + perry UCM + `speaker-test`
 opens `hw:0,0`, Ofilm DSI-1 connected, `/usr/lib/modules/7.1.3-msm89x7`
 present, **dmesg clean** (no call trace/oops/panic → no 7.1.x regression).
-Open follow-up: confirm PW sink/source with `wpctl status` after a full Phosh
-login (device was at the greeter).
+Follow-up **closed 2026-07-22 EOD:** full Phosh session uses PulseAudio sinks
+(Speaker / Headphones / Earpiece all hardware-confirmed). `wpctl` empty is
+expected while Pulse owns ALSA — not a regression.
 
 **What's done and committed to `main`:**
 - **`linux-motorola-perry` bumped `7.0.9-r0` → `7.1.3-r1`** — newest
@@ -130,27 +224,39 @@ apply (catches "bump tag, forget to re-roll a patch"). Plus
 `.github/workflows/lint.yml` (shellcheck + apkbuild-lint). Merged in
 [PR #18](https://github.com/aneesh-pradhan/xylitol/pull/18).
 
-### ▶ Upstream kernel/DTS re-roll — DRAFTED (2026-07-22)
+### ▶ Upstream kernel/DTS re-roll — POSTED as [linux#57](https://github.com/msm89x7-mainline/linux/pull/57) (2026-07-22)
 
 **What:** re-rolled the stalled [msm89x7-mainline/linux#48](https://github.com/msm89x7-mainline/linux/pull/48)
 perry/MSM8920 series against the fork's **current** branch `msm89x7/7.1.3`
 (#48 itself targets the older `6.19.5`), addressing **every** `barni2000`
-review comment. Drafts live in [`../upstream/perry-dts-reroll/`](../upstream/perry-dts-reroll/)
-(committed to `main`, **not pushed, not posted**):
+review comment. **Opened as fresh PR [#57](https://github.com/msm89x7-mainline/linux/pull/57)**
+(base `msm89x7/7.1.3`, head `aneesh-pradhan:perry-msm8920-7.1.3`). Local drafts
+in [`../upstream/perry-dts-reroll/`](../upstream/perry-dts-reroll/) (incl. rmi
+`0000` + four DTS/rpmcc patches + `REVIEW-RESPONSE.md`). Working tree:
+`/home/aneesh/src/msm89x7-linux` branch `perry-msm8920-reroll`.
 
 | File | Content |
 |---|---|
+| `0000-Input-rmi_i2c-…` | Felix Kaechele — carried unchanged from #48 |
 | `0001-dt-bindings-…-rpmcc-…MSM8920.patch` | binding split out (checkpatch: bindings = own patch) |
 | `0002-clk-qcom-smd-rpm-…MSM8920.patch` | driver; **shared upstream file → upstream-first** (= Step A / `upstream/rpmcc-msm8920/`) |
 | `0003-…-add-MSM8920-device-tree.patch` | `msm8920.dtsi` — dropped 5 redundant mem overrides, GPL-2.0, IPA verified == in-tree `msm8940.dtsi` |
-| `0004-…-add-Motorola-Moto-E4-perry.patch` | perry DTS — panel pinctrl→`panel@0`+`panel_default` (per nora), .dts license/mode fixes |
+| `0004-…-add-Motorola-Moto-E4-perry.patch` | perry DTS — panel pinctrl→`panel@0`+`panel_default` (per nora), .dts license/mode fixes; multi-blank-line fixed |
 | `REVIEW-RESPONSE.md` | every review comment → resolution + evidence; CONTRIBUTING.md compliance table |
-| `panel-agrecascino-reply.md` | drafted reply (agrecascino green-lit the pickup on panel #6) |
+| `panel-agrecascino-reply.md` | draft (now **posted** on panel #6) |
 
-**How to reproduce the working tree:** blobless sparse shallow clone of
+**How to reproduce the working tree:** blobless clone of
 `msm89x7-mainline/linux` branch `msm89x7/7.1.3` (base commit `50f9719`),
-`git am` local `pmos/linux-motorola-perry/patches/0002+0003`, then apply the
-review fixes. `checkpatch.pl` clean (only benign new-file/MAINTAINERS notices).
+`git am` `0000`–`0004` from `upstream/perry-dts-reroll/`. Committer identity
+must be `Aneesh Pradhan <aneeshpradhan@acm.org>` (global git email was
+csueastbay until fixed 2026-07-22).
+
+**Validation (2026-07-22):**
+- DTB build clean: `qcom/msm8917-motorola-perry.dtb` + `qcom/msm8920-motorola-perry.dtb`
+- `dtbs_check` warning count/class matches in-tree **nora** (~41); no new
+  regressions. Root compatible / panel schema undocumentedness is fork-wide
+  (nora also undocumented in `arm/qcom.yaml`).
+- `dt-doc-validate` on `qcom,rpmcc.yaml` clean.
 
 **Key review resolutions (all evidence-backed — see `REVIEW-RESPONSE.md`):**
 - **"8940 MSS good for 8920?"** → IPA block is byte-identical to the accepted
@@ -165,21 +271,19 @@ review fixes. `checkpatch.pl` clean (only benign new-file/MAINTAINERS notices).
 - **panel pinctrl / `panel_default` / drop sleep state** → matched nora exactly.
 
 **Authorship (see the ⛔ HARD RULE up top):** **Catherine Frederick kept as the
-From: author** (she wrote the original DTS); our contribution is a `[aneesh: …]`
-change-note + `Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>`. Committer
-+ SoB + DTS copyright lines all use `aneeshpradhan@acm.org`. Audited: zero
-forbidden identities in the four patches.
+From: author** (she wrote the original DTS); Felix Kaechele for rmi; our
+contribution is a `[aneesh: …]` change-note +
+`Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>`. Committer + SoB + DTS
+copyright lines all use `aneeshpradhan@acm.org`. Audited: zero forbidden
+identities in the series / panel #8 tip.
 
-**Outstanding (next session — all need user OK to post/push):**
-1. **⚠ Panel [PR #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8)
-   SoB is wrong** — still `apradhan5@…csueastbay.edu`. Amend the commit
-   (author/committer/SoB → `aneeshpradhan@acm.org`) and **force-push the PR
-   branch** before the strict maintainer reviews. This is the top loose end.
-2. Run `dtbs_check` / dtb build on the re-roll, then **open a fresh kernel PR**
-   superseding #48 (author has been silent since April + OK'd a pickup).
-3. Post the drafted **agrecascino reply** (panel #6/#8).
+**Outstanding:**
+1. ~~Panel #8 SoB~~ ✅ fixed + force-pushed.
+2. ~~dtbs_check + open kernel PR~~ ✅ [#57](https://github.com/msm89x7-mainline/linux/pull/57).
+3. ~~agrecascino reply~~ ✅ posted on panel #6; cross-links on #48 / #8.
 4. **rpmcc/Step A mail** (`upstream/rpmcc-msm8920/` = patches 0001+0002) — still
    **parked**; do not `git send-email` until the user asks.
+5. Maintainer review / possible re-roll on #57 and panel #8.
 
 ### CI / repo hygiene (this session)
 
@@ -201,10 +305,10 @@ Real remaining gaps, priority order: (1) CI to build kernel+device pkg — **CI
 patch-check + lint now DONE (§11)**; a full pmbootstrap image build in Actions
 is still optional/heavy; (2) firmware pkg breadth + README — we package only
 WCNSS Wi‑Fi NV (`firmware-motorola-perry-nv`); GPU fw is generic, BT/modem out
-of scope; (3) UCM earpiece/headset verbs (already on polish list); (4) confirm
-the notification-LED node is actually enabled (`leds_qcom_lpg` loaded, node
-unverified); (5) doc niceties (`README.panel.md`/`README.power.md`). Items the
-checklist wants done differently are **correct perry adaptations**, not gaps:
+of scope; (3) ~~UCM earpiece~~ **playback UCM confirmed**; headset mic optional;
+(4) notification-LED recon (no DT node — maybe N/A); (5) doc niceties
+(`README.panel.md`/`README.power.md`). Items the checklist wants done
+differently are **correct perry adaptations**, not gaps:
 dwc3→chipidea USB, pm8916→pm8937/pmi8950, panel-simple DTSI→DRM panel drivers,
 RNDIS→CDC-NCM. DTS itself is genuinely perry-tailored (memory carveouts,
 regulators, pinctrl — see patch `0003`).
@@ -227,21 +331,26 @@ redesign exists.
 | T6 baselines | Plan [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md) §5; boot ~46.5s; schedutil; mq-deadline; GPU simple_ondemand 19.2–598 MHz |
 | P1.3 | Baselines only — **no GPU DT** until measured need |
 | Audio smoke on Bisect D | Speaker OK |
-| Upstream panel | [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) Tianma+Ofilm (open) |
-| Upstream #48 note | Adoption comment on [msm89x7 linux#48](https://github.com/msm89x7-mainline/linux/pull/48) |
-| Step A rpmcc | Staged [`upstream/rpmcc-msm8920/`](../upstream/rpmcc-msm8920/) — **not mailed** (user hold) |
-| Git `main` tip (pushed) | `03e911e` and parents on `origin/main` |
+| Upstream panel | [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) Tianma+Ofilm (open; SoB fixed) |
+| Upstream kernel | [linux#57](https://github.com/msm89x7-mainline/linux/pull/57) supersedes #48 (open, waiting review) |
+| Step A rpmcc | Staged [`upstream/rpmcc-msm8920/`](../upstream/rpmcc-msm8920/) — **not mailed** (user hold); SoB email corrected to acm.org |
+| Full audio paths | Speaker + Headphones + Earpiece user-confirmed 2026-07-22 EOD |
+| Git `main` tip (pushed) | `03e911e` and parents on `origin/main` (local still has unpushed session docs) |
 
 ### ▶ Do next (device track — agreed)
 
 | # | Task | How |
 |---|---|---|
 | ~~**1**~~ | ~~**Flash + validate the 7.1.3 image**~~ | ✅ **DONE 2026-07-22** — flashed from stock fastboot (`FLASH_COMPLETE`), SSH-validated `uname -r`=`7.1.3-msm89x7`, Phosh/Wi‑Fi/audio/panel up, dmesg clean. See [▶ 7.1.3 kernel rebase](#-71-kernel-rebase--flashed--validated). |
-| **2** | **Finish upstream contribution** — **the first action** | Kernel/DTS re-roll of [#48](https://github.com/msm89x7-mainline/linux/pull/48) is **DONE as drafts** (`upstream/perry-dts-reroll/`). LEFT: fix [panel #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) SoB email + force-push; `dtbs_check` + open fresh kernel PR; post agrecascino reply; mail rpmcc **only when asked**. See [▶ Upstream re-roll](#-upstream-kerneldts-re-roll--drafted-2026-07-22). **Author rule: `Aneesh Pradhan <aneeshpradhan@acm.org>` only.** |
-| ~~**P**~~ | ~~**Productize first-class Phase B**~~ | ✅ **DONE 2026-07-22.** Rebuilt from `main` (P1.5 off), flashed from stock fastboot (`FLASH_COMPLETE`). On-device validated: `device` **1-r5**, kernel **7.0.9-r1**, initramfs **3.12.0-r0 unpatched**, P1.5 absent; Phosh + Wi‑Fi + audio all up. |
-| **3** | Optional RC publish | Stage/publish first-class image alongside overlay release `pmos-perry-2026-07-21` |
-| **4** | Daily-driver polish (no rebuild) | Suspend/resume, Wi‑Fi after sleep, USB-net replug, earpiece/headset UCM; confirm notification-LED node |
-| **5** | P1.5 redesign | Research only — bisect doc §4; single-variable tests only with recovery staged |
+| ~~**2**~~ | ~~**Finish upstream contribution**~~ | ✅ **POSTED 2026-07-22.** Panel [#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) SoB fixed+force-pushed; `dtbs_check`/DTB build green (nora parity); kernel [#57](https://github.com/msm89x7-mainline/linux/pull/57) open (supersedes #48); agrecascino reply on panel #6. **Still parked:** rpmcc/step-A mail until asked. |
+| ~~**P**~~ | ~~**Productize first-class Phase B**~~ | ✅ **DONE 2026-07-22.** Rebuilt from `main` (P1.5 off), flashed from stock fastboot (`FLASH_COMPLETE`). On-device validated: `device` **1-r5**, kernel **7.0.9-r1**, initramfs **3.12.0-r0 unpatched**, P1.5 absent; Phosh + Wi‑Fi + audio all up. Later same day: image on phone is **7.1.3-r1**. |
+| ~~**3**~~ | ~~**RC publish 7.1.3**~~ | ✅ **DONE 2026-07-22** — full-apps (`LEAN=0`) rebuilt, staged, [GitHub Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22), **flashed + SSH OK**. |
+| **3b** | Full-apps UX smoke on glass | Drawer apps / Firefox / audio / Wi‑Fi after `LEAN=0` flash |
+| ~~**4a**~~ | ~~**Audio paths**~~ | ✅ Speaker + Headphones + Earpiece user-confirmed (headset mic optional) |
+| ~~**4b**~~ | ~~**Suspend/resume + Wi‑Fi after wake**~~ | ✅ **PASS** — `rtcwake -m mem -s 20` s2idle; Wi‑Fi stayed up |
+| ~~**4b-usb**~~ | ~~**USB-net physical unplug/replug**~~ | ✅ **PASS** — multi-cycle; host recover; user confirmed |
+| **4c** | Notification LED | Recon only — no LPG/RGB node in live DT; may be N/A |
+| **5** | P1.5 redesign | Research only — bisect doc §4; recovery staged |
 
 ### Parked (do not start unprompted)
 
@@ -273,32 +382,17 @@ no competing `getvar` loops.
 ssh xylitol@172.16.42.1   # pw xylitol; host 172.16.42.2/24 on enx*
 ```
 
-### Headlines (current truth)
+### Headlines (current truth) — full-apps on glass 2026-07-22
 
-- **On-phone = `7.1.3-msm89x7`** first-class product image (`device` r5) —
-  **flashed + hardware-validated 2026-07-22** (Phosh/Wi‑Fi/audio/panel/
-  no-bootloop, dmesg clean). This is now the current known-good.
-- **`7.1.3` rebase DONE** — committed to `main`, all 6 patches apply clean,
-  kernel compiles, CI guards it, **and now flashed + validated on hardware.**
-- **CI added** (PR #18): kernel-patch-apply + shellcheck/apkbuild-lint.
-- **Overlay release** `pmos-perry-2026-07-21` (7.0.9) remains the rollback path.
-- **Audio / Wi‑Fi / Ofilm / USB-net / Phosh** all work on the live 7.1.3 image.
-- **User goal:** production-grade on Linux **7.1+** ✅ reached — *next:* upstream
-  PRs + mail (mail still parked until asked).
-- **Upstream #48 re-roll DRAFTED** (`upstream/perry-dts-reroll/`) — 4
-  checkpatch-clean patches addressing every review comment; **not pushed/posted.**
-- **⛔ Authorship hard rule LIVE:** all commits/patches = `Aneesh Pradhan
-  <aneeshpradhan@acm.org>` only; enforced by `scripts/git-hooks/pre-commit`.
-  **Panel #8's SoB still wrong (csueastbay) — fix + force-push pending.**
+- **On-phone = `7.1.3-msm89x7` full-apps** — Phosh, 83 desktops, greetd active.
+- **Published:** [pmos-perry-2026-07-22](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22).
+- **Rollback remains** `pmos-perry-2026-07-21` (7.0.9) — re-validated this session.
+- **Next:** glass UX smoke; upstream review wait; LED/headset optional; rpmcc parked.
+- **⛔ Authorship:** `Aneesh Pradhan <aneeshpradhan@acm.org>` only.
 
-**Meta-repo:** local `main` is **4 commits AHEAD of `origin/main` (805d453),
-not pushed** — 7.1.3 flash doc, pre-commit author-hook, and the #48 re-roll
-drafts. Earlier PRs #17 (gitignore) + #18 (CI) already merged.  
-**Lineage tree:** `~/android/lineage` (deferred)  
-**pmOS work:** `~/pmos` · pmbootstrap 3.11.1  
-**Device:** XT1765 / `ZY224TB8KZ`  
-**pmOS backups:** `~/android/backups/perry/`  
-**Stock:** `~/XT1765_PERRY_TMO_…` · unpack `~/android/stock-perry-NCQS26.69-64-21/`
+**pmOS:** `~/pmos` · pmbootstrap 3.11.1 · kernel tree
+`/home/aneesh/src/msm89x7-linux` (`perry-msm8920-reroll`)  
+**Device:** XT1765 / `ZY224TB8KZ` · USB-net `enx*` → `172.16.42.2/24`
 
 Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUDE.md) · [`../AGENTS.md`](../AGENTS.md).
 
