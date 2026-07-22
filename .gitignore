@@ -4,6 +4,9 @@ CLAUDE.md
 !.cursor/rules/
 !.cursor/rules/**
 .claude/
+# Already-committed workflows stay tracked (gitignore never untracks); this
+# only keeps NEW local .github/ additions out of accidental commits.
+.github/
 
 # Accidental Android tree / build artifacts (never belong in this meta-repo)
 out/
