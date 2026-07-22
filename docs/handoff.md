@@ -4,116 +4,123 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-## ▶ Next session — start here (2026-07-22, post Bisect D)
+## ▶ Next session — start here (2026-07-22 EOD)
 
-**Device state:** **ONLINE on first-class Phase B / Bisect D** (not the
-overlay release). SSH: `xylitol@172.16.42.1` (pw `xylitol`); USB-net host
-`172.16.42.2/24` on cdc_ncm. Kernel `7.0.9-msm89x7` **#2-perry-xylitol**
-(`linux-motorola-perry` **7.0.9-r1**, HZ=250). Packages:
-`device-motorola-perry` **1-r4**, unpatched `postmarketos-initramfs`
-**3.12.0-r0**. Ofilm DRM 720×1280 + USB-net confirmed.
+**⚑ PRIORITY:** **pmOS is primary.** Device track first. Upstream mail is
+**parked** (do not `git send-email` rpmcc until asked). Android/Lineage
+deferred. Modem **out of scope**.
 
-**Phase B boot hang:** **ROOT-CAUSED — P1.5.** A/B/C failed; **D PASS**
-(drop framebuffer-wait patch + `deviceinfo_framebuffer_wait_seconds`).
-Canonical write-up: [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
-**Do not re-enable P1.5** until a safe splash redesign exists.
+### Device (live)
 
-**Do next:**
+| Item | Value |
+|---|---|
+| Unit | XT1765 / `ZY224TB8KZ` |
+| Image on phone | **First-class Phase B / Bisect D** (not overlay release) |
+| Kernel | `7.0.9-msm89x7` **#2-perry-xylitol** — `linux-motorola-perry` **7.0.9-r1**, **HZ=250** |
+| Device pkg (on phone) | `device-motorola-perry` **1-r4** (no early ofilm; no fb-wait) |
+| Initramfs (on phone) | `postmarketos-initramfs` **3.12.0-r0** **unpatched** (no P1.5) |
+| UI | **Phosh running**; Ofilm panel DSI-1 **720×1280** |
+| Net | USB-net `xylitol@172.16.42.1` (pw `xylitol`; host `172.16.42.2/24` on `enx*` / cdc_ncm); Wi‑Fi works (user associated; NM “Developer Mode” on usb0) |
+| Audio | Speaker sink + Mic1; `speaker-test` OK on this image |
+| Last checked | 2026-07-22 ~12:15 local — SSH up, load idle |
 
-| # | Task | Goal |
+**Gap:** phone still runs **bisect** packages (`device` **r4**). Repo `main` has
+`device` **pkgrel 5** + default build **P1.5 off** — **not yet rebuilt/flashed**
+as a clean product image.
+
+### Hang status (closed)
+
+**Root cause: P1.5** (initramfs framebuffer-wait patch +
+`deviceinfo_framebuffer_wait_seconds=35`). A/B/C failed; **D PASS**.
+Canonical: [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+**Do not re-enable P1.5.** Splash gap (~27s black) is expected until a safe
+redesign exists.
+
+### Done this arc (do not redo)
+
+| Item | Notes |
+|---|---|
+| Bisect A/B/C FAIL, D PASS | Evidence under `artifacts/pmos-phase-b/` (gitignored) |
+| Rollback known-good | `pmos-perry-2026-07-21` still recovery path |
+| Repo: P1.5 off by default | `scripts/pmos-build-phase-b.sh` (`ENABLE_P15=1` research-only); deviceinfo documents disabled wait |
+| T6 baselines | Plan [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md) §5; boot ~46.5s; schedutil; mq-deadline; GPU simple_ondemand 19.2–598 MHz |
+| P1.3 | Baselines only — **no GPU DT** until measured need |
+| Audio smoke on Bisect D | Speaker OK |
+| Upstream panel | [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) Tianma+Ofilm (open) |
+| Upstream #48 note | Adoption comment on [msm89x7 linux#48](https://github.com/msm89x7-mainline/linux/pull/48) |
+| Step A rpmcc | Staged [`upstream/rpmcc-msm8920/`](../upstream/rpmcc-msm8920/) — **not mailed** (user hold) |
+| Git `main` tip (pushed) | `03e911e` and parents on `origin/main` |
+
+### ▶ Do next (device track — agreed)
+
+| # | Task | How |
 |---|---|---|
-| **1** | ~~T6 metrics + P1.3 baselines~~ | ✅ 2026-07-22 — see plan §5; no GPU DT yet |
-| **2** | ~~Productize no-P1.5 Phase B~~ | ✅ default build P1.5 off; deviceinfo disabled |
-| **3** | ~~Audio smoke~~ | ✅ Speaker sink + `speaker-test` OK on Bisect D |
-| **4** | **Upstream kernel/panel (#13)** | Panel [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) open. **Step A rpmcc** patch staged in [`upstream/rpmcc-msm8920/`](../upstream/rpmcc-msm8920/) (mainline-ready, **not mailed**). Next: mail A and/or draft step B `msm8920.dtsi` |
-| **5** | P1.5 redesign (research) | Safe splash without hang — see bisect doc §4; do not re-enable old patch |
-| **6** | Publish first-class image (optional) | Stage no-P1.5 Phase B as release candidate vs overlay |
+| **1** | **Productize first-class Phase B** | Rebuild from current `main`: `./scripts/pmos-build-phase-b.sh` (default **no** P1.5). Expect `device` **1-r5**, unpatched initramfs, scrubbed kernel r1. Flash with `scripts/pmos-flash-phase-b-force.sh` from **stock** fastboot (`product: perry`). Validate: SSH ~25s, Phosh, Wi‑Fi, audio. |
+| **2** | Optional RC publish | After (1) is green, stage/publish first-class image alongside overlay release `pmos-perry-2026-07-21` |
+| **3** | Daily-driver polish (no rebuild) | Suspend/resume, Wi‑Fi after sleep, USB-net replug, earpiece/headset UCM if wanted |
+| **4** | P1.5 redesign | Research only — bisect doc §4; single-variable tests only with recovery staged |
 
-**Recovery:** still `scripts/pmos-rollback-known-good.sh` → release
-`pmos-perry-2026-07-21` if anything goes sideways.
+### Parked (do not start unprompted)
 
-**⚑ PRIORITY:** **pmOS is primary.** Android/Lineage deferred. Modem is
-**out of scope** (no usable bands for this unit) — do not schedule modem
-work.
+| Track | State |
+|---|---|
+| **Mail rpmcc / step A send-email** | Explicit hold — patch ready in-tree only |
+| **Upstream B/C** (`msm8920.dtsi`, perry DTS re-roll) | After device productize or when asked |
+| **Android / RIL / AF** | Deferred; Lineage still boots historically |
+| **Modem / ModemManager** | Out of scope (no usable US bands on this unit) |
 
-**Headline (pmOS UI):** perry boots Phosh on **overlay** release
-`pmos-perry-2026-07-21` **and** on **first-class** Phase B when P1.5 is off
-(Bisect D).  
-**Headline (custom kernel packages):** `device` pkgrel **4** (no early ofilm,
-no fb-wait); `linux` pkgrel **1** (scrubbed + HZ=250) — **boot-validated** on
-Bisect D. Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).  
-**Headline (pmOS audio):** **perry now has working audio routing.** Authored the
-`motorola-perry` ALSA UCM profile (was mute: `alsaucm -2` / "no backend DAIs").
-`alsaucm` loads HiFi, `PRI_MI2S_RX ← MultiMedia1` + `SPK DAC` engage,
-`aplay hw:0,0` streams clean, **WirePlumber exposes a Speaker sink + Primary
-Microphone source**. Also fixed two pmOS stability bugs that flapped the audio
-nodes: WirePlumber libcamera crash-loop (disabled) + no systemd linger
-(enabled). Durable pmaport `pmos/alsa-ucm-motorola-perry/` + install/apply
-scripts. **Audible output USER-CONFIRMED** (2026-07-20: beep+sweep out the
-speaker — "Audio works cleanly. I can confirm the speaker is live and well").  
-**Headline (Android):** **LineageOS 18.1 BOOTS on perry** — UI, touch, adb,
-Wi-Fi, soft navbar, **FM radio user-confirmed** (0007), **camera open/still**
-(0011–0013; **0015** keeps montana `sensor_modules`). **AF still broken.**
-SELinux Enforcing. **RIL is the standing priority** (or AF retry with a
-non-preview-breaking approach).  
-**Headline (pmOS):** boots to edge userspace (`7.0.9-msm89x7`); Wi-Fi, Ofilm
-display, USB-net/SSH all up. **Boot chain now durable + validated:** extlinux
-`fdt` deviceinfo pin **and** lk2nd perry device node (both hardware-validated
-this session). Next pmOS gaps: audio UCM, modem/ModemManager, sensors.  
-**pmOS side quest — NOW THE ACTIVE WORK (2026-07-20):** Phase E
-**FLASHED** and **BOOTING**. **Blocker B is CLEARED** — the kernel that was
-"blind & mute" now boots to a full postmarketOS edge userspace
-(`7.0.9-msm89x7`, **aarch64**) with USB-net + SSH (`ssh xylitol@172.16.42.1`,
-sudo pw `xylitol` on public images). **WiFi FIXED** (missing perry WCNSS NV blob → `-2`; dropped
-perry's own NV → `wlan0` up, scans 51 APs, associates + DHCP + internet,
-auto-reconnects on cold boot). Installer:
-`scripts/pmos-install-wcnss-nv.sh` (runtime); **durable Wi-Fi pmaport DONE**
-(`firmware-motorola-perry-nv`, PR [#2](https://github.com/aneesh-pradhan/xylitol/pull/2)).
-**Ofilm 499v0 panel first-light CONFIRMED** (user-witnessed: fb static +
-`perry login:` tty + backlight blink; `compatible: motorola,perry-499v0-ofilm`,
-DSI-1 connected 720×1280). Full write-up:
-[porting-log 2026-07-20 "pmOS BOOTS to userspace"]. **Next-to-dos board:
-[§ Next to-dos](#next-to-dos-2026-07-20-end-of-session).** Ofilm panel driver
-in overlay 0005/0006, kernel 7.0.9-r2. Full session log below in
-[§ Phase E pmOS](#phase-e-pmos--flashed-mid-bring-up-session-2026-07-20-evening).  
-**Meta-repo:** `main`  
-**Lineage tree:** `~/android/lineage` (patches applied live; series in `patches/`)  
-**Perry device tip:** `9485df8` — **0015** montana sensor_modules (preview);
-supersedes live effect of **0014** OTP packaging  
-**Kernel tip:** `7c1b60c` — **0004** CCI cci0-only (GPIO_31 / sx9310) — **keep**  
-**msm8937-common tip:** `0a23ebb` — patch **0007** (vendor.fm Iris bring-up)  
-**Pre-AF bugreport (historical):**  
-`~/android/bugreports/perry/bugreport-perry_retail-RQ3A.211001.001-2026-07-20-13-20-02.zip`  
-(also `…-dumpstate_log-4221.txt` beside it; **not in git**)  
-**TWRP:** on-device + `~/android/twrp` local 3.7.0_9-0 rebuild  
-**Build host:** Ubuntu 26.04 LTS; `MKE2FS_CONFIG=$HOME/android/mke2fs.conf`
-every build; put `prebuilts/python/linux-x86/2.7.5/bin` first on `PATH`  
-**Device:** XT1765 / `ZY224TB8KZ` — booted, USB debugging on  
-**pmOS backups:** `~/android/backups/perry/` (Lineage boot, TWRP BD,
-sdcard pull, lk2nd getvar dump)  
+### Recovery
 
-**Stock firmware (user-provided):**  
-`~/XT1765_PERRY_TMO_7.1.1_NCQS26.69-64-21_cid21_subsidy-TMO_RSU_regulatory-DEFAULT_CFC.xml`  
-**Unpacked tree:** `~/android/stock-perry-NCQS26.69-64-21/`  
-(`mnt-system/`, `mnt-oem/`, `tree/` for extract-files; see [`blobs.md`](blobs.md))
+```bash
+./scripts/pmos-rollback-known-good.sh
+# → release artifacts/pmos-release/pmos-perry-2026-07-21/
+```
 
-Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUDE.md).
+Sacred: never `persist` / `modemst1` / `modemst2`. One agent owns fastboot;
+no competing `getvar` loops.
+
+### Build / flash cheat sheet (productize)
+
+```bash
+# Build (P1.5 off by default)
+./scripts/pmos-build-phase-b.sh
+# Flash from stock Motorola fastboot
+./scripts/pmos-flash-phase-b-force.sh
+# SSH after continue (~25s on Bisect D)
+ssh xylitol@172.16.42.1   # pw xylitol; host 172.16.42.2/24 on enx*
+```
+
+### Headlines (current truth)
+
+- **pmOS first-class path boots** when P1.5 is off (Bisect D validated).
+- **Overlay release** `pmos-perry-2026-07-21` remains known-good rollback.
+- **In-repo device pkgrel 5** (docs P1.5 disabled); **on-phone still r4** until productize flash.
+- **linux-motorola-perry 7.0.9-r1** scrubbed + HZ=250 — hardware-validated.
+- **Audio / Wi‑Fi / Ofilm / USB-net / Phosh** all work on the live Bisect D image.
+- **Upstream #13** in progress but **not blocking** device productize.
+
+**Meta-repo:** `main` @ `03e911e` (synced to origin)  
+**Lineage tree:** `~/android/lineage` (deferred)  
+**pmOS work:** `~/pmos` · pmbootstrap 3.11.1  
+**Device:** XT1765 / `ZY224TB8KZ`  
+**pmOS backups:** `~/android/backups/perry/`  
+**Stock:** `~/XT1765_PERRY_TMO_…` · unpack `~/android/stock-perry-NCQS26.69-64-21/`
+
+Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUDE.md) · [`../AGENTS.md`](../AGENTS.md).
 
 ---
 
 ## Boot-hang incident — Phase B (2026-07-21 → 2026-07-22)
 
-**Status: DEVICE RECOVERED on known-good. Hang root-cause still open.**
-Canonical write-up + next isolation queue:
-[`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+**Status: RESOLVED — root cause P1.5; Bisect D boots first-class path.**
+Canonical write-up: [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+Device at EOD 2026-07-22 runs Bisect D (see ▶ Next session above).
 
-**Summary:** Phase B first-class images hang (black + backlight, no USB).
-Bisect A (no early ofilm), B (HZ=300), C (full upstream defconfig) all
-failed. Known-good overlay release boots (SSH-confirmed 2026-07-22).
-Ruled out: early ofilm modprobe, HZ=250, entire P1.1 scrub.
+**Summary:** Phase B + P1.5 hung (black + backlight, no USB). A/B/C failed;
+**D** (drop P1.5 only) **PASS**. P1.5 remains disabled in product builds.
 
 **Historical detail** (original incident notes preserved below for
-forensics). Prefer the bisect doc for next work.
+forensics).
 
 ### Symptom 1 — device frozen post-flash, does not reach Phosh
 

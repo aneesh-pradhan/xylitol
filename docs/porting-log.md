@@ -2440,3 +2440,14 @@ Drafted mainline-targeted patch (against torvalds/linux master as of today):
 - Not mailed yet — optional dt_binding_check on full tree before send
 
 Panel track unchanged: linux-panel-drivers#8 still open.
+
+## 2026-07-22 EOD — handoff freeze (productize next)
+
+Session pause. Handoff top rewritten for next session:
+
+- Device stays on **Bisect D** first-class image (`device` 1-r4 on phone).
+- **Do next:** rebuild/flash clean Phase B from `main` (P1.5 off, device
+  pkgrel 5) — productize, not another hang bisect.
+- Upstream mail (rpmcc step A) **held** per maintainer; patch stays in
+  `upstream/rpmcc-msm8920/`.
+- Git tip `03e911e` on origin/main.
