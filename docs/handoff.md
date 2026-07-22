@@ -20,11 +20,29 @@ opens `hw:0,0`, Ofilm DSI-1 **connected**, **dmesg clean** (no call
 trace/oops/panic — no 7.1.x kernel regression). No bootloop. Details in
 [▶ 7.1.3 kernel rebase](#-71-kernel-rebase--flashed--validated) below.
 
-**⇒ FIRST ACTION NEXT SESSION: contribute upstream** (the post-7.1.3 north
-star) — panel [PR #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8)
-/ adopt [DTS #48](https://github.com/msm89x7-mainline/linux/pull/48); mail
-rpmcc/step-A **only when the user asks** (still parked). Optional device
-polish (§4) and RC publish (§3) remain available.
+**⛔ HARD RULE — commit/patch authorship (copyright-critical, must NOT slip).**
+Every commit here AND every upstream patch (kernel `Signed-off-by`, DTS
+`Copyright` headers) MUST use **exactly `Aneesh Pradhan <aneeshpradhan@acm.org>`** —
+never `apradhan5@horizon.csueastbay.edu`, `zen7370@outlook.com`, or
+`perry@xylitol.local`. When picking up someone else's work, **preserve their
+name as the From: author** and add ours as `[aneesh: …]` change-note +
+`Signed-off-by`. Enforced by `scripts/git-hooks/pre-commit`
+(`git config core.hooksPath scripts/git-hooks`); documented in
+[`../AGENTS.md`](../AGENTS.md). Verify before any push:
+`git log --format='%an <%ae>' origin/main..HEAD`.
+
+**⇒ FIRST ACTION NEXT SESSION: finish the upstream contribution** (post-7.1.3
+north star). The **kernel/DTS re-roll for [#48](https://github.com/msm89x7-mainline/linux/pull/48)
+is DONE as drafts** in [`../upstream/perry-dts-reroll/`](../upstream/perry-dts-reroll/)
+(4 checkpatch-clean patches + `REVIEW-RESPONSE.md`). What's LEFT: (1) **fix
+[panel PR #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8)'s
+SoB email** — it still says `apradhan5@…csueastbay.edu`; amend + **force-push
+the PR branch** (needs user OK); (2) run `dtbs_check`/dtb build on the re-roll,
+then **open a fresh kernel PR** superseding #48 (needs user OK); (3) post the
+drafted agrecascino reply; (4) mail rpmcc/step-A **only when the user asks**
+(still parked). Full state + checklist in
+[▶ Upstream kernel/DTS re-roll](#-upstream-kerneldts-re-roll--drafted-2026-07-22)
+below. Optional device polish (§4) and RC publish (§3) remain available.
 
 **One caveat to re-check:** PipeWire/WirePlumber read `inactive` because the
 device sits at the **greeter** (nobody logged into a full Phosh session);
@@ -112,6 +130,57 @@ apply (catches "bump tag, forget to re-roll a patch"). Plus
 `.github/workflows/lint.yml` (shellcheck + apkbuild-lint). Merged in
 [PR #18](https://github.com/aneesh-pradhan/xylitol/pull/18).
 
+### ▶ Upstream kernel/DTS re-roll — DRAFTED (2026-07-22)
+
+**What:** re-rolled the stalled [msm89x7-mainline/linux#48](https://github.com/msm89x7-mainline/linux/pull/48)
+perry/MSM8920 series against the fork's **current** branch `msm89x7/7.1.3`
+(#48 itself targets the older `6.19.5`), addressing **every** `barni2000`
+review comment. Drafts live in [`../upstream/perry-dts-reroll/`](../upstream/perry-dts-reroll/)
+(committed to `main`, **not pushed, not posted**):
+
+| File | Content |
+|---|---|
+| `0001-dt-bindings-…-rpmcc-…MSM8920.patch` | binding split out (checkpatch: bindings = own patch) |
+| `0002-clk-qcom-smd-rpm-…MSM8920.patch` | driver; **shared upstream file → upstream-first** (= Step A / `upstream/rpmcc-msm8920/`) |
+| `0003-…-add-MSM8920-device-tree.patch` | `msm8920.dtsi` — dropped 5 redundant mem overrides, GPL-2.0, IPA verified == in-tree `msm8940.dtsi` |
+| `0004-…-add-Motorola-Moto-E4-perry.patch` | perry DTS — panel pinctrl→`panel@0`+`panel_default` (per nora), .dts license/mode fixes |
+| `REVIEW-RESPONSE.md` | every review comment → resolution + evidence; CONTRIBUTING.md compliance table |
+| `panel-agrecascino-reply.md` | drafted reply (agrecascino green-lit the pickup on panel #6) |
+
+**How to reproduce the working tree:** blobless sparse shallow clone of
+`msm89x7-mainline/linux` branch `msm89x7/7.1.3` (base commit `50f9719`),
+`git am` local `pmos/linux-motorola-perry/patches/0002+0003`, then apply the
+review fixes. `checkpatch.pl` clean (only benign new-file/MAINTAINERS notices).
+
+**Key review resolutions (all evidence-backed — see `REVIEW-RESPONSE.md`):**
+- **"8940 MSS good for 8920?"** → IPA block is byte-identical to the accepted
+  in-tree `msm8940.dtsi`; IPA-lite v2.6 is common family IP. 8920 inherits
+  8917's gcc/mss-pil (no `gcc-msm8920` exists) — modem out of scope on perry.
+- **redundant memory overrides** → all 5 dropped (identical to `msm8917.dtsi`;
+  `msm8940.dtsi` overrides none).
+- **`pm8937_s5` "8917 not need this"** → **KEEP, push back:** in-tree nora
+  (msm8917) ships the identical VDD_APC node.
+- **`wcn3660b` "cite msm8952.c"** → matches in-tree montana + Wi-Fi
+  board-validated on 7.1.3; downstream IDs the iris at runtime (no DT string).
+- **panel pinctrl / `panel_default` / drop sleep state** → matched nora exactly.
+
+**Authorship (see the ⛔ HARD RULE up top):** **Catherine Frederick kept as the
+From: author** (she wrote the original DTS); our contribution is a `[aneesh: …]`
+change-note + `Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>`. Committer
++ SoB + DTS copyright lines all use `aneeshpradhan@acm.org`. Audited: zero
+forbidden identities in the four patches.
+
+**Outstanding (next session — all need user OK to post/push):**
+1. **⚠ Panel [PR #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8)
+   SoB is wrong** — still `apradhan5@…csueastbay.edu`. Amend the commit
+   (author/committer/SoB → `aneeshpradhan@acm.org`) and **force-push the PR
+   branch** before the strict maintainer reviews. This is the top loose end.
+2. Run `dtbs_check` / dtb build on the re-roll, then **open a fresh kernel PR**
+   superseding #48 (author has been silent since April + OK'd a pickup).
+3. Post the drafted **agrecascino reply** (panel #6/#8).
+4. **rpmcc/Step A mail** (`upstream/rpmcc-msm8920/` = patches 0001+0002) — still
+   **parked**; do not `git send-email` until the user asks.
+
 ### CI / repo hygiene (this session)
 
 - **[PR #17](https://github.com/aneesh-pradhan/xylitol/pull/17) merged** —
@@ -168,7 +237,7 @@ redesign exists.
 | # | Task | How |
 |---|---|---|
 | ~~**1**~~ | ~~**Flash + validate the 7.1.3 image**~~ | ✅ **DONE 2026-07-22** — flashed from stock fastboot (`FLASH_COMPLETE`), SSH-validated `uname -r`=`7.1.3-msm89x7`, Phosh/Wi‑Fi/audio/panel up, dmesg clean. See [▶ 7.1.3 kernel rebase](#-71-kernel-rebase--flashed--validated). |
-| **2** | **Contribute upstream** (per user goal) — **now the first action** | 7.1.3 boots green, so: further work on [panel PR #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) / adopt [DTS #48](https://github.com/msm89x7-mainline/linux/pull/48), and (only when asked) mail the rpmcc/step-A patch. |
+| **2** | **Finish upstream contribution** — **the first action** | Kernel/DTS re-roll of [#48](https://github.com/msm89x7-mainline/linux/pull/48) is **DONE as drafts** (`upstream/perry-dts-reroll/`). LEFT: fix [panel #8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) SoB email + force-push; `dtbs_check` + open fresh kernel PR; post agrecascino reply; mail rpmcc **only when asked**. See [▶ Upstream re-roll](#-upstream-kerneldts-re-roll--drafted-2026-07-22). **Author rule: `Aneesh Pradhan <aneeshpradhan@acm.org>` only.** |
 | ~~**P**~~ | ~~**Productize first-class Phase B**~~ | ✅ **DONE 2026-07-22.** Rebuilt from `main` (P1.5 off), flashed from stock fastboot (`FLASH_COMPLETE`). On-device validated: `device` **1-r5**, kernel **7.0.9-r1**, initramfs **3.12.0-r0 unpatched**, P1.5 absent; Phosh + Wi‑Fi + audio all up. |
 | **3** | Optional RC publish | Stage/publish first-class image alongside overlay release `pmos-perry-2026-07-21` |
 | **4** | Daily-driver polish (no rebuild) | Suspend/resume, Wi‑Fi after sleep, USB-net replug, earpiece/headset UCM; confirm notification-LED node |
@@ -216,9 +285,15 @@ ssh xylitol@172.16.42.1   # pw xylitol; host 172.16.42.2/24 on enx*
 - **Audio / Wi‑Fi / Ofilm / USB-net / Phosh** all work on the live 7.1.3 image.
 - **User goal:** production-grade on Linux **7.1+** ✅ reached — *next:* upstream
   PRs + mail (mail still parked until asked).
+- **Upstream #48 re-roll DRAFTED** (`upstream/perry-dts-reroll/`) — 4
+  checkpatch-clean patches addressing every review comment; **not pushed/posted.**
+- **⛔ Authorship hard rule LIVE:** all commits/patches = `Aneesh Pradhan
+  <aneeshpradhan@acm.org>` only; enforced by `scripts/git-hooks/pre-commit`.
+  **Panel #8's SoB still wrong (csueastbay) — fix + force-push pending.**
 
-**Meta-repo:** `main` synced to origin — PRs #17 (gitignore) + #18 (CI) merged;
-7.1.3 APKBUILD rebase committed (see `git log`)  
+**Meta-repo:** local `main` is **4 commits AHEAD of `origin/main` (805d453),
+not pushed** — 7.1.3 flash doc, pre-commit author-hook, and the #48 re-roll
+drafts. Earlier PRs #17 (gitignore) + #18 (CI) already merged.  
 **Lineage tree:** `~/android/lineage` (deferred)  
 **pmOS work:** `~/pmos` · pmbootstrap 3.11.1  
 **Device:** XT1765 / `ZY224TB8KZ`  
