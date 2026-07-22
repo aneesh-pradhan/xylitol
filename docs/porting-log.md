@@ -2428,3 +2428,15 @@ Pushed xylitol `24d149e` (Bisect D / P1.5 off). Then started [issue #13](https:/
 - Opened [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8): perry config for Tianma 499v1 + Ofilm 499v0; DTB from #6 lineage (already contains ofilm MDSS node); generator verified.
 - Commented on panel #6 and kernel #48 (adoption + multi-panel evidence).
 - Next upstream: rpmcc split (step A), then msm8920.dtsi / perry DTS re-roll.
+
+## 2026-07-22 — Upstream #13 step A: rpmcc-msm8920 patch staged
+
+Drafted mainline-targeted patch (against torvalds/linux master as of today):
+
+- `upstream/rpmcc-msm8920/0001-clk-qcom-smd-rpm-add-support-for-MSM8920.patch`
+- MSM8920 rpmcc table = msm8917 clocks + IPA (from msm8940); yaml compatible
+  `qcom,rpmcc-msm8920` in enum + pxo/cxo group
+- `git apply --check` OK; README has send-email targets (andersson@ + linux-arm-msm)
+- Not mailed yet — optional dt_binding_check on full tree before send
+
+Panel track unchanged: linux-panel-drivers#8 still open.

@@ -25,7 +25,7 @@ Canonical write-up: [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md)
 | **1** | ~~T6 metrics + P1.3 baselines~~ | ✅ 2026-07-22 — see plan §5; no GPU DT yet |
 | **2** | ~~Productize no-P1.5 Phase B~~ | ✅ default build P1.5 off; deviceinfo disabled |
 | **3** | ~~Audio smoke~~ | ✅ Speaker sink + `speaker-test` OK on Bisect D |
-| **4** | **Upstream kernel/panel (#13)** | In progress — panel [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) open (Tianma+Ofilm); adoption note on [linux#48](https://github.com/msm89x7-mainline/linux/pull/48). Next: rpmcc split + DTS re-roll |
+| **4** | **Upstream kernel/panel (#13)** | Panel [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) open. **Step A rpmcc** patch staged in [`upstream/rpmcc-msm8920/`](../upstream/rpmcc-msm8920/) (mainline-ready, **not mailed**). Next: mail A and/or draft step B `msm8920.dtsi` |
 | **5** | P1.5 redesign (research) | Safe splash without hang — see bisect doc §4; do not re-enable old patch |
 | **6** | Publish first-class image (optional) | Stage no-P1.5 Phase B as release candidate vs overlay |
 

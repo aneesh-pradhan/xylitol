@@ -1,0 +1,94 @@
+From 88cb7ceff2c46fc9d74ab180203612bee5114240 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+Date: Wed, 22 Jul 2026 12:08:41 -0700
+Subject: [PATCH] clk: qcom: smd-rpm: add support for MSM8920
+
+MSM8920 is essentially MSM8917 with a larger modem stack (similar class
+to MSM8940) that includes IPA. Expose qcom,rpmcc-msm8920 with the MSM8917
+clock set plus IPA clocks, matching the needs of msm8920.dtsi
+(RPM_SMD_IPA_CLK).
+
+No new clock IDs are required; RPM_SMD_IPA_{,A_}CLK already exist in
+include/dt-bindings/clock/qcom,rpmcc.h for other SoCs.
+
+DT binding: add qcom,rpmcc-msm8920 to the compatible enum and the
+pxo+cxo clock-names group used by sibling 89x7 parts.
+
+Signed-off-by: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+---
+ .../devicetree/bindings/clock/qcom,rpmcc.yaml |  2 ++
+ drivers/clk/qcom/clk-smd-rpm.c                | 31 +++++++++++++++++++
+ 2 files changed, 33 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml b/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
+index ab97d4b..e35a003 100644
+--- a/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
+@@ -32,6 +32,7 @@ properties:
+           - qcom,rpmcc-msm8909
+           - qcom,rpmcc-msm8916
+           - qcom,rpmcc-msm8917
++          - qcom,rpmcc-msm8920
+           - qcom,rpmcc-msm8936
+           - qcom,rpmcc-msm8937
+           - qcom,rpmcc-msm8940
+@@ -112,6 +113,7 @@ allOf:
+               - qcom,rpmcc-msm8226
+               - qcom,rpmcc-msm8916
+               - qcom,rpmcc-msm8917
++              - qcom,rpmcc-msm8920
+               - qcom,rpmcc-msm8936
+               - qcom,rpmcc-msm8937
+               - qcom,rpmcc-msm8940
+diff --git a/drivers/clk/qcom/clk-smd-rpm.c b/drivers/clk/qcom/clk-smd-rpm.c
+index 103db98..cdabe37 100644
+--- a/drivers/clk/qcom/clk-smd-rpm.c
++++ b/drivers/clk/qcom/clk-smd-rpm.c
+@@ -666,6 +666,36 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8917 = {
+ 	.num_icc_clks = ARRAY_SIZE(bimc_pcnoc_snoc_smmnoc_icc_clks),
+ };
+ 
++static struct clk_smd_rpm *msm8920_clks[] = {
++	[RPM_SMD_XO_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo,
++	[RPM_SMD_XO_A_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo_a,
++	[RPM_SMD_BIMC_GPU_CLK]		= &clk_smd_rpm_bimc_gpu_clk,
++	[RPM_SMD_BIMC_GPU_A_CLK]	= &clk_smd_rpm_bimc_gpu_a_clk,
++	[RPM_SMD_IPA_CLK]		= &clk_smd_rpm_ipa_clk,
++	[RPM_SMD_IPA_A_CLK]		= &clk_smd_rpm_ipa_a_clk,
++	[RPM_SMD_QDSS_CLK]		= &clk_smd_rpm_qdss_clk,
++	[RPM_SMD_QDSS_A_CLK]		= &clk_smd_rpm_qdss_a_clk,
++	[RPM_SMD_BB_CLK1]		= &clk_smd_rpm_bb_clk1,
++	[RPM_SMD_BB_CLK1_A]		= &clk_smd_rpm_bb_clk1_a,
++	[RPM_SMD_BB_CLK2]		= &clk_smd_rpm_bb_clk2,
++	[RPM_SMD_BB_CLK2_A]		= &clk_smd_rpm_bb_clk2_a,
++	[RPM_SMD_RF_CLK2]		= &clk_smd_rpm_rf_clk2,
++	[RPM_SMD_RF_CLK2_A]		= &clk_smd_rpm_rf_clk2_a,
++	[RPM_SMD_DIV_CLK2]		= &clk_smd_rpm_div_clk2,
++	[RPM_SMD_DIV_A_CLK2]		= &clk_smd_rpm_div_clk2_a,
++	[RPM_SMD_BB_CLK1_PIN]		= &clk_smd_rpm_bb_clk1_pin,
++	[RPM_SMD_BB_CLK1_A_PIN]		= &clk_smd_rpm_bb_clk1_a_pin,
++	[RPM_SMD_BB_CLK2_PIN]		= &clk_smd_rpm_bb_clk2_pin,
++	[RPM_SMD_BB_CLK2_A_PIN]		= &clk_smd_rpm_bb_clk2_a_pin,
++};
++
++static const struct rpm_smd_clk_desc rpm_clk_msm8920 = {
++	.clks = msm8920_clks,
++	.num_clks = ARRAY_SIZE(msm8920_clks),
++	.icc_clks = bimc_pcnoc_snoc_smmnoc_icc_clks,
++	.num_icc_clks = ARRAY_SIZE(bimc_pcnoc_snoc_smmnoc_icc_clks),
++};
++
+ static struct clk_smd_rpm *msm8936_clks[] = {
+ 	[RPM_SMD_XO_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo,
+ 	[RPM_SMD_XO_A_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo_a,
+@@ -1295,6 +1325,7 @@ static const struct of_device_id rpm_smd_clk_match_table[] = {
+ 	{ .compatible = "qcom,rpmcc-msm8909", .data = &rpm_clk_msm8909 },
+ 	{ .compatible = "qcom,rpmcc-msm8916", .data = &rpm_clk_msm8916 },
+ 	{ .compatible = "qcom,rpmcc-msm8917", .data = &rpm_clk_msm8917 },
++	{ .compatible = "qcom,rpmcc-msm8920", .data = &rpm_clk_msm8920 },
+ 	{ .compatible = "qcom,rpmcc-msm8936", .data = &rpm_clk_msm8936 },
+ 	{ .compatible = "qcom,rpmcc-msm8937", .data = &rpm_clk_msm8937 },
+ 	{ .compatible = "qcom,rpmcc-msm8940", .data = &rpm_clk_msm8940 },
+-- 
+2.53.0
+

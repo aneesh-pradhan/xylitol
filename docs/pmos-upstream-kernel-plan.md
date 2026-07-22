@@ -2,12 +2,17 @@
 
 **Date opened:** 2026-07-21. **Tracking issue:** [xylitol#13](https://github.com/aneesh-pradhan/xylitol/issues/13).
 **Track:** postmarketOS mainline kernel, upstream contribution work.
-**Status (2026-07-22):** **In progress.** Step D (panels) started:
-[linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8)
-(Tianma + Ofilm; supersedes #6). Courtesy adoption comment posted on
-[linux#48](https://github.com/msm89x7-mainline/linux/pull/48). Steps A–C
-(rpmcc → msm8920.dtsi → perry DTS re-roll) still open. Pure research +
-patch-writing — **no flash required** for the next kernel steps.
+**Status (2026-07-22):** **In progress.**
+
+| Step | Status |
+|---|---|
+| **A rpmcc-msm8920** | **Patch drafted** vs torvalds/linux master — [`upstream/rpmcc-msm8920/`](../upstream/rpmcc-msm8920/). Not mailed yet. |
+| **B msm8920.dtsi** | Open |
+| **C perry DTS** | Open (adoption note on [linux#48](https://github.com/msm89x7-mainline/linux/pull/48)) |
+| **D panels** | **PR open** — [linux-panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8) (Tianma + Ofilm) |
+| **E/F** | Optional / later |
+
+Pure research + patch-writing — **no flash required** for the next kernel steps.
 
 ---
 
@@ -461,27 +466,24 @@ for later steps may shift if earlier upstream feedback changes direction).
 **Deliverable:** a clean, minimal series adding MSM8920 rpmcc support to
 `drivers/clk/qcom/clk-smd-rpm.c` and
 `Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml`, submitted to
-**real upstream Linux** (linux-arm-msm list via `git send-email`, or a
-GitHub-mirror PR if the actual upstream workflow accepts that — check
-current `MAINTAINERS` file / `Documentation/process/` for the qcom clock
-subsystem's actual preferred contribution path, this may have changed by
-the time you read this).
+**real upstream Linux** (linux-arm-msm list via `git send-email`).
+
+**Maintainer:** Bjorn Andersson `<andersson@kernel.org>` · list
+`linux-arm-msm@vger.kernel.org` · tree `qcom/linux.git`.
 
 Sub-tasks:
-1. Extract just the rpmcc-relevant hunks from PR #48's `ceace8c` commit
-   (the `clk-smd-rpm.c` +31 lines and the 2-line `rpmcc.yaml` addition).
-2. Address the `4.1`/`4.2` review comments that apply to this file
-   specifically (binding sync, SoB, commit message).
-3. Verify against **current upstream mainline Linux** (not the fork) —
-   `clk-smd-rpm.c` may have been refactored since April; a clean cherry-pick
-   might not apply anymore. Check `git log --oneline -- drivers/clk/qcom/clk-smd-rpm.c`
-   on a fresh mainline checkout.
-4. Write a proper commit message: what MSM8920 needs from rpmcc that
-   MSM8917 doesn't (this should follow directly from the DTS work in step
-   B — the clock IDs a working `msm8920.dtsi` actually references).
-5. Submit upstream. This is the highest-latency step (real kernel subsystem
-   review can take weeks) — don't block starting step B on this landing,
-   just don't claim the fork PR is "upstream-clean" until it has.
+1. ~~Extract rpmcc-relevant hunks from PR #48 / local `0002`~~ ✅
+2. ~~Rebase on current torvalds/linux master~~ ✅ (2026-07-22) — applies clean
+3. ~~Proper commit message + SoB~~ ✅
+4. ~~Stage in xylitol~~ ✅ [`upstream/rpmcc-msm8920/`](../upstream/rpmcc-msm8920/)
+5. **Submit** via `git send-email` (see README there) — **not done yet**
+6. Optional: `dt_binding_check` on full kernel tree before send
+
+**Table rationale:** mainline `msm8917_clks` + IPA pair from `msm8940_clks`
+(8920 = 8917 + IPA). No new dt-bindings clock IDs.
+
+Don't block step B drafting on mail acceptance; don't claim fork #48 is
+upstream-clean until this is at least on-list.
 
 ### Step B — Minimal `msm8920.dtsi`
 
