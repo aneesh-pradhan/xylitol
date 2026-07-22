@@ -1,47 +1,26 @@
-From 88cb7ceff2c46fc9d74ab180203612bee5114240 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <aneeshpradhan@acm.org>
-Date: Wed, 22 Jul 2026 12:08:41 -0700
-Subject: [PATCH] clk: qcom: smd-rpm: add support for MSM8920
+From deef8875d82eb1b398caf4e9e67e8bfc12e485dd Mon Sep 17 00:00:00 2001
+From: "Catherine Frederick (coolguy)" <serenity@floorchan.org>
+Date: Wed, 22 Jul 2026 14:17:02 -0700
+Subject: [PATCH 2/4] clk: qcom: smd-rpm: add MSM8920 support
 
-MSM8920 is essentially MSM8917 with a larger modem stack (similar class
-to MSM8940) that includes IPA. Expose qcom,rpmcc-msm8920 with the MSM8917
-clock set plus IPA clocks, matching the needs of msm8920.dtsi
-(RPM_SMD_IPA_CLK).
+MSM8920 is essentially MSM8917 with MSM8953's modem stack, which adds an
+IPA (IP Accelerator) block. Add an msm8920 RPM clock table mirroring
+msm8917's plus the IPA and IPA_A clocks, and register the
+"qcom,rpmcc-msm8920" compatible.
 
-No new clock IDs are required; RPM_SMD_IPA_{,A_}CLK already exist in
-include/dt-bindings/clock/qcom,rpmcc.h for other SoCs.
+Split out from the combined MSM8920 change so the shared clk-smd-rpm
+driver can be reviewed and land via linux-arm-msm independently of the
+device tree, as requested in review.
 
-DT binding: add qcom,rpmcc-msm8920 to the compatible enum and the
-pxo+cxo clock-names group used by sibling 89x7 parts.
-
+Signed-off-by: Catherine Frederick (coolguy) <serenity@floorchan.org>
+[aneesh: split rpmcc out of the SoC dtsi commit for upstream-first review]
 Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 ---
- .../devicetree/bindings/clock/qcom,rpmcc.yaml |  2 ++
- drivers/clk/qcom/clk-smd-rpm.c                | 31 +++++++++++++++++++
- 2 files changed, 33 insertions(+)
+ drivers/clk/qcom/clk-smd-rpm.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
 
-diff --git a/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml b/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
-index ab97d4b..e35a003 100644
---- a/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
-+++ b/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
-@@ -32,6 +32,7 @@ properties:
-           - qcom,rpmcc-msm8909
-           - qcom,rpmcc-msm8916
-           - qcom,rpmcc-msm8917
-+          - qcom,rpmcc-msm8920
-           - qcom,rpmcc-msm8936
-           - qcom,rpmcc-msm8937
-           - qcom,rpmcc-msm8940
-@@ -112,6 +113,7 @@ allOf:
-               - qcom,rpmcc-msm8226
-               - qcom,rpmcc-msm8916
-               - qcom,rpmcc-msm8917
-+              - qcom,rpmcc-msm8920
-               - qcom,rpmcc-msm8936
-               - qcom,rpmcc-msm8937
-               - qcom,rpmcc-msm8940
 diff --git a/drivers/clk/qcom/clk-smd-rpm.c b/drivers/clk/qcom/clk-smd-rpm.c
-index 103db98..cdabe37 100644
+index 103db984a40b..cdabe373aabc 100644
 --- a/drivers/clk/qcom/clk-smd-rpm.c
 +++ b/drivers/clk/qcom/clk-smd-rpm.c
 @@ -666,6 +666,36 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8917 = {

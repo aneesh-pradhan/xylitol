@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Aneesh Pradhan <apradhan5@horizon.csueastbay.edu>
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
 Date: Tue, 21 Jul 2026 11:20:00 -0700
 Subject: [PATCH] initramfs: make framebuffer wait timeout device-configurable
 

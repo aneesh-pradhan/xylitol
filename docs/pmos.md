@@ -9,34 +9,39 @@ daily-driver Android replacement — but the base is real and usable.
 > Nougat vendor stack (ION/mdss/KGSL/prima) with upstream DRM/msm, freedreno,
 > and wcn36xx. The two tracks share only the hardware and the backups.
 
-## What works (verified 2026-07-20, this device)
+## What works (verified 2026-07-22, this device)
 
 | Area | State |
 |---|---|
-| Boot to userspace | ✅ postmarketOS edge, kernel `7.0.9-msm89x7`, **aarch64** |
-| Phosh mobile UI | ✅ greetd → phrog → phosh; 720×1280@60; GPU (freedreno); touch |
+| Boot to userspace | ✅ postmarketOS edge, kernel `7.1.3-msm89x7` (first-class `linux-motorola-perry`), **aarch64** |
+| Phosh mobile UI | ✅ greetd → phrog → phosh; full app suite; 720×1280@60; GPU (freedreno); touch |
 | Display (Ofilm 499v0 panel) | ✅ msm DPU → DSI → `motorola,perry-499v0-ofilm`, backlight under driver control |
-| USB networking + SSH | ✅ CDC-NCM gadget at `172.16.42.1`, key-based SSH |
-| Wi-Fi (`wcn36xx`) | ✅ scans + associates (WPA2) + DHCP + internet, auto-reconnects on boot |
-| Audio (Speaker + Mic) | ✅ perry ALSA UCM (`alsa-ucm-motorola-perry`); WirePlumber sink/source |
+| USB networking + SSH | ✅ CDC-NCM gadget at `172.16.42.1` |
+| Wi-Fi (`wcn36xx`) | ✅ scans + associates (WPA2) + DHCP + internet; survives s2idle |
+| Audio (Speaker + Headphones + Earpiece) | ✅ perry ALSA UCM (`alsa-ucm-motorola-perry`); PulseAudio in Phosh |
+| Suspend / USB replug | ✅ s2idle + multi-cycle USB-net recover |
 | Sacred partitions | untouched — `persist` / `modemst1` / `modemst2` never flashed |
 
-Not yet: modem (needs SIM), sensors (vibrator/prox/ALS), cameras (off in DT),
-GPS. BT/accel/battery looked OK on a feature-matrix walk.
+Not yet: modem (no usable US bands on this unit), sensors (vibrator/prox/ALS),
+cameras (off in DT), GPS. BT/accel/battery looked OK on a feature-matrix walk.
 
-**Prebuilt flashable image:**
-[GitHub Release `pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
-(lk2nd + zstd rootfs). Default user **`xylitol`** / password **`xylitol`**
-(change after first boot). No host SSH keys or Wi-Fi profiles are baked in.
-Rebuild with
-[`../scripts/pmos-build-phosh-release.sh`](../scripts/pmos-build-phosh-release.sh).
+**Prebuilt flashable image (current):**
+[GitHub Release `pmos-perry-2026-07-22`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22)
+— first-class 7.1.3 + **full Phosh recommends** (lk2nd + zstd rootfs).
+Default user **`xylitol`** / password **`xylitol`** (change after first boot).
+No host SSH keys or Wi-Fi profiles are baked in. Rebuild with
+`LEAN=0 ./scripts/pmos-build-phase-b.sh` then
+`./scripts/pmos-stage-phase-b-release.sh`. Prior overlay release:
+[`pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
+(7.0.9 rollback).
 
 Two known rough edges:
-- **No boot splash.** The initramfs splash times out
-  (`/dev/fb0 did not appear after waiting 10 seconds`) because the DRM
-  framebuffer only appears at ~27 s when the DPU/DSI binds. Cosmetic only.
+- **No boot splash.** ~27 s black until the Ofilm DRM driver binds. The
+  P1.5 framebuffer-wait patch is **disabled** (it hung perry — see
+  [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md)).
 - Occasional `phoc … DSI-1 Atomic commit failed: Resource busy` (~0.1%). If it
-  ever freezes the display: `WLR_DRM_NO_ATOMIC=1` for phoc.
+  ever freezes the display: `WLR_DRM_NO_ATOMIC=1` for phoc (already in the
+  device package).
 
 ## Heads-up before you start
 

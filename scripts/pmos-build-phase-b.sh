@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Phase B + P0: build linux-motorola-perry + device-motorola-perry and produce
-# a lean Phosh install image (first-class motorola-perry device).
+# a Phosh install image (first-class motorola-perry device).
 #
 # Does NOT flash. Does NOT touch persist/modemst*.
 #
 # Usage:
-#   ./scripts/pmos-build-phase-b.sh
+#   ./scripts/pmos-build-phase-b.sh              # lean (default; --no-recommends)
+#   LEAN=0 ./scripts/pmos-build-phase-b.sh       # full Phosh app suite (release)
 #
 # Env overrides:
 #   PMOS_USER / PMOS_PASSWORD  (default: xylitol / xylitol)
 #   PMOS_EXTRA_SPACE           (default: 2048 MiB)
+#   LEAN=0|1                   default 1: pmbootstrap --no-recommends (P0.2).
+#                              LEAN=0: install recommends (Calculator, Calendar,
+#                              Console, Firefox-ESR, Chatty, Calls, …) matching
+#                              the prior complete Phosh release UX.
 #   ENABLE_P15=1               DANGEROUS: apply P1.5 framebuffer-wait patch
 #                              (known boot hang on perry — Bisect D 2026-07-22).
 #                              Default is OFF (unpatched initramfs).
@@ -23,6 +28,7 @@ cd "$XYLITOL_ROOT"
 PMOS_USER="${PMOS_USER:-xylitol}"
 PMOS_PASSWORD="${PMOS_PASSWORD:-xylitol}"
 PMOS_EXTRA_SPACE="${PMOS_EXTRA_SPACE:-2048}"
+LEAN="${LEAN:-1}"
 # Default OFF: P1.5 hard-hangs perry (phase-b-boot-hang-bisect.md Bisect D).
 ENABLE_P15="${ENABLE_P15:-0}"
 if [[ "${DROP_P15:-}" == "1" ]]; then
@@ -106,7 +112,11 @@ else
   pmbootstrap build linux-motorola-perry --force --lax
 fi
 
-echo "==> pmbootstrap install (Phosh, --no-recommends = P0.2 lean)"
+if [[ "$LEAN" == "1" ]]; then
+  echo "==> pmbootstrap install (Phosh, --no-recommends = P0.2 lean)"
+else
+  echo "==> pmbootstrap install (Phosh, FULL recommends = complete app suite)"
+fi
 # Ensure no stale chroot mounts (prior --zap umount races on this host).
 pmbootstrap shutdown || true
 
@@ -132,8 +142,12 @@ if [[ "$ENABLE_P15" != "1" ]]; then
   fi
 fi
 
-# --zap: clean chroots. --no-recommends: drop firefox/cups/flatpak/etc.
-pmbootstrap install --zap --password "$PMOS_PASSWORD" --no-recommends
+# --zap: clean chroots. LEAN=1: --no-recommends drops firefox/cups/flatpak/…
+INSTALL_ARGS=(--zap --password "$PMOS_PASSWORD")
+if [[ "$LEAN" == "1" ]]; then
+  INSTALL_ARGS+=(--no-recommends)
+fi
+pmbootstrap install "${INSTALL_ARGS[@]}"
 
 echo "==> Export images"
 pmbootstrap export
@@ -250,17 +264,39 @@ if sudo find /mnt/pmos-b-root/etc/NetworkManager/system-connections \
   exit 1
 fi
 
+if [[ "$LEAN" != "1" ]]; then
+  # Spot-check the stock Phosh recommend set (postmarketos-base-ui-gnome*).
+  for app in \
+    org.gnome.Calculator.desktop \
+    org.gnome.Console.desktop \
+    org.gnome.Calendar.desktop \
+    firefox-esr.desktop \
+    sm.puri.Chatty.desktop
+  do
+    sudo test -f /mnt/pmos-b-root/usr/share/applications/"$app" \
+      || { echo "ERROR: full-apps build missing $app" >&2; exit 1; }
+  done
+  echo "OK: full-apps desktop entries present"
+fi
+
 cleanup_loop
 trap - EXIT
+
+if [[ "$LEAN" == "1" ]]; then
+  APPS_NOTE="lean (\`--no-recommends\` — Settings/Software only from UI recommends)"
+else
+  APPS_NOTE="**full Phosh recommends** (Calculator, Calendar, Console, Firefox-ESR, Chatty, Calls, …)"
+fi
 
 cat > "$OUT_DIR/FLASH.md" <<EOF
 # Phase B — motorola-perry + linux-motorola-perry (${DATE_UTC})
 $([ -n "$BISECT_TAG" ] && echo "Variant: **${BISECT_TAG}**")
 ENABLE_P15=${ENABLE_P15}
+LEAN=${LEAN}
 
 First-class \`device-motorola-perry\` / \`linux-motorola-perry\` Phosh image
-with P0 userspace (zram via deviceinfo, \`WLR_DRM_NO_ATOMIC=1\`, lean
-\`--no-recommends\`, USB nosuspend udev, service presets).
+with P0 userspace (zram via deviceinfo, \`WLR_DRM_NO_ATOMIC=1\`,
+${APPS_NOTE}, USB nosuspend udev, service presets).
 
 **P1.5:** default OFF (Bisect D: framebuffer-wait patch hung perry). Splash
 gap may remain until a safe redesign.
@@ -281,7 +317,7 @@ fastboot flash boot ${LK2ND_NAME}   # must NOT contain force-fastboot string
 fastboot continue
 \`\`\`
 
-Build: \`ENABLE_P15=${ENABLE_P15} scripts/pmos-build-phase-b.sh\`
+Build: \`LEAN=${LEAN} ENABLE_P15=${ENABLE_P15} scripts/pmos-build-phase-b.sh\`
 EOF
 
 (
