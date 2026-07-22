@@ -32,7 +32,7 @@ Verify: `git log --format='%an <%ae>' origin/main..HEAD`.
 | OS | `7.1.3-msm89x7`, Phosh/greetd active, USB-net + SSH after `continue` |
 | Xylitol carry | **Removed** (`pmos/lk2nd/0001-*`, `scripts/pmos-apply-lk2nd-perry.sh`) |
 | Docs | [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md) updated |
-| RFT text | `artifacts/pmos-phase-b/lk2nd-23.1-rft-comment.md` → paste on [!9076](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076) if not yet posted (no GitLab token in this environment) |
+| RFT on !9076 | ✅ Posted as [note 571627](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076#note_571627) (`aneesh-pradhan`, 2026-07-22); source text also in `artifacts/pmos-phase-b/lk2nd-23.1-rft-comment.md` |
 
 **Gotcha:** flashing `boot` from *inside* older lk2nd reported OKAY but left
 `lk2nd:version` at 22.0-r3 until a **stock aboot** flash.
