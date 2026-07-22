@@ -18,7 +18,15 @@ PATCHDIR="$PKGDIR/patches"
 [ -f "$APKBUILD" ] || { echo "ERROR: $APKBUILD not found" >&2; exit 2; }
 
 # Pull the pinned coordinates straight from the APKBUILD (no sourcing).
-val() { grep -E "^$1=" "$APKBUILD" | head -1 | cut -d= -f2- | tr -d '"'; }
+# No `grep | head` — that races under `set -o pipefail` (head closes the pipe,
+# grep takes SIGPIPE on flush → 141 → pipeline fails). grep -m1 into a var
+# + bash parameter expansion is pipe-free and deterministic.
+val() {
+  local line
+  line="$(grep -m1 -E "^$1=" "$APKBUILD" || true)"
+  line="${line#*=}"
+  printf '%s' "${line//\"/}"
+}
 pkgver="$(val pkgver)"
 srcrel="$(val _srcrel)"
 url="$(val url)"
@@ -37,7 +45,8 @@ curl -fsSL -o "$WORK/src.tar.gz" "$tarball_url"
 
 echo "==> extracting..."
 tar -C "$WORK" -xzf "$WORK/src.tar.gz"
-tree="$(find "$WORK" -maxdepth 1 -type d -name 'linux-*' | head -1)"
+# -print -quit stops at the first hit in one process (no `find | head` SIGPIPE).
+tree="$(find "$WORK" -maxdepth 1 -type d -name 'linux-*' -print -quit)"
 [ -n "$tree" ] || { echo "ERROR: extracted kernel dir not found" >&2; exit 2; }
 
 cd "$tree"
@@ -60,7 +69,7 @@ for f in "${patches[@]}"; do
     git apply "$f"; git add -A; git commit -qm "$name"
   else
     echo "  FAIL  $name"
-    sed 's/^/          /' /tmp/ci-ga.err | head -12
+    head -12 /tmp/ci-ga.err | sed 's/^/          /'
     fail=1
     # keep stacking the rest against the last good state to report all failures
   fi
