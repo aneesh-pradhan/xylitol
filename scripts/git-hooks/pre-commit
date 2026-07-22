@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# HARD RULE: every commit in this repo (and every patch re-rolled from it for
+# upstream submission) MUST be authored as exactly:
+#     Aneesh Pradhan <aneeshpradhan@acm.org>
+# Upstream maintainers are strict about copyright/DCO attribution, so this is
+# enforced mechanically and must never slip past. See CLAUDE.md / AGENTS.md.
+# Installed via: git config core.hooksPath scripts/git-hooks
+set -euo pipefail
+
+REQUIRED_NAME="Aneesh Pradhan"
+REQUIRED_EMAIL="aneeshpradhan@acm.org"
+
+ident="$(git var GIT_AUTHOR_IDENT)"                 # "Name <email> ts tz"
+name="${ident%% <*}"
+email="${ident#*<}"; email="${email%%>*}"
+
+if [[ "$name" != "$REQUIRED_NAME" || "$email" != "$REQUIRED_EMAIL" ]]; then
+  echo "ERROR: commit author must be '$REQUIRED_NAME <$REQUIRED_EMAIL>'." >&2
+  echo "       got: '$name <$email>'." >&2
+  echo "       Fix: git config user.name  \"$REQUIRED_NAME\"" >&2
+  echo "            git config user.email \"$REQUIRED_EMAIL\"" >&2
+  echo "       (or amend the author). See CLAUDE.md / AGENTS.md." >&2
+  exit 1
+fi
