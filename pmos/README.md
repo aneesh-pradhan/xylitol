@@ -110,6 +110,8 @@ pmbootstrap build    device-motorola-perry
 `scripts/pmos-apply-perry-kernel.sh` (legacy `qcom-msm89x7` overlay path) now
 pulls patches from `linux-motorola-perry/patches/` so there is one DT source.
 
-**Hardware flash of the Phase B image is parked** (2026-07-21). Published
-release images still use `qcom-msm89x7` +
-`scripts/pmos-build-phosh-release.sh` until an explicit cutover.
+**Phase B hang (2026-07-22):** first-class device/kernel images hang on
+hardware; bisect A/B/C failed. Working phone = release overlay path
+(`scripts/pmos-build-phosh-release.sh` /
+`pmos-perry-2026-07-21`). Isolation:
+[`../docs/phase-b-boot-hang-bisect.md`](../docs/phase-b-boot-hang-bisect.md).

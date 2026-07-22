@@ -49,15 +49,16 @@ pmbootstrap config extra_packages none
 echo "==> Checksum + build packages"
 pmbootstrap checksum linux-motorola-perry
 pmbootstrap checksum device-motorola-perry
-pmbootstrap build firmware-motorola-perry-nv
-pmbootstrap build alsa-ucm-motorola-perry
-pmbootstrap build lk2nd
+pmbootstrap build firmware-motorola-perry-nv --arch aarch64 --lax
+pmbootstrap build alsa-ucm-motorola-perry --arch aarch64 --lax
+pmbootstrap build lk2nd --lax
 # --arch aarch64: this is a noarch package but defaults to building for the
 # native host arch; without an explicit aarch64 build+index entry, apk
 # silently falls back to the unpatched upstream binary during install.
-pmbootstrap build postmarketos-initramfs --arch aarch64
-pmbootstrap build linux-motorola-perry
-pmbootstrap build device-motorola-perry
+# --lax: skip post-build zap (this host hits intermittent umount busy races).
+pmbootstrap build postmarketos-initramfs --arch aarch64 --lax
+pmbootstrap build linux-motorola-perry --lax
+pmbootstrap build device-motorola-perry --lax
 
 echo "==> pmbootstrap install (Phosh, --no-recommends = P0.2 lean)"
 # --zap: clean chroots. --no-recommends: drop firefox/cups/flatpak/etc.
@@ -92,10 +93,27 @@ done
 
 ROOTFS_NAME="motorola-perry-phosh.img"
 LK2ND_NAME="lk2nd-msm8952-perry.img"
+SPARSE_NAME="motorola-perry-phosh.sparse.img"
 cp -v "$ROOTFS_SRC" "$OUT_DIR/$ROOTFS_NAME"
 cp -v "$LK2ND_SRC" "$OUT_DIR/$LK2ND_NAME"
 
+# Reject FORCE-as-NORMAL (poisoned package cache / wrong export).
+# grep -a on file — avoid `strings | grep -q` under pipefail (SIGPIPE false results).
+if grep -aFq 'Fastboot mode was forced with compile-time flag.' "$OUT_DIR/$LK2ND_NAME"; then
+  echo "ERROR: $LK2ND_NAME is a FORCE-FASTBOOT build — refusing to ship as NORMAL" >&2
+  echo "Rebuild lk2nd without LK2ND_FORCE_FASTBOOT (pmbootstrap build lk2nd --force)." >&2
+  exit 1
+fi
+
+echo "==> Regenerating sparse image (always fresh from this raw)"
+command -v img2simg >/dev/null || {
+  echo "ERROR: img2simg required (android-sdk-libsparse-utils)" >&2
+  exit 1
+}
+img2simg "$OUT_DIR/$ROOTFS_NAME" "$OUT_DIR/$SPARSE_NAME"
+
 echo "==> Sanity-check image (fdt, linger, P0 bits, kernel flavor)"
+# ro,noload: avoid dirtying raw image SHA via journal/superblock writes
 LOOP="$(sudo losetup -fP --show "$OUT_DIR/$ROOTFS_NAME")"
 cleanup_loop() {
   sudo umount /mnt/pmos-b-boot 2>/dev/null || true
@@ -104,8 +122,10 @@ cleanup_loop() {
 }
 trap cleanup_loop EXIT
 sudo mkdir -p /mnt/pmos-b-boot /mnt/pmos-b-root
-sudo mount "${LOOP}p1" /mnt/pmos-b-boot
-sudo mount "${LOOP}p2" /mnt/pmos-b-root
+sudo mount -o ro "${LOOP}p1" /mnt/pmos-b-boot
+# root is ext4: noload avoids journal replay that dirties the raw image SHA
+sudo mount -o ro,noload "${LOOP}p2" /mnt/pmos-b-root || \
+  sudo mount -o ro "${LOOP}p2" /mnt/pmos-b-root
 
 EXTLINUX="$(sudo cat /mnt/pmos-b-boot/extlinux/extlinux.conf)"
 echo "$EXTLINUX" | grep -q 'fdt /msm8917-motorola-perry.dtb' \
@@ -160,10 +180,10 @@ SSH USB-net: \`${PMOS_USER}@172.16.42.1\` (host \`172.16.42.2/24\`,
 Sacred: never touch \`persist\` / \`modemst1\` / \`modemst2\`.
 
 \`\`\`bash
-# From stock fastboot:
-fastboot flash boot ${LK2ND_NAME}
-# Into lk2nd fastboot (product: lk2nd-msm8952):
-fastboot flash userdata ${ROOTFS_NAME}
+# Prefer scripts/pmos-flash-phase-b-force.sh (chunked sparse + NORMAL≠FORCE asserts).
+# Manual path (lk2nd fastboot, product: lk2nd-msm8952):
+fastboot flash -S 100M userdata ${SPARSE_NAME}
+fastboot flash boot ${LK2ND_NAME}   # must NOT contain force-fastboot string
 fastboot continue
 \`\`\`
 
@@ -172,10 +192,10 @@ EOF
 
 (
   cd "$OUT_DIR"
-  sha256sum "$LK2ND_NAME" "$ROOTFS_NAME" > SHA256SUMS
+  sha256sum "$LK2ND_NAME" "$ROOTFS_NAME" "$SPARSE_NAME" > SHA256SUMS
 )
 
 echo
 echo "OK. Phase B artifacts in $OUT_DIR"
 ls -lh "$OUT_DIR"
-echo "Flash with FLASH.md — then measure baselines (systemd-analyze / free -h)."
+echo "Flash with scripts/pmos-flash-phase-b-force.sh — then measure baselines."

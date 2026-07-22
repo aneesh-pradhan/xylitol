@@ -1,19 +1,53 @@
 #!/usr/bin/env bash
 # Clean Phase B flash: stock → force-fastboot lk2nd → sparse userdata → normal lk2nd → continue
-# PARKED 2026-07-21 — do not run unless explicitly resuming device flash.
 # Do NOT interrupt mid-write. Final chunks can take several minutes on eMMC.
+# Sacred: never touches persist / modemst1 / modemst2.
+#
+# Env overrides (for bisect images without editing this script):
+#   RAW=.../motorola-perry-phosh-bisectA.img \
+#   SPARSE=.../motorola-perry-phosh-bisectA.sparse.img \
+#     ./scripts/pmos-flash-phase-b-force.sh
+# Optional: FORCE= NORMAL= OUT= LOG=
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$ROOT/artifacts/pmos-phase-b"
-FORCE="$OUT/lk2nd-force-fastboot.img"
-NORMAL="$OUT/lk2nd-msm8952-perry.img"
-SPARSE="$OUT/motorola-perry-phosh.sparse.img"
-LOG="$OUT/flash.log"
+OUT="${OUT:-$ROOT/artifacts/pmos-phase-b}"
+FORCE="${FORCE:-$OUT/lk2nd-force-fastboot.img}"
+NORMAL="${NORMAL:-$OUT/lk2nd-msm8952-perry.img}"
+RAW="${RAW:-$OUT/motorola-perry-phosh.img}"
+SPARSE="${SPARSE:-$OUT/motorola-perry-phosh.sparse.img}"
+LOG="${LOG:-$OUT/flash.log}"
+
+echo "==> flash artifacts:"
+echo "    FORCE  = $FORCE"
+echo "    NORMAL = $NORMAL"
+echo "    RAW    = $RAW"
+echo "    SPARSE = $SPARSE"
 
 [[ -f "$FORCE" && -f "$NORMAL" && -f "$SPARSE" ]] || {
-  echo "Missing artifacts in $OUT" >&2
+  echo "Missing artifacts (need FORCE, NORMAL, SPARSE)" >&2
   exit 1
 }
+
+# NORMAL must never be a FORCE-FASTBOOT binary (poisoned package cache class of bug).
+# Use grep -a on the file directly — NOT `strings | grep -q` under pipefail
+# (grep -q closes the pipe early → strings SIGPIPE → false negative).
+MARKER='Fastboot mode was forced with compile-time flag.'
+if grep -aFq "$MARKER" "$NORMAL"; then
+  echo "ERROR: $NORMAL is FORCE-FASTBOOT — refusing to flash as NORMAL" >&2
+  exit 1
+fi
+if ! grep -aFq "$MARKER" "$FORCE"; then
+  echo "ERROR: $FORCE lacks force-fastboot marker — refusing to use as FORCE" >&2
+  exit 1
+fi
+
+# Sparse must be newer than raw when raw exists (stale-sparse gotcha).
+if [[ -f "$RAW" ]]; then
+  if [[ ! "$SPARSE" -nt "$RAW" ]]; then
+    echo "ERROR: $SPARSE is not newer than $RAW — regenerate with img2simg" >&2
+    exit 1
+  fi
+fi
 
 echo "==> Waiting for STOCK fastboot (product=perry) or clean lk2nd..."
 P=""

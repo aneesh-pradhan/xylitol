@@ -4,30 +4,49 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-**Date:** 2026-07-21 (updated — Phase B + P1 custom kernel committed)  
-**Headline (pmOS UI): perry BOOTS TO A WORKING PHOSH MOBILE UI — USER-CONFIRMED
-SUCCESS.** Installed `postmarketos-ui-phosh` on the running device; clean boot →
-`graphical.target` + greetd + phrog greeter → phosh session for `xylitol`. phoc
-modesets DSI-1 at **720×1280@60**, EGL on **GBM/mesa** (Adreno 308 GL accel),
-touch works. Combined with **working audio (UCM)** + Wi-Fi, perry is a usable
-pmOS phone. **✅ Durable clean-install image published + flash-validated** —
-[Release `pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21).
-Build recipe: `scripts/pmos-build-phosh-release.sh`. Benign: occasional
-`phoc … DSI-1 Atomic commit failed: Resource busy` (~0.1%;
-`WLR_DRM_NO_ATOMIC=1`).  
-**Headline (custom kernel, 2026-07-21):** first-class
-`pmos/device-motorola-perry` + `pmos/linux-motorola-perry` in-repo. **P1
-repo-side DONE** (defconfig scrub, HZ=250, eMMC mq-deadline, cpufreq audit,
-**P1.5 framebuffer-wait fix**) **AND FLASHED to hardware** same session —
-packages `linux-motorola-perry` 7.0.9-r1 / `device-motorola-perry` 1-r3.
-Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md). New
-research track opened: upstream kernel/panel adoption, see
+## ▶ Next session — start here (2026-07-22)
+
+**Device state:** **ONLINE on known-good** release
+[`pmos-perry-2026-07-21`](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-21)
+(overlay path). SSH: `xylitol@172.16.42.1` (pw `xylitol`); USB-net host
+`172.16.42.2/24` on cdc_ncm; Wi‑Fi also up. Kernel `7.0.9-msm89x7`.
+
+**Phase B boot hang:** **bisected A/B/C — all FAIL.** First-class
+`device-motorola-perry` + `linux-motorola-perry` images hang (black
+screen + backlight, no USB). Full matrix, recovery, and **ordered next
+isolation tasks (T1–T6):**
+[`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+
+**Do next (pick one “break the phone” track):**
+
+| # | Task | Goal |
+|---|---|---|
+| **T1** | Bisect D: drop P1.5 framebuffer-wait only | Rule out initramfs 35s wait patch |
+| **T2** | Kernel-only swap (Phase B kernel on overlay device, or reverse) | Isolate `linux-motorola-perry` aport |
+| **T3** | Device-only swap | Isolate `device-motorola-perry` aport |
+| **T4** | `modules-initfs` parity with generic msm89x7 | Rule out minimal early module set |
+| **T5** | Rebuild overlay release control | Confirm host/flash path still green |
+| **T6** | After any Phase B boot: metrics + P1.3 | [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md) §5 |
+
+**Safe no-flash track:** upstream kernel/panel
 [`pmos-upstream-kernel-plan.md`](pmos-upstream-kernel-plan.md) /
-[GitHub #13](https://github.com/aneesh-pradhan/xylitol/issues/13).  
-**⚑ Next session: see [▶ Next session — start here](#-next-session--start-here-2026-07-21-post-flash-checkpoint).**  
+[GitHub #13](https://github.com/aneesh-pradhan/xylitol/issues/13).
+
+**Do not** flash Phase B images as daily-driver until a bisect boots.
+Recovery: `scripts/pmos-rollback-known-good.sh` or env-override force-flash
+of release sparse (see bisect doc §6).
+
 **⚑ PRIORITY:** **pmOS is primary.** Android/Lineage deferred. Modem is
 **out of scope** (no usable bands for this unit) — do not schedule modem
-work.  
+work.
+
+**Headline (pmOS UI):** perry boots working Phosh on the **overlay** path
+(release `pmos-perry-2026-07-21`). First-class custom kernel/device path is
+**blocked on boot hang** (A/B/C failed).  
+**Headline (custom kernel packages):** in-repo scaffold remains; `device`
+pkgrel **4** (no early ofilm); `linux` pkgrel **1** (scrubbed defconfig +
+HZ=250 restored as product intent — **not boot-validated** on hardware).
+Plan: [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md).  
 **Headline (pmOS audio):** **perry now has working audio routing.** Authored the
 `motorola-perry` ALSA UCM profile (was mute: `alsaucm -2` / "no backend DAIs").
 `alsaucm` loads HiFi, `PRI_MI2S_RX ← MultiMedia1` + `SPK DAC` engage,
@@ -87,12 +106,281 @@ Chronology: [`porting-log.md`](porting-log.md). Rules: [`../CLAUDE.md`](../CLAUD
 
 ---
 
+## Boot-hang incident — Phase B (2026-07-21 → 2026-07-22)
+
+**Status: DEVICE RECOVERED on known-good. Hang root-cause still open.**
+Canonical write-up + next isolation queue:
+[`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+
+**Summary:** Phase B first-class images hang (black + backlight, no USB).
+Bisect A (no early ofilm), B (HZ=300), C (full upstream defconfig) all
+failed. Known-good overlay release boots (SSH-confirmed 2026-07-22).
+Ruled out: early ofilm modprobe, HZ=250, entire P1.1 scrub.
+
+**Historical detail** (original incident notes preserved below for
+forensics). Prefer the bisect doc for next work.
+
+### Symptom 1 — device frozen post-flash, does not reach Phosh
+
+After the P1/P1.5 flash completed cleanly (`FLASH_COMPLETE`, confirmed in
+porting-log) and `fastboot continue` handed off to the OS:
+
+- Backlight turns on (so the Ofilm panel driver gets far enough to power the
+  panel — this normally happens ~27s into boot per prior sessions).
+- Screen stays **fully black** — no splash, no fbcon text, no `perry
+  login:` tty. P1.5 raised the initramfs framebuffer-wait to 35s
+  specifically so *something* should render by then.
+- **No change for several minutes** (user-confirmed) — this is well past
+  any plausible splash/console timing, so it is a real hang, not the old
+  cosmetic ~27s-black-screen timing bug P1.5 was meant to fix.
+- **Zero USB signal from the host the entire time it was frozen**: no
+  `adb devices`, no `fastboot devices`, no `lsusb` entry at all, no
+  `cdc_ncm` net interface. This rules out "just the display is broken,
+  everything else is fine" (which would still show USB-net/SSH per the
+  E-10 recipe) — the device was unreachable by every channel.
+- User did a **fresh force power-off + power-on → "continue" on lk2nd**:
+  identical result, no progress toward Phosh. Confirms it's reproducible,
+  not a one-off glitch.
+- User then forced the device into **stock/generic fastboot** (a
+  dedicated Motorola key-combo, not lk2nd's Vol-Down interception — the
+  `boot` partition still holds lk2nd from the prior flash's "restore
+  normal lk2nd" step, so this bypasses it directly) to regain control.
+
+**What's the same / different vs. the historical "blind & mute" Blocker B
+(porting-log 2026-07-20):** same *shape* (silent, black, unreachable) but
+that one was traced to DTB nodes (`simple-framebuffer status=disabled`,
+`usb dr_mode=otg` extcon not firing) on the **stock qcom-msm89x7 kernel**,
+long since retired as explanations (E-6: both confirmed correct-as-shipped,
+not the fix). This is the **new first-class `linux-motorola-perry` P1
+kernel** (HZ=250, eMMC mq-deadline, cpufreq audit, P1.5 initramfs patch)
+— the only things that changed versus the last **validated-working** build
+(`pmos-perry-2026-07-21` Phosh release). No serial console exists on this
+device (no UART cable), so there is no way to see where in boot it's
+actually stuck — diagnosis has to be by differential reflash/bisection, not
+log inspection.
+
+### Symptom 2 — fastboot itself went unresponsive during recovery (NEW, separate bug)
+
+While driving recovery from this host (adb/fastboot are installed locally
+and the phone was USB-connected to it):
+
+1. `fastboot devices` / `fastboot getvar all` **succeeded once**, full
+   output: `product: perry`, `board: perry`, `secure: yes`, `hwrev: P3B`,
+   `storage-type: emmc`, `emmc: 16GB SAMSUNG QE63MB …`, `ram: 2GB SAMSUNG
+   LP3 …`, `cpu: MSM8917`, `serialno: ZY224TB8KZ`, `cid: 0x0015`,
+   `securestate: flashing_unlocked`, `reason: Volume down key pressed`,
+   `imei:` present. This is genuine **stock** Motorola bootloader fastboot
+   (not lk2nd — lk2nd's signature is `product: lk2nd-msm8952`, empty
+   `version-bootloader`, serial `24b071b`). Nothing sacred-partition-adjacent
+   looked wrong.
+2. `dmesg` then showed an **unprompted** USB identity flicker: the device
+   briefly presented as `18d1:d00d` "Android"/"Google", serial `24b071b`
+   (lk2nd's documented fastboot signature) for ~1.3s, then dropped and
+   re-enumerated as `22b8:2e80` "Fastboot perry S"/Motorola Inc., serial
+   `ZY224TB8KZ` (stock) again. **User confirmed no button presses during
+   this window.** Timing lines up with the tail end of the user's own
+   power-cycle/force-fastboot sequence (plausible the device transiently
+   passed through lk2nd's fastboot — since `boot` still holds lk2nd —
+   before the dedicated stock-fastboot combo took over), assessed as
+   probably-benign settling noise, **but not conclusively confirmed**.
+3. **After that, `fastboot getvar <anything>` hung/timed out on every
+   subsequent attempt** (6+ tries over ~2 minutes), while `fastboot
+   devices` and `lsusb` continued to show the device enumerated normally
+   the whole time (directly on the host's root hub, port 4 — **not** behind
+   the flaky external hub on this desktop). No competing `fastboot`/`adb`
+   process was holding the device (`ps aux` checked). **No flash or boot
+   command was ever issued this session** — only read-only
+   `getvar`/`devices` queries — so nothing done from this host caused it.
+
+This means the device is currently **present at the USB-descriptor level
+but not answering the fastboot protocol** — a state one level worse than
+the original bug (which at least let stock fastboot respond fully once).
+Starting a multi-minute `userdata` write against a wedged fastboot session
+risks a **worse outcome than the current freeze** (partial/corrupt flash),
+so **no flash has been attempted against this symptom** — recovery paused
+here pending a cable/port replug to rule out a host-USB-side cause before
+assuming a phone-side fault.
+
+### Hypotheses (ranked, unconfirmed)
+
+1. **P1 kernel scrub regression** (HZ=250 / mq-deadline / cpufreq audit) —
+   most likely for Symptom 1, but doesn't cleanly explain Symptom 2 (fastboot
+   hangs happen in the **bootloader**, before this kernel ever runs — worth
+   noting as an inconsistency, not glossing over it).
+2. **Host-side USB/cable/port issue** — plausible for Symptom 2 specifically;
+   ruled *in* as the first thing to test (replug / different port or cable)
+   before concluding anything about the phone.
+3. **Marginal phone-side hardware** (connector wear, power/battery) — cannot
+   be ruled in or out remotely; only physical inspection helps.
+4. **Corrupted/partial prior flash** — the P1 flash's last `userdata` chunk
+   took 187s and was judged "eMMC latency, not a hang" at the time (process
+   was in `D` state, not dead) — plausible but not proven; a rollback flash
+   to a known-good image will help confirm either way once fastboot is
+   stable.
+
+### Recovery plan — prepared, ready to run once fastboot responds reliably
+
+**Do not run this until `fastboot getvar product` responds normally and
+repeatedly** (replug cable/port first if it's still hanging).
+
+Artifacts already staged locally (not in git — `artifacts/` is gitignored):
+
+- Known-good rollback image: `artifacts/pmos-release/pmos-perry-2026-07-21/qcom-msm89x7-perry-phosh.img`
+  (the durable, previously flash-validated Phosh release — this is what was
+  working *before* today's P1 kernel/P1.5 changes).
+- Regenerated as sparse: `artifacts/pmos-release/pmos-perry-2026-07-21/qcom-msm89x7-perry-phosh.sparse.img`
+  (1.96 GB, via `img2simg`) — ready to flash.
+- Force-fastboot lk2nd (reused, unmodified): `artifacts/pmos-phase-b/lk2nd-force-fastboot.img`.
+- **Gotcha found, not yet explained:** two different `lk2nd-msm8952-perry.img`
+  binaries exist in the repo artifacts with **different SHA256**:
+  `artifacts/pmos-phase-b/lk2nd-msm8952-perry.img` = `b884ee70…`, vs.
+  `artifacts/pmos-release/pmos-perry-2026-07-21/lk2nd-msm8952-perry.img` =
+  `8d7851b4…`. Not yet root-caused (could be harmless rebuild
+  non-determinism, e.g. an embedded build timestamp — **not verified**).
+  Plan uses the **release's own copy** (`8d7851b4…`) for the final
+  "restore normal lk2nd" step, to match the exact pairing that was
+  originally validated for this rootfs rather than mixing in the phase-b
+  copy. Worth root-causing properly once the device is stable again —
+  if it's more than a timestamp, that's its own latent bug.
+
+Flash sequence (mirrors `scripts/pmos-flash-phase-b-force.sh`, pointed at
+the known-good rollback image instead of the suspect P1 build):
+
+```bash
+FORCE=artifacts/pmos-phase-b/lk2nd-force-fastboot.img
+NORMAL=artifacts/pmos-release/pmos-perry-2026-07-21/lk2nd-msm8952-perry.img
+SPARSE=artifacts/pmos-release/pmos-perry-2026-07-21/qcom-msm89x7-perry-phosh.sparse.img
+
+# from STOCK fastboot (product: perry):
+fastboot flash boot "$NORMAL"
+fastboot boot "$FORCE"
+# wait for product: lk2nd-msm8952 ...
+fastboot flash -S 100M userdata "$SPARSE"   # ~5-10 min, do not interrupt
+fastboot flash boot "$NORMAL"               # restore normal lk2nd
+fastboot continue
+```
+
+**Decision tree after this flash:**
+
+- **Known-good boots clean** → confirms the P1 kernel scrub (or P1.5
+  initramfs patch) is the regression. Next: bisect by reverting one of
+  HZ=250 / mq-deadline / cpufreq-governor changes at a time and reflashing
+  — there is no serial console, so bisection-by-reflash is the only
+  diagnostic route available.
+- **Known-good ALSO hangs the same way** → points at the flash/eMMC path or
+  a hardware fault, not the kernel code. Next: a full clean reflash (not
+  incremental), and if that still fails, physical inspection (cable/port/
+  battery) rather than more code changes.
+
+**Sacred, unaffected throughout:** only `boot` (lk2nd, reversible, flashed
+twice) and `userdata` (destructive there, expected/reversible in this
+project's workflow) have been touched. `persist`/`modemst1`/`modemst2`/
+`fsg` never in play.
+
+### Coordination note for parallel agents
+
+Only one physical device exists. If multiple agents are working this
+concurrently:
+
+- **Only one agent should hold the fastboot session / issue device
+  commands at a time** — interleaved flashes or getvar calls from two
+  agents will race and could produce a worse corrupted state than either
+  symptom above.
+- Safe to parallelize: preparing/reviewing revert patches for the P1
+  kernel scrub (HZ=250 / mq-deadline / cpufreq — see
+  [`perry-custom-kernel-plan.md`](perry-custom-kernel-plan.md)), and
+  root-causing the two-different-lk2nd-checksum gotcha above (diff the two
+  binaries, check build logs/timestamps embedded in each).
+- Append findings to this section (with date) rather than overwriting —
+  this is the coordination point of truth until the device boots again.
+
+### ✅ RESOLUTION UPDATE (2026-07-21, afternoon session) — rollback BOOTS; incident root causes found
+
+**Status: device recovered and running the known-good release image.
+Symptom 2 resolved; Symptom 1 root-cause narrowed to Phase B image content
+and now under bisection.** Chronology and detail also in porting-log
+2026-07-21.
+
+**Host-side clean-rebuild pass (done before any device write):**
+
+- **lk2nd cache poisoning confirmed and fixed** — the two-different-SHA
+  gotcha above is root-caused: a FORCE_FASTBOOT lk2nd build had overwritten
+  the local `lk2nd-msm8952-22.0-r3.apk` without a pkgrel bump, so every
+  later "up to date" install embedded FORCE as NORMAL (`b884ee70…` *is* the
+  FORCE twin). Purged poisoned apks, rebuilt clean NORMAL (`8d7851b4…`,
+  matches release), hardened `pmos-build-phase-b.sh` /
+  `pmos-flash-phase-b-force.sh` to reject FORCE-as-NORMAL and stale sparse.
+- Release raw re-derived from the SHA-verified `.zst`; fresh sparse via
+  `img2simg`. Dirtied raws quarantined (`artifacts/quarantine-2026-07-21/`).
+- Full clean Phase B rebuild (initramfs, kernel 7.0.9, device pkg, install
+  `--zap`) produced verified artifacts + SHA256SUMS.
+
+**Symptom 2 (fastboot protocol hang): CLEARED by user power-cycle.** After
+the device was physically reset back into stock fastboot, `getvar` answered
+instantly and passed a 10/10 stability gate (G2a) + full `getvar all` (G2b).
+Assessed as a transient bootloader/USB wedge, not host or phone hardware.
+
+**Rollback flash executed cleanly** (release NORMAL lk2nd `8d7851b4…` to
+`boot`, FORCE RAM-booted only, release sparse to `userdata`, ~6 min) —
+**device BOOTS to Phosh on the known-good image, user-confirmed login**
+(user/password `xylitol`, not the pmOS default 147147). USB-net + SSH up
+(note: gadget MAC is random each boot → host `enx…` iface name changes;
+assign `172.16.42.2/24` to the *new* iface).
+
+**Decision-tree outcome → Symptom 1 is Phase B image content**, not
+flash/eMMC/hardware. Key differential evidence pulled from the running
+known-good system (saved in `artifacts/pmos-phase-b/evidence-rollback-boot/`):
+
+- Known-good initramfs `initramfs.load` = generic msm89x7 panel set and
+  **does NOT contain `panel_motorola_perry_499v0_ofilm`** (panel binds later
+  from rootfs); the Phase B `modules-initfs` added ofilm to early boot —
+  the prime suspect (early `modprobe -a` hang before USB gadget setup).
+- Known-good kernel is HZ=300 (stock msm89x7 config); Phase B P1 scrub is
+  HZ=250 — bisect variant B if A doesn't resolve it.
+
+**Bisect A ❌ FAIL (flashed 2026-07-21 ~21:24Z UTC, user-confirmed hang):**
+`device-motorola-perry` r4 (ofilm out of `modules-initfs`) + kernel still
+HZ=250. Flash clean (`FLASH_COMPLETE`, chunk 12/12 ~188s). After
+`continue`: same Symptom 1 — backlight on, black screen, frozen, no USB.
+**Conclusion: early ofilm modprobe is NOT the sole hang cause.**
+
+**Bisect B ❌ FAIL (flashed 2026-07-21 ~21:53Z, SSH timeout 150s):**
+`HZ=300` + ofilm-out-of-initramfs still hangs (black screen / no USB).
+**HZ=250 is not the hang cause.**
+
+**Bisect C ❌ FAIL (flashed 2026-07-21 ~23:46Z, user-confirmed hang):**
+full upstream msm89x7 defconfig (`FUNCTION_TRACER=y`, `DYNAMIC_DEBUG=y`,
+`HZ=300`, pkgrel=3) + ofilm-out-of-initramfs **still hangs** (backlight
+on, black screen, no USB). Flash was clean (`FLASH_COMPLETE`).
+
+**Ruled out (A/B/C):**
+| Var | Result |
+|---|---|
+| Early ofilm in `modules-initfs` | ❌ not sole cause |
+| `CONFIG_HZ=250` | ❌ not sole cause |
+| Entire P1.1 defconfig scrub | ❌ not sole cause |
+
+**Conclusion:** hang is in the **first-class `motorola-perry` /
+`linux-motorola-perry` path as a package set** (or something shared
+across all Phase B images: P1.5 initramfs wait, install recipe, DT
+carry interaction) — not the easy config toggles. Known-good
+`qcom-msm89x7` + overlay release still the validated baseline.
+
+**Resolved into:** top-of-file [▶ Next session](#-next-session--start-here-2026-07-22)
+and [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).
+
+---
+
 ## Next to-dos
 
 Two tracks on the same device. **pmOS is primary**; **Lineage/Android deferred**
 but intact — queue at [§1](#1-open-issues--the-work-queue) when/if we return.
 
 ### ▶ Next session — start here (2026-07-21, post-flash checkpoint)
+
+**⚠ Superseded by [▶ Next session (2026-07-22)](#-next-session--start-here-2026-07-22)
+and [`phase-b-boot-hang-bisect.md`](phase-b-boot-hang-bisect.md).** Historical
+checkpoint for the flash that triggered the hang; kept for forensics.
 
 **State:** Published Phosh image works on hardware. Custom
 `device-motorola-perry` + `linux-motorola-perry` are committed; P0, P1.1/1.2/1.4/1.6,

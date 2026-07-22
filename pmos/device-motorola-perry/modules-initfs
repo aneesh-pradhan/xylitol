@@ -1,5 +1,7 @@
-# Modules loaded in the initramfs for perry (msm89x7 family + Ofilm panel).
-# Touches / panels mirror device-qcom-msm89x7; refine after Phase B with lsmod.
+# Modules loaded in the initramfs for perry (msm89x7 family).
+# Bisect A (2026-07-21): panel_motorola_perry_499v0_ofilm removed from early
+# boot — known-good release initramfs never early-loads it (panel binds later
+# from rootfs) and early modprobe is the prime boot-hang suspect.
 atmel_mxt_ts
 cyttsp5
 edt_ft5x06
@@ -8,7 +10,6 @@ led_class_multicolor
 leds_qcom_lpg
 msm
 novatek_nvt_ts
-panel_motorola_perry_499v0_ofilm
 qcom_pbs
 rmi_core
 rmi_i2c
