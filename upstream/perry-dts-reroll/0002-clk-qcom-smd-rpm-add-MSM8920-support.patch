@@ -1,0 +1,73 @@
+From da5bc6a484b7a0ef87c6a925d4f7682a0a527dc4 Mon Sep 17 00:00:00 2001
+From: "Catherine Frederick (coolguy)" <serenity@floorchan.org>
+Date: Wed, 22 Jul 2026 14:17:02 -0700
+Subject: [PATCH 2/4] clk: qcom: smd-rpm: add MSM8920 support
+
+MSM8920 is essentially MSM8917 with MSM8953's modem stack, which adds an
+IPA (IP Accelerator) block. Add an msm8920 RPM clock table mirroring
+msm8917's plus the IPA and IPA_A clocks, and register the
+"qcom,rpmcc-msm8920" compatible.
+
+Split out from the combined MSM8920 change so the shared clk-smd-rpm
+driver can be reviewed and land via linux-arm-msm independently of the
+device tree, as requested in review.
+
+Signed-off-by: Catherine Frederick (coolguy) <serenity@floorchan.org>
+[aneesh: split rpmcc out of the SoC dtsi commit for upstream-first review]
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ drivers/clk/qcom/clk-smd-rpm.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/drivers/clk/qcom/clk-smd-rpm.c b/drivers/clk/qcom/clk-smd-rpm.c
+index 103db98..cdabe37 100644
+--- a/drivers/clk/qcom/clk-smd-rpm.c
++++ b/drivers/clk/qcom/clk-smd-rpm.c
+@@ -666,6 +666,36 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8917 = {
+ 	.num_icc_clks = ARRAY_SIZE(bimc_pcnoc_snoc_smmnoc_icc_clks),
+ };
+ 
++static struct clk_smd_rpm *msm8920_clks[] = {
++	[RPM_SMD_XO_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo,
++	[RPM_SMD_XO_A_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo_a,
++	[RPM_SMD_BIMC_GPU_CLK]		= &clk_smd_rpm_bimc_gpu_clk,
++	[RPM_SMD_BIMC_GPU_A_CLK]	= &clk_smd_rpm_bimc_gpu_a_clk,
++	[RPM_SMD_IPA_CLK]		= &clk_smd_rpm_ipa_clk,
++	[RPM_SMD_IPA_A_CLK]		= &clk_smd_rpm_ipa_a_clk,
++	[RPM_SMD_QDSS_CLK]		= &clk_smd_rpm_qdss_clk,
++	[RPM_SMD_QDSS_A_CLK]		= &clk_smd_rpm_qdss_a_clk,
++	[RPM_SMD_BB_CLK1]		= &clk_smd_rpm_bb_clk1,
++	[RPM_SMD_BB_CLK1_A]		= &clk_smd_rpm_bb_clk1_a,
++	[RPM_SMD_BB_CLK2]		= &clk_smd_rpm_bb_clk2,
++	[RPM_SMD_BB_CLK2_A]		= &clk_smd_rpm_bb_clk2_a,
++	[RPM_SMD_RF_CLK2]		= &clk_smd_rpm_rf_clk2,
++	[RPM_SMD_RF_CLK2_A]		= &clk_smd_rpm_rf_clk2_a,
++	[RPM_SMD_DIV_CLK2]		= &clk_smd_rpm_div_clk2,
++	[RPM_SMD_DIV_A_CLK2]		= &clk_smd_rpm_div_clk2_a,
++	[RPM_SMD_BB_CLK1_PIN]		= &clk_smd_rpm_bb_clk1_pin,
++	[RPM_SMD_BB_CLK1_A_PIN]		= &clk_smd_rpm_bb_clk1_a_pin,
++	[RPM_SMD_BB_CLK2_PIN]		= &clk_smd_rpm_bb_clk2_pin,
++	[RPM_SMD_BB_CLK2_A_PIN]		= &clk_smd_rpm_bb_clk2_a_pin,
++};
++
++static const struct rpm_smd_clk_desc rpm_clk_msm8920 = {
++	.clks = msm8920_clks,
++	.num_clks = ARRAY_SIZE(msm8920_clks),
++	.icc_clks = bimc_pcnoc_snoc_smmnoc_icc_clks,
++	.num_icc_clks = ARRAY_SIZE(bimc_pcnoc_snoc_smmnoc_icc_clks),
++};
++
+ static struct clk_smd_rpm *msm8936_clks[] = {
+ 	[RPM_SMD_XO_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo,
+ 	[RPM_SMD_XO_A_CLK_SRC]		= &clk_smd_rpm_branch_bi_tcxo_a,
+@@ -1295,6 +1325,7 @@ static const struct of_device_id rpm_smd_clk_match_table[] = {
+ 	{ .compatible = "qcom,rpmcc-msm8909", .data = &rpm_clk_msm8909 },
+ 	{ .compatible = "qcom,rpmcc-msm8916", .data = &rpm_clk_msm8916 },
+ 	{ .compatible = "qcom,rpmcc-msm8917", .data = &rpm_clk_msm8917 },
++	{ .compatible = "qcom,rpmcc-msm8920", .data = &rpm_clk_msm8920 },
+ 	{ .compatible = "qcom,rpmcc-msm8936", .data = &rpm_clk_msm8936 },
+ 	{ .compatible = "qcom,rpmcc-msm8937", .data = &rpm_clk_msm8937 },
+ 	{ .compatible = "qcom,rpmcc-msm8940", .data = &rpm_clk_msm8940 },
+-- 
+2.53.0
+

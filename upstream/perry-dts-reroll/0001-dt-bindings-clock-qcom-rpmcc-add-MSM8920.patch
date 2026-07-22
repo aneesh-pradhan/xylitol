@@ -1,0 +1,40 @@
+From fe84f1618595c5a4e09b26a7b1ed3c12dea3b229 Mon Sep 17 00:00:00 2001
+From: "Catherine Frederick (coolguy)" <serenity@floorchan.org>
+Date: Wed, 22 Jul 2026 14:17:02 -0700
+Subject: [PATCH 1/4] dt-bindings: clock: qcom,rpmcc: add MSM8920
+
+Document the "qcom,rpmcc-msm8920" compatible for the RPM clock
+controller found on MSM8920.
+
+Signed-off-by: Catherine Frederick (coolguy) <serenity@floorchan.org>
+[aneesh: split the binding into its own patch per submitting-patches]
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml b/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
+index ab97d4b..e35a003 100644
+--- a/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,rpmcc.yaml
+@@ -32,6 +32,7 @@ properties:
+           - qcom,rpmcc-msm8909
+           - qcom,rpmcc-msm8916
+           - qcom,rpmcc-msm8917
++          - qcom,rpmcc-msm8920
+           - qcom,rpmcc-msm8936
+           - qcom,rpmcc-msm8937
+           - qcom,rpmcc-msm8940
+@@ -112,6 +113,7 @@ allOf:
+               - qcom,rpmcc-msm8226
+               - qcom,rpmcc-msm8916
+               - qcom,rpmcc-msm8917
++              - qcom,rpmcc-msm8920
+               - qcom,rpmcc-msm8936
+               - qcom,rpmcc-msm8937
+               - qcom,rpmcc-msm8940
+
+base-commit: 50f9719b10cef792432485b0139fbcb913316e07
+-- 
+2.53.0
+
