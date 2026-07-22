@@ -2477,5 +2477,10 @@ perry`). Flashing `boot` from inside older lk2nd reported OKAY but left
 `pmos-build-phase-b.sh` / `pmos-build-phosh-release.sh`. Docs:
 [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md), handoff top-of-file.
 
-**RFT:** text at `artifacts/pmos-phase-b/lk2nd-23.1-rft-comment.md` for !9076
+**RFT:** posted on !9076 as note 571627 (`aneesh-pradhan`); source text also at
+`artifacts/pmos-phase-b/lk2nd-23.1-rft-comment.md`
 (Tested-by: Aneesh Pradhan \<aneeshpradhan@acm.org\>).
+
+**Session close:** handoff top rewritten with full session log + scoped
+next-session board (default: full-apps UX smoke). Git `82f21c0` / `0f3d3ee`
+on origin/main.

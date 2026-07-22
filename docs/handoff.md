@@ -4,132 +4,204 @@
 > [`flashing.md`](flashing.md) · [`blobs.md`](blobs.md) ·
 > [`known-good.md`](known-good.md). This file is maintainer session state.
 
-## ▶ Next session — start here (2026-07-22 late)
+## ▶ Next session — start here (2026-07-22 session close)
 
-**⚑ PRIORITY:** **pmOS is primary.** Device runs **7.1.3 first-class full-apps**
-Phosh + **lk2nd 23.1** on `boot` (stock-flashed + validated). GitHub Release
-**[pmos-perry-2026-07-22](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22)**
-is the public rootfs artifact (ships older 22.0-r3 lk2nd in the tarball —
-phone `boot` is ahead). Upstream kernel/panel PRs waiting review; rpmcc
-mail parked. Android / modem deferred.
+**⚑ PRIORITY:** **pmOS is primary.** Device is daily-drive capable for Phosh
+smoke + upstream wait. Android / modem still deferred.
+
+**On glass now:** full-apps Phosh **7.1.3** + **lk2nd 23.1-r0** on `boot`.
+Public rootfs: [pmos-perry-2026-07-22](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22)
+(release tarball still embeds **legacy 22.0-r3** lk2nd — phone `boot` is ahead).
 
 **⛔ Authorship hard rule:** every commit/patch SoB =
 `Aneesh Pradhan <aneeshpradhan@acm.org>` only (see `AGENTS.md`; hooks enforce).
 Verify: `git log --format='%an <%ae>' origin/main..HEAD`.
 
+**GitLab:** `glab` authenticated to `gitlab.postmarketos.org` as
+**`aneesh-pradhan`** (PAT). Use `GL_HOST=gitlab.postmarketos.org` or
+`--hostname` where supported. GitHub: `gh` as `aneesh-pradhan`.
+
 ---
 
-### ⇒ lk2nd 23.1 — **DONE** (this session)
+### ⇒ Next-session board (scoped)
 
-| Check | Result |
+Pick **one primary track** per session unless user says otherwise.
+
+| # | Track | Why / scope | Effort | Gate |
+|---|---|---|---|---|
+| **1** | **Full-apps UX smoke on glass** | Productize confidence after 7.1.3 + lk2nd 23.1. Drawer, Firefox, Wi‑Fi, speaker/HP, brightness, soft keys. Note regressions only. | S–M | Device up; no flash required |
+| **2** | **Upstream watch / respond** | [linux#57](https://github.com/msm89x7-mainline/linux/pull/57), [panel-drivers#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8), pmaports [!9076](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076). Reply if review comments land. | S | Network only |
+| **3** | **Release tarball lk2nd catch-up** | After !9076 merges (or keep shipping 23.1 NORMAL from artifacts), restage `pmos-perry-*` so public `FLASH.md` + bundled lk2nd match phone. | M | Ask before publish/release |
+| **4** | **Notification LED recon** | Likely N/A (no LPG in DT). Confirm via DT + userspace; document only. | S | No flash |
+| **5** | **Headset mic (TRRS)** | Optional; needs TRRS headset. | S | Hardware |
+| **6** | **rpmcc / Step A mail** | Parked in `upstream/rpmcc-msm8920/`. **Do not send** until user asks. | — | User gate |
+| **7** | **P1.5 redesign** | Research only; hang root-caused. **Do not re-enable** on device. | L | Explicit ask |
+| **8** | **Android / RIL** | Deferred while pmOS primary. | L | Explicit ask |
+
+**Recommended default opener:** #1 UX smoke, then glance #2 for new review mail.
+
+**Do not start unprompted:** P1.5 re-enable, modem/RIL, wiping sacred
+partitions, force-push, mailing rpmcc, competing pmaports lk2nd MRs.
+
+---
+
+### ⇒ Session log — lk2nd 23.1 bump (2026-07-22 evening)
+
+#### Goal
+Move perry off local **22.0-r3 + `pmos/lk2nd/0001-*`** onto **upstream lk2nd
+23.1** (perry node already in tree @ [`d9ce4e70`](https://github.com/msm8916-mainline/lk2nd/commit/d9ce4e70e));
+RFT pmaports !9076; drop xylitol carry.
+
+#### Recon (facts)
+| Item | Truth |
 |---|---|
-| Build | `lk2nd-msm8952` **23.1-r0** from pmaports !9076 APKBUILD (no perry patch) |
-| FORCE twin | Host-built `LK2ND_FORCE_FASTBOOT=1` — RAM only; apk not poisoned |
-| Flash path | **Stock** Motorola fastboot (`product: perry`) — required |
-| On-phone version | **`lk2nd:version: 23.1-r0-postmarketos`** |
-| Identity | `lk2nd:device: perry`, model `Motorola Moto E4 (perry) (MSM8917)` |
+| Upstream | `msm8916-mainline/lk2nd` **23.1** (2026-07-14); **not** archived msm89x7-mainline |
+| Perry | In 23.1 tree (MSM8917 + MSM8920); listed under 23.0 “New devices” |
+| pmaports edge | Still **`pkgver=22.0`** until !9076 merges |
+| !9076 | Draft, label `request-for-test`, pipeline green; author barni2000 |
+| Xylitol PRs | None needed to lk2nd upstream |
+
+#### Build
+1. Backed up dirty local `main/lk2nd` 22.0-r3+patch → `/tmp/lk2nd-22.0-r3-backup-*`.
+2. Installed !9076 APKBUILD into live pmaports (`pkgver=23.1`, `pkgrel=0`,
+   onclite touch patch only — **no** perry patch).
+3. `pmbootstrap build lk2nd --arch aarch64` → apks produced; post-build
+   chroot umount was busy once (cosmetic fail after package write).
+4. Extracted NORMAL: `lk2nd-msm8952-23.1-r0.img`  
+   strings: `23.1-r0-postmarketos`, perry model, **no** FORCE marker.
+5. FORCE twin built **on host** (not via apk):
+   `make … LK2ND_FORCE_FASTBOOT=1` → `lk2nd-force-fastboot-23.1.img`  
+   marker: `Fastboot mode was forced with compile-time flag.`  
+   (avoids poisoning NORMAL apk — prior Phase B gotcha).
+
+#### Flash / validation chronology
+| Step | Result |
+|---|---|
+| RAM-boot NORMAL from stock | Booted OS 7.1.3 (NORMAL auto-continues; not FORCE menu) |
+| `flash boot` from **inside** older lk2nd | Wrote OKAY but `lk2nd:version` stayed **22.0-r3** after chainload |
+| erase+flash from lk2nd + reboot | Still did not stick version on this unit |
+| **Stock** aboot flash (`product: perry`) | OKAY (“Image not signed or corrupt” expected) |
+| Cold boot → lk2nd getvars | **`lk2nd:version: 23.1-r0-postmarketos`** |
+| Identity | `device: perry`, model `Motorola Moto E4 (perry) (MSM8917)` |
 | `oem log` | `Detected device: … (compatible: motorola,perry)` — no FIXME/`-1` |
-| OS | `7.1.3-msm89x7`, Phosh/greetd active, USB-net + SSH after `continue` |
-| Xylitol carry | **Removed** (`pmos/lk2nd/0001-*`, `scripts/pmos-apply-lk2nd-perry.sh`) |
-| Docs | [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md) updated |
-| RFT on !9076 | ✅ Posted as [note 571627](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076#note_571627) (`aneesh-pradhan`, 2026-07-22); source text also in `artifacts/pmos-phase-b/lk2nd-23.1-rft-comment.md` |
+| `fastboot continue` | OS **7.1.3-msm89x7**, greetd + graphical.target active, USB-net + SSH |
 
-**Gotcha:** flashing `boot` from *inside* older lk2nd reported OKAY but left
-`lk2nd:version` at 22.0-r3 until a **stock aboot** flash.
+**Hard lesson:** permanent lk2nd update on this Moto must be flashed from
+**stock Motorola fastboot** (`product: perry`). Stock `reboot bootloader`
+stays on aboot; use `fastboot reboot` (or power cycle) to chainload `boot`.
+`reboot bootloader` from OS enters lk2nd FB when 23.1 is on `boot`.
 
-**Artifacts:** `artifacts/pmos-phase-b/lk2nd-msm8952-23.1-r0.img`,
-`lk2nd-force-fastboot-23.1.img`, `lk2nd-23.1-flash-validate.log`.
+#### Repo / docs / publish
+| Action | Detail |
+|---|---|
+| Drop carry | Deleted `pmos/lk2nd/0001-*`, `scripts/pmos-apply-lk2nd-perry.sh` |
+| Unhook builds | `pmos-build-phase-b.sh`, `pmos-build-phosh-release.sh` |
+| Docs | [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md), this handoff, porting-log, `pmos/README.md` |
+| RFT | Posted [!9076 note 571627](https://gitlab.postmarketos.org/postmarketOS/pmaports/-/merge_requests/9076#note_571627) |
+| Git | `82f21c0` drop carry; `0f3d3ee` RFT handoff note — **pushed** `origin/main` |
+
+#### Artifacts (gitignored under `artifacts/pmos-phase-b/`)
+| File | Role |
+|---|---|
+| `lk2nd-msm8952-23.1-r0.img` | NORMAL on phone (`sha256` e4d1b783…) |
+| `lk2nd-msm8952-perry-23.1.img` | Same bytes, convenience name |
+| `lk2nd-force-fastboot-23.1.img` | FORCE — **RAM-boot only** |
+| `lk2nd-23.1-flash-validate.log` | Host log of flash/validate |
+| `lk2nd-23.1-oem-log-*.txt` | Staged oem logs |
+| `lk2nd-23.1-rft-comment.md` | RFT body (also on GitLab) |
+
+Recipe detail: [`pmos-lk2nd-perry-node.md`](pmos-lk2nd-perry-node.md).
 
 ---
 
 ### Device / release baseline
 
-| Dir / URL | Kernel | Role |
+| Dir / URL | Kernel / bootloader | Role |
 |---|---|---|
-| `artifacts/pmos-release/pmos-perry-2026-07-21/` | 7.0.9 overlay | **Rollback** |
-| `artifacts/pmos-release/pmos-perry-2026-07-22/` | **7.1.3** first-class **full apps** | **Rootfs on phone + GitHub Release** |
-| [Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) | same | Public `.zst` + **legacy 22.0-r3 lk2nd** in tarball |
-| Phone `boot` partition | **lk2nd 23.1-r0** | Ahead of release tarball lk2nd |
+| `artifacts/pmos-release/pmos-perry-2026-07-21/` | 7.0.9 overlay + old lk2nd | **Rollback** rootfs |
+| `artifacts/pmos-release/pmos-perry-2026-07-22/` | **7.1.3** full-apps + **22.0-r3** lk2nd in tarball | Public RC rootfs |
+| Phone `userdata` | 7.1.3 full-apps (from 07-22 release path) | Live rootfs |
+| Phone `boot` | **lk2nd 23.1-r0** | Live secondary BL (ahead of RC tarball) |
+| [GitHub Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) | same as 07-22 dir | Public download |
 
-**On-phone truth (SSH 2026-07-22 ~16:15 after 23.1 stock flash):**
-- `uname -r` = **`7.1.3-msm89x7`**; first-class `linux-motorola-perry` /
-  `device-motorola-perry`
-- `graphical.target` + greetd **active**; **86** desktop entries
-- P1.5 **off**
-- **lk2nd on `boot`:** **`23.1-r0-postmarketos`** (no local perry carry)
+**On-phone truth (SSH 2026-07-22 ~16:27):**
+- `uname -r` = **`7.1.3-msm89x7`**; model **Motorola Moto E4 (perry)**
+- `graphical.target` + greetd **active**; uptime healthy post-23.1 flash
+- P1.5 **off**; **no** local lk2nd perry carry in xylitol tree
+- Sacred partitions never touched this session
 
-**Next queue (secondary):**
-1. Confirm RFT posted on !9076 (paste from artifact if needed).
-2. Full-apps UX smoke on glass (drawer / Firefox / audio / Wi‑Fi).
-3. Upstream wait/respond — [linux#57](https://github.com/msm89x7-mainline/linux/pull/57),
-   panel [#8](https://github.com/msm89x7-mainline/linux-panel-drivers/pull/8).
-4. Notification LED recon (likely N/A); headset mic (needs TRRS).
-5. rpmcc / Step A mail — **parked** (`upstream/rpmcc-msm8920/`).
-6. P1.5 redesign — research only; do not re-enable.
-7. Optional: restage release tarball with 23.1 NORMAL lk2nd when !9076 merges.
+**Earlier same day (pre-lk2nd work, still true):** full-apps flash, audio
+(speaker/HP/earpiece), s2idle, USB unplug/replug, code-red rollback drill,
+upstream linux#57 + panel #8, GitHub Release publish. Details below.
 
-**Incident note (earlier same day):** backlight-on / no-video scare → stock
-fastboot → auto-rollback to 2026-07-21 (PASS) → full-apps 7.1.3 reflash
-(`FLASH_COMPLETE`). Recovery: `scripts/pmos-rollback-known-good.sh`.
+**Incident note (earlier 2026-07-22):** backlight-on / no-video scare → stock
+→ auto-rollback 2026-07-21 (PASS) → full-apps reflash. Recovery:
+`scripts/pmos-rollback-known-good.sh`.
 
 ---
 
-### Session closed (2026-07-22) — full checklist
+### Session closed — cumulative checklist (2026-07-22)
 
 | Track | Status |
 |---|---|
-| **7.1.3 flash + validate** | ✅ On glass: `7.1.3-msm89x7`, Phosh, Wi‑Fi, panel, dmesg clean |
-| **Upstream panel #8 SoB** | ✅ Fixed + force-pushed (`aneeshpradhan@acm.org`) |
-| **Upstream kernel PR** | ✅ [linux#57](https://github.com/msm89x7-mainline/linux/pull/57) open (supersedes #48) |
-| **dtbs_check / DTB build** | ✅ Perry DTBs clean; nora-parity warnings |
-| **agrecascino reply** | ✅ Posted on panel #6; cross-links #48 / #8 |
+| **7.1.3 flash + validate** | ✅ Phosh, Wi‑Fi, panel, dmesg clean |
+| **Upstream panel #8 SoB** | ✅ `aneeshpradhan@acm.org` |
+| **Upstream kernel PR** | ✅ [linux#57](https://github.com/msm89x7-mainline/linux/pull/57) (supersedes #48) |
+| **dtbs_check / DTB build** | ✅ Perry clean; nora-parity warnings |
+| **agrecascino reply** | ✅ panel #6 |
 | **rpmcc mail** | ⏸ Parked until user asks |
-| **Speaker audio** | ✅ User / ALSA+Pulse confirmed |
-| **Headphones 3.5 mm** | ✅ User heard beep; jack detect `on` |
-| **Earpiece** | ✅ User confirmed top earpiece |
-| **Suspend/resume s2idle** | ✅ `rtcwake -m mem -s 20`; Wi‑Fi stayed up |
-| **USB-net unplug/replug** | ✅ 3+ cycles; host recover; user confirmed multiple replugs |
-| **RC publish 7.1.3** | ✅ Full-apps staged + [GitHub Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) |
-| **Full-apps flash** | ✅ `FLASH_COMPLETE` + SSH: `7.1.3-msm89x7`, 83+ desktops, greetd active |
-| **Code-red rollback drill** | ✅ Auto-rollback to 2026-07-21 then re-flash full-apps |
-| **lk2nd 23.1 bump / RFT** | ✅ Stock-flashed; `23.1-r0-postmarketos`; RFT text ready for !9076 |
-| **Drop perry lk2nd carry** | ✅ Removed patch + apply script; build scripts unhooked |
-| **Notification LED** | ⬜ Recon only (no LPG node in DT; maybe N/A) |
-| **Headset mic** | ⬜ Optional (needs TRRS) |
-| **Full-apps UX smoke** | ⬜ drawer/Firefox/audio opportunistic |
+| **Speaker / HP / earpiece** | ✅ User confirmed (earlier) |
+| **Suspend/resume s2idle** | ✅ `rtcwake -m mem -s 20` |
+| **USB-net unplug/replug** | ✅ 3+ cycles |
+| **RC publish 7.1.3** | ✅ [GitHub Release](https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22) |
+| **Code-red rollback drill** | ✅ |
+| **lk2nd 23.1 build/flash/RFT** | ✅ Stock flash; note 571627 on !9076 |
+| **Drop perry lk2nd carry** | ✅ Removed + pushed |
+| **Full-apps UX smoke** | ⬜ **Next default** |
+| **Release tarball lk2nd 23.1** | ⬜ After !9076 merge (or explicit) |
+| **Notification LED** | ⬜ Recon only |
+| **Headset mic** | ⬜ Needs TRRS |
+| **P1.5 / Android RIL** | ⏸ Deferred |
 
-**Audio stack note:** PulseAudio owns ALSA/UCM in full Phosh session; empty
-`wpctl` Audio is expected (`51-pulseaudio.conf`), not a bug.
+**Audio stack note:** PulseAudio owns ALSA/UCM in full Phosh; empty `wpctl`
+Audio is expected (`51-pulseaudio.conf`), not a bug.
 
-**Also this session:** `LEAN=0` in `pmos-build-phase-b.sh`;
-`scripts/pmos-stage-phase-b-release.sh`; global git `user.email` → acm.org;
-SoB email fixes; upstream re-roll drafts + rmi `0000`.
-
-**Meta-repo:** see git history / open PR for this freeze — artifacts under
-`artifacts/pmos-release/` remain gitignored.
+**Meta-repo tip:** `0f3d3ee` on `origin/main`. Artifacts under
+`artifacts/` stay gitignored.
 
 ### Device (live)
 
 | Item | Value |
 |---|---|
 | Unit | XT1765 / `ZY224TB8KZ` |
-| Image | **7.1.3 first-class full-apps** — on glass + GitHub Release |
+| Rootfs | **7.1.3 first-class full-apps** Phosh (on glass + GitHub RC) |
 | Kernel | **`7.1.3-msm89x7`** / `linux-motorola-perry` **7.1.3-r1** |
 | Device pkg | `device-motorola-perry` **1-r5** |
-| Initramfs | `postmarketos-initramfs` **3.12.0-r0** unpatched |
-| UI | Phosh full recommends (**83** desktop entries); greetd active |
+| Initramfs | `postmarketos-initramfs` **3.12.0-r0** unpatched (P1.5 off) |
+| **lk2nd (`boot`)** | **`23.1-r0-postmarketos`** (`lk2nd-msm8952`) |
+| UI | Phosh full recommends; greetd active (~86 desktops) |
 | Net | USB-net `xylitol@172.16.42.1` (pw `xylitol`); host `enx*` + `172.16.42.2/24` |
-| Audio | Speaker + Headphones + Earpiece confirmed earlier (lean); re-smoke on full-apps |
-| Power | s2idle suspend/resume **PASS** (lean); re-smoke optional |
-| USB | Physical unplug/replug **PASS** (lean) |
+| Audio | Speaker + Headphones + Earpiece confirmed earlier |
+| Power | s2idle **PASS** (earlier); re-smoke optional |
+| USB | Unplug/replug **PASS** (earlier) |
 | RC path | `artifacts/pmos-release/pmos-perry-2026-07-22/` |
 | GitHub | https://github.com/aneesh-pradhan/xylitol/releases/tag/pmos-perry-2026-07-22 |
-| Rollback | `artifacts/pmos-release/pmos-perry-2026-07-21/` (7.0.9) — still known-good |
-| Last checked | 2026-07-22 ~15:38 SSH post full-apps flash |
+| Rollback rootfs | `artifacts/pmos-release/pmos-perry-2026-07-21/` (7.0.9) |
+| Rollback lk2nd | old `lk2nd-msm8952-perry.img` (22.0-r3) in release dirs if needed |
+| Last checked | 2026-07-22 ~16:27 SSH (post-23.1) |
 
 **Reconnect gotchas:** re-bind host `172.16.42.2/24` on current `enx*` after
-reboot/replug; `ssh-keygen -R 172.16.42.1` after reflash; Wi‑Fi SSH backup
-`xylitol@192.168.1.151` when USB is out (IP may change).
+reboot/replug (**do not** match `enp*` altnames — earlier session polluted
+host ethernet once); `ssh-keygen -R 172.16.42.1` after reflash; Wi‑Fi SSH
+backup was `xylitol@192.168.1.151` (IP may change). Password SSH works if
+keys mismatch (`sshpass -p xylitol` or image password).
+
+**Opener for next session (verbatim):**
+
+> Read `docs/handoff.md` from the top. pmOS primary: 7.1.3 full-apps + lk2nd
+> 23.1 already on device. Default: full-apps UX smoke (#1). Do not re-enable
+> P1.5, do not touch modem/sacred partitions, do not mail rpmcc unprompted.
+> Authorship: Aneesh Pradhan \<aneeshpradhan@acm.org\> only.
 
 ### ▶ USB-net physical unplug/replug (2026-07-22)
 
