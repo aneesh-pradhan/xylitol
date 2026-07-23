@@ -40,3 +40,8 @@ XT1765_*.xml
 # custom-kernel aport). Do not re-add it to this ignore list.
 pmos/linux-motorola-perry/*.bak*
 pmos/linux-motorola-perry/*bak-pre-*
+
+# Maintainer session-state handoff notes: kept LOCAL only. May contain
+# private operational data (e.g. device SSH credentials). Never commit.
+docs/handoff.md
+docs/*handoff*
