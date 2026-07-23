@@ -2865,3 +2865,35 @@ Lore HTML blocked by Anubis here; **git history shows the outcome landed.**
 secondary references for DAC behavior / calibration limits.
 
 Local notes + snapshots: `upstream/dw9719-mainline-notes/`.
+
+## 2026-07-22 night — rear dw9718s AF ENABLED (config + DT 0011, pkgrel 9)
+
+Config + DT only — no new VCM driver. Mainline `dw9719.c` already matches
+`dongwoon,dw9718s` (see prior lore entry).
+
+### Changes
+
+| Item | Detail |
+|---|---|
+| Config | `CONFIG_VIDEO_DW9719=m` in `config-motorola-perry.aarch64` |
+| Patch **`0011`** | CCI `lens@c` @ **0x0c**, `vdd-supply = <&pm8937_l22>`, `dongwoon,sac-mode = <4>`; rear `camera@2d` gets `lens-focus = <&dw9718s>` |
+| Package | `linux-motorola-perry` **7.1.3-r9** |
+| Build | `#10-perry-xylitol` |
+
+### On-device proof
+
+```
+uname: 7.1.3-msm89x7 #10-perry-xylitol
+apk:   linux-motorola-perry-7.1.3-r9
+
+# dw9719 loaded; media entity:
+#   dw9719 2-000c  Lens  →  /dev/v4l-subdev16
+
+# focus_absolute sweep: 0 ↔ 512 ↔ 1023 ↔ 0  OK
+# rear ~24 fps, front ~17.6 fps — no regression
+```
+
+Dual-camera + flash + rear AF are all ✅ on glass. Remaining camera work is
+optional polish (Phosh/Snapshot, IPA yaml, OTP/AWB, flash labels).
+
+Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).

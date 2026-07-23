@@ -1,6 +1,6 @@
 # pmOS mainline camera bring-up — perry (MSM8917 / XT1765)
 
-**Status (2026-07-22 night): dual-camera FIRST LIGHT + flash.** ✅✅
+**Status (2026-07-22 night): dual-camera FIRST LIGHT + flash + rear AF.** ✅✅✅
 
 | Subsystem | Status |
 |---|---|
@@ -9,10 +9,10 @@
 | Flash/torch (PMI8950) | ✅ rear = `led@0`/`white:flash`, front = `led@1`/`white:flash_1` |
 | Rear S5K4H8 enumerate | ✅ i2c **0x2d**, chip id **0x4088**, CSIPHY0 |
 | Rear S5K4H8 capture | ✅ **first light** ~24 fps; 3264×2448 GRBG10 |
-| Rear AF dw9718s | ❌ driver in-tree (`dw9719`/`dongwoon,dw9718s`) — **next** (config + DT) |
+| Rear AF dw9718s | ✅ `dw9719` / `dongwoon,dw9718s` @ **0x0c**; `focus_absolute` 0↔1023 |
 
-Kernel on glass: `linux-motorola-perry` **7.1.3-r8** (`#9-perry-xylitol`).
-Patches **`0007`–`0010`**. Canonical reference for all camera work.
+Kernel on glass: `linux-motorola-perry` **7.1.3-r9** (`#10-perry-xylitol`).
+Patches **`0007`–`0011`**. Canonical reference for all camera work.
 Chronology: [`porting-log.md`](porting-log.md). Session queue:
 [`handoff.md`](handoff.md) (local/gitignored).
 
@@ -33,6 +33,9 @@ Chronology: [`porting-log.md`](porting-log.md). Session queue:
 - **`0009` + `0010`:** rear **S5K4H8** full V4L2 driver (Rockchip tables,
   mainline CCI) + DT `camera@2d` / CSIPHY0 4-lane / link **280 MHz**.
   Config: `CONFIG_VIDEO_S5K4H8=m`.
+- **`0011`:** rear **dw9718s** AF — `CONFIG_VIDEO_DW9719=m`, CCI
+  `lens@c` (`dongwoon,dw9718s` @ **0x0c**, `vdd` = `pm8937_l22`),
+  `lens-focus` on `camera@2d`. pkgrel **9**.
 - **Gotcha #1 (front enumerate):** OV5695 i2c **`0x10`**, not `0x36`.
 - **Gotcha #2 (front capture):** need **both** CSIPHY `<0 1>` and real
   `vdda` (`pm8937_l2`).
@@ -48,6 +51,8 @@ Chronology: [`porting-log.md`](porting-log.md). Session queue:
 - **Proof (rear):** `cam -l` lists **both** sensors; capture @ ~24 fps
   3264×2448; artifact
   `artifacts/camera-rear-first-light-2026-07-22/s5k4h8-rear-first-light.jpg`.
+- **Proof (AF):** entity `dw9719 2-000c` Lens on `/dev/v4l-subdev16`;
+  `focus_absolute` 0↔512↔1023↔0; rear ~24 fps / front ~17.6 fps unchanged.
 - **Flash map:** `white:flash` = **rear**, `white:flash_1` = **front**.
 
 ---
@@ -62,7 +67,7 @@ proprietary Nougat HAL does not port to pmOS mainline). Confirmed on-device.
 |---|---|---|
 | Sensor | **s5k4h8** (Samsung, ~8 MP) | **ov5695** (OmniVision, 5 MP) |
 | Mainline V4L2 driver | ✅ `s5k4h8.c` (`0009`, Rockchip tables) | ✅ `drivers/media/i2c/ov5695.c` |
-| Bring-up status | ✅ enumerate + capture (~24 fps) | ✅ enumerate + capture |
+| Bring-up status | ✅ enumerate + capture (~24 fps) + AF | ✅ enumerate + capture |
 | CSIPHY / CSID | **0** | **1** |
 | Stock CSI lanes | LaneMask `0x1F` → **4-lane** DT | LaneMask `0x07` (2-lane) ✅ |
 | MCLK | **mclk0 = gpio26, 24 MHz** | **mclk2 = gpio28, 24 MHz** |
@@ -76,7 +81,7 @@ proprietary Nougat HAL does not port to pmOS mainline). Confirmed on-device.
 | VANA 2.8V (avdd) | gpio39 enable | gpio39 enable |
 | VAF (AF) | pm8937_l22 (**dw9718s** @ **0x0c**) | — (fixed focus) |
 | CCI master | 0 | 0 |
-| Focus/actuator | **dw9718s** (`dongwoon,dw9718s` via `dw9719.c`; stock 8-bit **0x18**) | fixed |
+| Focus/actuator | ✅ **dw9718s** (`dongwoon,dw9718s` via `dw9719.c`; stock 8-bit **0x18**) | fixed |
 | Flash LED | PMI8950 `led@0` / `white:flash` | PMI8950 `led@1` / `white:flash_1` |
 
 **CCI is master-0 only.** cci0 = gpio29 (SDA) / gpio30 (SCL). cci1 =
@@ -91,7 +96,7 @@ external load switches; modelled as `regulator-fixed` in DT.
 
 **Why front first (historical):** the front OV5695 already had a mainline
 driver; rear S5K4H8 needed a port (now done via Rockchip tables). AF is
-`dongwoon,dw9718s` on mainline `dw9719.c` (not wired on perry yet).
+`dongwoon,dw9718s` on mainline `dw9719.c` (wired in **`0011`**, pkgrel 9).
 (`imx219` appears in stock libs but is a stock-image artifact, not a
 sensor fitted here — the working Android stills came from s5k4h8/ov5695.)
 
@@ -355,53 +360,53 @@ Still: `artifacts/camera-rear-first-light-2026-07-22/s5k4h8-rear-first-light.jpg
 Default `cur_mode` prefers full-res. libcamera configures ~3256×2448 ABGR for
 SoftwareISP output (sensor still 3264×2448 GRBG10 CSI-2 packed).
 
-### Remaining camera work
+### Rear AF dw9718s — DONE (2026-07-22 night, pkgrel **9**)
 
-1. **dw9718s AF** — **next north star (no new driver needed).**
-   Mainline / msm89x7 **`dw9719.c` already supports `dongwoon,dw9718s`**
-   (commit `b327384a1349`, Val Packett + André Apitzsch SoB; tested on
-   **motorola-nora** / Moto E5). Binding:
-   `dongwoon,dw9719.yaml`. Perry work is **config + DT only**:
-   - `CONFIG_VIDEO_DW9719=m`
-   - CCI node `compatible = "dongwoon,dw9718s"`, `reg = <0x0c>`,
-     `vdd-supply = <&pm8937_l22>`
-   - wire `lens-focus` from rear S5K4H8
-   - verify ACK @ 0x0c only with VAF on
+No new driver. Mainline `dw9719.c` already supports `dongwoon,dw9718s`
+(commit `b327384a1349`, Val Packett; SoB André Apitzsch; tested
+**motorola-nora**). Perry: config + DT only.
 
-   **Lore series (context):**
-   https://lore.kernel.org/phone-devel/20250120-dw9719-v2-0-028cdaa156e5@apitzsch.eu/T/
-   (André Apitzsch v2 cover Message-ID; series led into the DW9719/OF/DW9718S
-   media work that is now in-tree.) Local notes + driver snapshot:
-   [`upstream/dw9719-mainline-notes/`](../upstream/dw9719-mainline-notes/).
+| Item | Value |
+|---|---|
+| Patch **`0011`** | CCI `lens@c` @ **0x0c**, `vdd-supply = <&pm8937_l22>`, `dongwoon,sac-mode = <4>`; `lens-focus = <&dw9718s>` on `camera@2d` |
+| Config | `CONFIG_VIDEO_DW9719=m` |
+| On glass | **7.1.3-r9**, uname `#10-perry-xylitol` |
+| Entity | `dw9719 2-000c` Lens → `/dev/v4l-subdev16` |
+| Proof | `focus_absolute` 0↔512↔1023↔0 OK; rear ~24 fps / front ~17.6 fps (no regression) |
 
-   **Historical refs (not for direct port):** Tegra NVC
-   [`upstream/dw9718-tegra-ref/`](../upstream/dw9718-tegra-ref/);
-   datasheet `docs/DW9718S.pdf` if present.
-2. **Commit hygiene** — land streaming `0009`/`0010`/pkgrel=8 + docs +
-   `upstream/s5k4h8-rockchip-ref/` if not yet committed.
-3. **Phosh / Snapshot** — both cameras via pipewire-spa-libcamera; check
+Lore context:
+https://lore.kernel.org/phone-devel/20250120-dw9719-v2-0-028cdaa156e5@apitzsch.eu/T/  
+Notes: [`upstream/dw9719-mainline-notes/`](../upstream/dw9719-mainline-notes/).  
+Tegra historical regs: [`upstream/dw9718-tegra-ref/`](../upstream/dw9718-tegra-ref/).
+
+### Remaining camera work (optional polish)
+
+1. **Phosh / Snapshot** — both cameras via pipewire-spa-libcamera; check
    `50-perry-disable-libcamera.conf`.
-4. **libcamera polish** — crop rectangles / selection API, rotation, IPA yaml
-   for `s5k4h8` / `ov5695`, location properties.
-5. **OTP / AWB** — optional later from Rockchip OTP path or Motorola eeprom lib.
-6. **Flash polish** — LED labels; libcamera flash glue.
+2. **libcamera polish** — crop / selection API, rotation, IPA yaml for
+   `s5k4h8` / `ov5695`, location properties; AF via libcamera if not yet.
+3. **OTP / AWB** — optional later from Rockchip OTP path or Motorola eeprom.
+4. **Flash polish** — LED labels; libcamera flash glue.
 
 ### Next-session quick commands
 
 ```bash
-# Both sensors?
-dmesg | grep -iE 'ov5695|s5k4h8|Detected'
+# Both sensors + AF?
+dmesg | grep -iE 'ov5695|s5k4h8|dw971|Detected'
 cam -l
 # expect:
 # 1: 's5k4h8' (.../camera@2d)
 # 2: 'ov5695' (.../camera@10)
+media-ctl -p -d /dev/media0 | grep -A2 dw9719
+# Lens entity on /dev/v4l-subdev16 (node may shift)
 
-# Rear capture
+# AF sweep (adjust -d if subdev number differs)
+v4l2-ctl -d /dev/v4l-subdev16 --set-ctrl=focus_absolute=0
+v4l2-ctl -d /dev/v4l-subdev16 --set-ctrl=focus_absolute=512
+v4l2-ctl -d /dev/v4l-subdev16 --set-ctrl=focus_absolute=1023
+
+# Rear / front capture
 cam --camera /base/soc@0/cci@1b0c000/i2c-bus@0/camera@2d --capture=3
-cam --camera /base/soc@0/cci@1b0c000/i2c-bus@0/camera@2d --capture=1 \
-  --file=/tmp/camtest/rear.ppm
-
-# Front regression
 cam --camera /base/soc@0/cci@1b0c000/i2c-bus@0/camera@10 --capture=3
 
 # Flash map: L0 rear, L1 front
@@ -486,7 +491,7 @@ rebuild ~60–70 s. Reboot to sshd ~30 s.
 - **Never** ship Android `camera-vendor.mk` / montana ISP blobs on pmOS —
   the proprietary Nougat HAL cannot use mainline CAMSS/V4L2. Android tree is a
   hardware map only.
-- Dual camera first light is done; **dw9718s AF** (config + DT on `dw9719`)
-  is the remaining camera north star. Never ship Android montana ISP on pmOS.
+- Dual camera + rear AF first light are done. Remaining camera work is
+  optional polish (Phosh, IPA, OTP). Never ship Android montana ISP on pmOS.
 - Authorship on every commit/patch: `Aneesh Pradhan <aneeshpradhan@acm.org>`.
 - Sacred partitions `persist`/`modemst1`/`modemst2` never touched.

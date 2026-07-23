@@ -5,7 +5,7 @@
 # docs/perry-custom-kernel-plan.md.
 pkgname=linux-motorola-perry
 pkgver=7.1.3
-pkgrel=8
+pkgrel=9
 pkgdesc="Mainline kernel for Motorola Moto E4 (perry / MSM8917) — xylitol carry"
 arch="aarch64"
 _carch="arm64"
@@ -48,6 +48,7 @@ source="
 	0008-arm64-dts-qcom-perry-enable-pmi8950-flash-leds.patch
 	0009-media-i2c-add-Samsung-S5K4H8-sensor-probe-chip-id.patch
 	0010-arm64-dts-qcom-perry-enable-rear-s5k4h8-camera.patch
+	0011-arm64-dts-qcom-perry-enable-rear-dw9718s-af.patch
 "
 builddir="$srcdir/linux-$_tag"
 
@@ -80,7 +81,7 @@ package() {
 # sha512sums filled by: pmbootstrap checksum linux-motorola-perry
 sha512sums="
 c4bebf0d92f803297004d14573fbf0ccca5fc8927944f0aeecd767472ca21639ec931b6648b5601ec46eb49dd489939ae00e17f36933307bcdd371b87059796a  linux-postmarketos-qcom-msm89x7-v7.1.3-r1.tar.gz
-6b96a3d2310fec645be6ecd891bd793909653d47fd0bb3191a8ee49bf949fba650ee6af442406c62390af964c3dc4f91f5dcf6ebca1ce74e6222f03fbd1fcc41  config-motorola-perry.aarch64
+fabca8fe265d8933f95c9eaa96b873a4ccbd7891ab84b69d4db1b008af78cb0294e6707c71d78bf7fa635b8ccd7c70c5ae8ce14e04dff969550f62ab311462d6  config-motorola-perry.aarch64
 8999c9e81b4b140c02698886428a0ec0678d7c113efb0278e4e30f729bf7c68bc4d8492373eb6b3033ef013e6063e8cbd867f8119e5faf16e3b392d421e9a494  0001-Input-rmi_i2c-introduce-reset-GPIO-handling.patch
 13a8ac26bf5ce5f5e267e76a538c7aa3e4be0c385342208abce856708b54bf24ae7bbb586c7688720c079b15385e10a65dd8b883649cac2516694c45382a3e7a  0002-arm64-qcom-add-support-for-MSM8920.patch
 6cfe2b20302fbfb7e08cc1ab5b28b11227f29be676a3e57046aff7090522e67075d77ab348c7d711d0da5b0ba0245989134dfb34aef390309784f2ebec63939a  0003-arm64-dts-qcom-add-support-for-motorola-perry.patch
@@ -91,4 +92,5 @@ aa7224c31831610dd8936be1f9c1d55719f913f45a2d702db9391d84aeb2abfcb4f9341d052cdf6c
 6a6c3d07feb105bf06b169d004353938c18e07ab574cf9ad92bd23da22f741b7cd025612f4fc6d22aa8e08c30952b1075853fcf3014d20345741b45d4d3faf36  0008-arm64-dts-qcom-perry-enable-pmi8950-flash-leds.patch
 2d334b03f8af9fcdaad9727ed0f61c47c58bcf1c92a9ced6e3a0ccbf900e848ad9abb6dfb6c3abe59894f18c8ab49d2bd49fa8016fed6bb8288d00f77afb86c9  0009-media-i2c-add-Samsung-S5K4H8-sensor-probe-chip-id.patch
 9db8021b9ba70e2504601c34aeb205658d15d69e58444d2d4d84240516b2eb661343b12ad1dd729271c12b5542f79e2b4b9d2cdc90f82842af70be3a4ac82bbb  0010-arm64-dts-qcom-perry-enable-rear-s5k4h8-camera.patch
+f77431ea41c2cc0b45a7fe4e134f7bfbf4b793bc73978a53980d0247531c67a2395d3178e7980e769a209cb91c66ae333d26d61e6bc5968397419ffe188fd1d6  0011-arm64-dts-qcom-perry-enable-rear-dw9718s-af.patch
 "
