@@ -46,6 +46,12 @@ pmos/linux-motorola-perry/*bak-pre-*
 docs/handoff.md
 docs/*handoff*
 
+# Dated chronology / working log: kept LOCAL only going forward (was
+# tracked/pushed before 2026-07-23; untracked via `git rm --cached`, history
+# still on origin). Same rationale as handoff.md — maintainer session detail,
+# not part of the public build guide.
+docs/porting-log.md
+
 # Credentials file (device SSH password = owner's phone number, PII). LOCAL
 # only, never commit. Handoffs point here instead of recording the password.
 SECRETS.md
