@@ -6,8 +6,10 @@
 #include "perry-torch-led.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define LED_SYSFS_DIR "/sys/class/leds"
 
@@ -62,7 +64,9 @@ perry_torch_led_set_on (const char *led_name, gboolean on)
   g_autofree char *path = led_attr_path (led_name, "brightness");
   char buf[16];
   int value = 0;
-  g_autoptr (GError) err = NULL;
+  int len;
+  int fd;
+  gboolean ok = TRUE;
 
   if (on) {
     int maxb = perry_torch_led_get_max_brightness (led_name);
@@ -70,11 +74,22 @@ perry_torch_led_set_on (const char *led_name, gboolean on)
     value = MAX (maxb / 2, 1);
   }
 
-  g_snprintf (buf, sizeof buf, "%d", value);
-  if (!g_file_set_contents (path, buf, -1, &err)) {
-    g_warning ("Failed to set %s brightness: %s", path, err->message);
+  len = g_snprintf (buf, sizeof buf, "%d", value);
+
+  /* sysfs attributes must be written in place — g_file_set_contents()'s
+   * write-temp-then-rename() doesn't work here, sysfs won't let us create
+   * a new file in the directory. */
+  fd = open (path, O_WRONLY);
+  if (fd < 0) {
+    g_warning ("Failed to open %s: %s", path, g_strerror (errno));
     return FALSE;
   }
 
-  return TRUE;
+  if (write (fd, buf, len) != len) {
+    g_warning ("Failed to write %s: %s", path, g_strerror (errno));
+    ok = FALSE;
+  }
+
+  close (fd);
+  return ok;
 }
