@@ -53,7 +53,8 @@ else
 fi
 
 shopt -s nullglob
-for p in "$PATCH_DIR"/000*.patch; do
+# Match 0001..9999 style quilt patches (not only 000*).
+for p in "$PATCH_DIR"/[0-9][0-9][0-9][0-9]-*.patch; do
   cp -v "$p" "$DEST/"
 done
 

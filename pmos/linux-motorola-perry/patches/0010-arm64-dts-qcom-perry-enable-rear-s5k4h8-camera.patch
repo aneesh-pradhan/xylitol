@@ -1,0 +1,87 @@
+From b69de59232c334521ad252588b3e6f172128a8f1 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Wed, 22 Jul 2026 20:57:14 -0700
+Subject: [PATCH] arm64: dts: qcom: perry: enable rear S5K4H8 camera
+
+Wire the rear Samsung S5K4H8 (8 MP) on CCI master 0 / CSIPHY0 for mainline
+CAMSS bring-up. Slave address 0x2d is the 7-bit form of stock 8-bit 0x5A
+(from libmmcamera_s5k4h8.so). MCLK0 @ 24 MHz on gpio26, standby/reset on
+gpio35 (active-low), shared camera rails from the front bring-up, 4 MIPI
+data lanes (stock LaneMask 0x1F).
+
+Streaming mode tables are not in the sensor driver yet; this node is for
+probe/chip-id recon and media-graph wiring.
+
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ .../qcom/msm8917-motorola-perry-common.dtsi   | 47 +++++++++++++++++++
+ 1 file changed, 47 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+index e962dca..16ac04e 100644
+--- a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+@@ -607,6 +607,20 @@ ports {
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+ 
++		/* Rear S5K4H8 on CSIPHY0 (4-lane). */
++		port@0 {
++			reg = <0>;
++
++			csiphy0_ep: endpoint {
++				/*
++				 * 0-based physical lane indices for CSIPHY.
++				 * Stock LaneMask 0x1F → four data lanes.
++				 */
++				data-lanes = <0 1 2 3>;
++				remote-endpoint = <&s5k4h8_ep>;
++			};
++		};
++
+ 		port@1 {
+ 			reg = <1>;
+ 
+@@ -639,6 +653,39 @@ &cci_i2c0 {
+ 	#address-cells = <1>;
+ 	#size-cells = <0>;
+ 
++	/*
++	 * Rear camera: Samsung S5K4H8. Stock 8-bit write address 0x5A →
++	 * 7-bit 0x2d. Chip id 0x4088 @ reg 0x0000 (libmmcamera_s5k4h8.so).
++	 */
++	camera@2d {
++		compatible = "samsung,s5k4h8";
++		reg = <0x2d>;
++
++		clocks = <&gcc GCC_CAMSS_MCLK0_CLK>;
++		clock-names = "mclk";
++		assigned-clocks = <&gcc GCC_CAMSS_MCLK0_CLK>;
++		assigned-clock-rates = <24000000>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&camss_mclk0_default>;
++
++		/* gpio35 standby — treated as active-low XSHUTDOWN. */
++		reset-gpios = <&tlmm 35 GPIO_ACTIVE_LOW>;
++
++		avdd-supply = <&cam_vana_2v8>;
++		dovdd-supply = <&cam_vio_1v8>;
++		dvdd-supply = <&pm8937_l23>;
++
++		port {
++			s5k4h8_ep: endpoint {
++				remote-endpoint = <&csiphy0_ep>;
++				data-lanes = <1 2 3 4>;
++				/* Placeholder link rate until capture tables land. */
++				link-frequencies = /bits/ 64 <420000000>;
++			};
++		};
++	};
++
+ 	/*
+ 	 * Front camera: OmniVision OV5695. Perry straps the slave address to
+ 	 * 0x10 (not the OmniVision default 0x36) - verified on-device: 0x36
+-- 
+2.53.0
+

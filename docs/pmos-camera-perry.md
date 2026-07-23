@@ -1,19 +1,21 @@
 # pmOS mainline camera bring-up — perry (MSM8917 / XT1765)
 
-**Status (2026-07-22 EOD): front OV5695 FIRST LIGHT + PMI8950 flash/torch.** ✅
+**Status (2026-07-22 night): front first light + flash + rear S5K4H8 ENUMERATE.** ✅
 
 | Subsystem | Status |
 |---|---|
 | Front OV5695 enumerate | ✅ i2c **0x10**, CSIPHY1 |
 | Front OV5695 capture | ✅ ~17.5 fps libcamera; PPM/JPG still |
 | Flash/torch (PMI8950) | ✅ rear = `led@0`/`white:flash`, front = `led@1`/`white:flash_1` |
-| Rear S5K4H8 | ❌ no mainline driver — **next** |
-| Rear AF dw9718s | ❌ no mainline driver — with rear |
+| Rear S5K4H8 enumerate | ✅ i2c **0x2d**, chip id **0x4088**, CSIPHY0 |
+| Rear S5K4H8 capture | ❌ probe-only driver — **next** (mode tables) |
+| Rear AF dw9718s | ❌ no mainline driver — after rear frames |
 
-Kernel on glass: `linux-motorola-perry` **7.1.3-r2**. Patches **`0007`**
-(camera) + **`0008`** (flash). Canonical reference for all camera work.
-Chronology: [`porting-log.md`](porting-log.md). Session queue:
-[`handoff.md`](handoff.md) (local/gitignored).
+Kernel on glass: `linux-motorola-perry` **7.1.3-r3**. Patches **`0007`**
+(front) + **`0008`** (flash) + **`0009`** (s5k4h8 probe) + **`0010`**
+(rear DT). Canonical reference for all camera work. Chronology:
+[`porting-log.md`](porting-log.md). Session queue: [`handoff.md`](handoff.md)
+(local/gitignored).
 
 ---
 
@@ -26,12 +28,18 @@ Chronology: [`porting-log.md`](porting-log.md). Session queue:
   **`data-lanes = <0 1>`**. Config: `CONFIG_VIDEO_OV5695=m`.
 - **`0008`:** `&pmi8950_flash` both channels (`leds-qcom-flash-v1`, already
   `CONFIG_LEDS_QCOM_FLASH_V1=m`). Torch-tested channel map below.
-- **Gotcha #1 (enumerate):** OV5695 strapped to i2c **`0x10`**, not OmniVision
-  default `0x36`.
-- **Gotcha #2 (capture):** need **both** CSIPHY `<0 1>` and real `vdda`
+- **`0009` + `0010`:** rear **S5K4H8** probe driver + DT (`camera@2d`,
+  mclk0, gpio35, CSIPHY0 4-lane). Config: `CONFIG_VIDEO_S5K4H8=m`.
+- **Gotcha #1 (front enumerate):** OV5695 strapped to i2c **`0x10`**, not
+  OmniVision default `0x36`.
+- **Gotcha #2 (front capture):** need **both** CSIPHY `<0 1>` and real `vdda`
   (`pm8937_l2`). `<0 2>` or `<1 2>`-both or dummy vdda → `VFE sof timeout`.
-- **Proof:** `cam --camera 1 --capture=5` @ ~17.5 fps; artifact
+- **Gotcha #3 (rear enumerate):** stock 8-bit write addr **0x5A** → 7-bit
+  **0x2d**; chip id **0x4088** @ reg `0x0000`; gpio35 active-low XSHUTDOWN.
+- **Proof (front):** `cam --camera 1 --capture=5` @ ~17.5 fps; artifact
   `artifacts/camera-first-light-2026-07-22/ov5695-front-first-light.{ppm,jpg}`.
+- **Proof (rear):** `Detected S5K4H8 sensor (id 0x4088)` on `2-002d`;
+  libcamera still skips rear until exposure/gain/stream tables land.
 - **Flash map (user-confirmed):** `white:flash` = **rear**, `white:flash_1` =
   **front**.
 
@@ -46,20 +54,22 @@ proprietary Nougat HAL does not port to pmOS mainline). Confirmed on-device.
 | | Rear `camera@0` | Front `camera@1` |
 |---|---|---|
 | Sensor | **s5k4h8** (Samsung, ~8 MP) | **ov5695** (OmniVision, 5 MP) |
-| Mainline V4L2 driver | ❌ **none — next work** | ✅ `drivers/media/i2c/ov5695.c` |
-| Bring-up status | not started | ✅ enumerate + capture |
+| Mainline V4L2 driver | ✅ probe-only `s5k4h8.c` (`0009`) | ✅ `drivers/media/i2c/ov5695.c` |
+| Bring-up status | ✅ enumerate; ❌ capture | ✅ enumerate + capture |
 | CSIPHY / CSID | **0** | **1** |
-| Stock CSI lanes | LaneMask `0x1F` (likely 4-lane) | LaneMask `0x07` (2-lane) ✅ |
-| MCLK | mclk0 = gpio26, 24 MHz | **mclk2 = gpio28, 24 MHz** |
-| Reset / standby | standby = gpio35 | **reset = gpio40** (active low) |
-| i2c slave addr | TBD (scan next) | **0x10** (NOT 0x36 — verified) |
-| EEPROM (OTP) | slave **0x5A** | 0x20 |
+| Stock CSI lanes | LaneMask `0x1F` → **4-lane** DT | LaneMask `0x07` (2-lane) ✅ |
+| MCLK | **mclk0 = gpio26, 24 MHz** | **mclk2 = gpio28, 24 MHz** |
+| Reset / standby | **gpio35 active-low** (verified) | **reset = gpio40** (active low) |
+| i2c slave (7-bit) | **0x2d** (stock 8-bit **0x5A**) | **0x10** (NOT 0x36 — verified) |
+| Chip id | **0x4088** @ reg `0x0000` | **0x005695** |
+| Native mode (stock) | **3264×2448** | 2592×1944 |
+| EEPROM (OTP) | same 0x5A / 0x2d path (in-sensor) | 0x20 |
 | VIO 1.8V (dovdd) | pm8937_l6 + gpio27 enable | pm8937_l6 + gpio27 enable |
 | VDIG 1.2V (dvdd) | pm8937_l23 | pm8937_l23 |
 | VANA 2.8V (avdd) | gpio39 enable | gpio39 enable |
-| VAF (AF) | pm8937_l22 (**dw9718s**) | — (fixed focus) |
+| VAF (AF) | pm8937_l22 (**dw9718s** @ **0x0c**) | — (fixed focus) |
 | CCI master | 0 | 0 |
-| Focus/actuator | **dw9718s** (no mainline driver) | fixed |
+| Focus/actuator | **dw9718s** (no mainline; stock 8-bit **0x18**) | fixed |
 | Flash LED | PMI8950 `led@0` / `white:flash` | PMI8950 `led@1` / `white:flash_1` |
 
 **CCI is master-0 only.** cci0 = gpio29 (SDA) / gpio30 (SCL). cci1 =
@@ -221,27 +231,66 @@ node. Patch **`0008`** enables both channels (montana/hannah/cedric shape).
 | Flash | `flash_brightness` + `flash_strobe` (class flash attrs) |
 | Note | dummy `flash-boost`/`torch-boost` regulators — same as siblings |
 
-### Remaining camera polish (not blockers for "first light")
+### Rear S5K4H8 ENUMERATE (2026-07-22 night) — patches `0009` + `0010`
 
-1. **Phosh / snapshot UX** — confirm `pipewire-spa-libcamera` / GNOME Snapshot
-   opens the front camera (may need udev/seat or disable the temporary
-   `50-perry-disable-libcamera.conf` if still present for audio experiments).
-2. **libcamera warnings** — missing `ov5695` sensor properties / crop
-   rectangles / rotation; optional IPA yaml. Cosmetic for capture.
-3. **Exposure / AWB** — SoftwareISP uncalibrated; indoor frames can look dim
-   or green-tinted until tuning.
-4. **Rear S5K4H8 + dw9718s** — **next north star.** No mainline drivers.
-   Start with CCI i2c scan (power + mclk0 + release standby), then new
-   V4L2 sensor driver (~1–1.5k LOC scale), then AF VCM (dw9714-family cousins
-   exist). Stock: CSIPHY0, likely 4-lane, EEPROM 0x5A, VAF l22.
-5. **Flash polish** — optional `label` / `function-enumerator` for
-   `white:flash-rear` / `white:flash-front` names; libcamera V4L2 flash glue.
-6. **Optional A/B** — isolate first-light: only `vdda` vs only `<0 1>` lanes
-   (current tree keeps both).
+**Stock reverse-engineering (host, before on-device power):**
+
+| Source | Finding |
+|---|---|
+| `libmmcamera_s5k4h8.so` `.data` | name `s5k4h8`, slave **0x5A** (8-bit write), chip id **0x4088**, MCLK **24 MHz**, mode **3264×2448** |
+| `libactuator_dw9718s.so` | brand `dongwoon` / `dw9718s`, slave **0x18** (8-bit → 7-bit **0x0c**) |
+| Downstream DTS | mclk0 gpio26, standby gpio35, CSIPHY0, LaneMask `0x1F`, VAF `pm8917_l22`, eeprom slave 0x5A |
+
+**On-device proof (kernel `7.1.3-r3`):**
+
+```
+s5k4h8 2-002d: recon: reset deasserted (active-low try)
+s5k4h8 2-002d: cci scan: addr=0x2d reg0000=0x4088
+s5k4h8 2-002d: Detected S5K4H8 sensor (id 0x4088)
+# i2c: 2-0010 (ov5695) + 2-002d (s5k4h8)
+# front still captures ~17.6 fps after rear probe (shared rails OK)
+```
+
+| Piece | Working value |
+|---|---|
+| i2c (7-bit) | **0x2d** |
+| Chip id | **0x4088** @ `0x0000` |
+| Reset / standby | gpio35 **ACTIVE_LOW** (first try; no polarity flip needed) |
+| MCLK | mclk0 @ 24 MHz |
+| CSI | CSIPHY0, DT `data-lanes` CSIPHY `<0 1 2 3>` / sensor `<1 2 3 4>` |
+| Rails | same `cam_vana_2v8` / `cam_vio_1v8` / `pm8937_l23` as front |
+| dw9718s @ 0x0c | no ACK (VAF `l22` not enabled yet — expected) |
+
+**Patches:**
+
+- **`0009`:** `drivers/media/i2c/s5k4h8.c` — power-on, CCI bus scan, chip-id,
+  minimal V4L2 pad ops; `s_stream` returns `-EOPNOTSUPP` until mode tables.
+- **`0010`:** DT `camera@2d` + `&camss` `port@0`.
+- Config: `CONFIG_VIDEO_S5K4H8=m`. pkgrel **3**.
+
+**libcamera today:** sees `s5k4h8 2-002d` but rejects it (missing mandatory
+exposure/gain/vblank controls + no stream). Only front listed in `cam -l`.
+
+### Remaining camera work
+
+1. **Rear S5K4H8 streaming** — **next.** Port mode / init tables from stock
+   `libmmcamera_s5k4h8.so`, add V4L2 exposure/gain/vblank (+ flip if needed),
+   implement `s_stream`. Target: first rear frames via `cam --capture`.
+2. **dw9718s AF** — enable `pm8937_l22`, probe @ **0x0c**; mainline cousins
+   dw9714/19/68. After rear frames.
+3. **Phosh / snapshot UX** — front path via `pipewire-spa-libcamera` / Snapshot
+   (check `50-perry-disable-libcamera.conf` if still present).
+4. **libcamera polish** — sensor properties / crop / rotation / IPA yaml
+   (cosmetic).
+5. **Flash polish** — optional LED `label` / libcamera flash glue.
 
 ### Next-session quick commands
 
 ```bash
+# Both sensors probe?
+dmesg | grep -iE 'ov5695|s5k4h8|Detected'
+ls /sys/bus/i2c/devices/   # expect 2-0010 + 2-002d
+
 # Front still works?
 cam -l
 cam --camera 1 --capture=3
@@ -330,7 +379,7 @@ rebuild ~60–70 s. Reboot to sshd ~30 s.
 - **Never** ship Android `camera-vendor.mk` / montana ISP blobs on pmOS —
   the proprietary Nougat HAL cannot use mainline CAMSS/V4L2. Android tree is a
   hardware map only.
-- Rear S5K4H8 needs a new mainline sensor driver (and dw9718s actuator) —
-  much larger; deferred.
+- Rear S5K4H8 **enumerates**; full streaming driver + dw9718s actuator still
+  open. Never ship Android `camera-vendor.mk` / montana ISP on pmOS.
 - Authorship on every commit/patch: `Aneesh Pradhan <aneeshpradhan@acm.org>`.
 - Sacred partitions `persist`/`modemst1`/`modemst2` never touched.

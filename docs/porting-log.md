@@ -2697,3 +2697,47 @@ echo 16 | sudo tee /sys/class/leds/white:flash_1/brightness
 | 4 | Optional: Phosh Snapshot, GPU hang 1b, upstream replies |
 
 Do not re-send upstream DTS v1; v2 is current. Authorship acm.org only.
+
+## 2026-07-22 night — rear S5K4H8 ENUMERATE (probe + chip-id)
+
+Front first light + flash already on glass (**7.1.3-r2**). This session:
+stock reverse-eng → minimal mainline driver → DT → deploy **7.1.3-r3**.
+
+### Stock reverse-eng (host)
+
+| Artifact | Finding |
+|---|---|
+| `libmmcamera_s5k4h8.so` | slave **0x5A** (8-bit write → 7-bit **0x2d**), chip id **0x4088**, MCLK 24 MHz, **3264×2448** |
+| `libactuator_dw9718s.so` | `dongwoon` / `dw9718s`, slave **0x18** → 7-bit **0x0c** |
+| Downstream `msm8917-camera-sensor-mot-perry.dtsi` | mclk0/gpio26, standby gpio35, CSIPHY0, LaneMask `0x1F`, VAF l22 |
+
+### Patches / package
+
+| Item | Detail |
+|---|---|
+| `0009` | `media: i2c: add Samsung S5K4H8 sensor (probe/chip-id)` — power, CCI scan, id read; no stream tables yet |
+| `0010` | DT `camera@2d` + camss `port@0` (4-lane CSIPHY0) |
+| Config | `CONFIG_VIDEO_S5K4H8=m` |
+| pkgrel | **3** (on glass `#4-perry-xylitol`) |
+| Apply script | copy all `NNNN-*.patch` (was `000*` only — missed 0010) |
+
+### On-device proof
+
+```
+s5k4h8 2-002d: recon: reset deasserted (active-low try)
+s5k4h8 2-002d: cci scan: addr=0x2d reg0000=0x4088
+s5k4h8 2-002d: Detected S5K4H8 sensor (id 0x4088)
+# other scan addrs ret=-6 (incl. 0x0c AF — VAF not powered)
+# front OV5695 still captures ~17.6 fps (shared-rail regression OK)
+```
+
+libcamera: rear entity present but skipped (missing mandatory V4L2 controls
++ no `s_stream`). Front still listed and captures.
+
+### Next
+
+1. Commit recon (`0009`/`0010` + docs).
+2. Port streaming mode tables + exposure/gain/vblank → rear first light.
+3. dw9718s AF (VAF l22, 0x0c).
+
+Full write-up: [`pmos-camera-perry.md`](pmos-camera-perry.md).

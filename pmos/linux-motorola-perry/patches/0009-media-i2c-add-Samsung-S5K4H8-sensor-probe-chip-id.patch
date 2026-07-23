@@ -1,0 +1,542 @@
+From d37f838763a46eff254249eb1c0c95369a2201df Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Wed, 22 Jul 2026 20:55:48 -0700
+Subject: [PATCH] media: i2c: add Samsung S5K4H8 sensor (probe/chip-id)
+
+Minimal mainline driver for the rear Samsung S5K4H8 (8 MP) fitted on the
+Motorola Moto E4 (perry / XT1765). This revision proves power sequencing
+and chip-id identity on Qualcomm CAMSS/CCI; streaming mode tables are not
+ported yet (s_stream returns -EOPNOTSUPP).
+
+Stock reverse-engineering notes:
+  - libmmcamera_s5k4h8.so: 8-bit slave 0x5A (7-bit 0x2D), chip id 0x4088
+    at reg 0x0000, native mode 3264x2448, MCLK 24 MHz, 4 CSI lanes.
+  - Downstream DTS: mclk0/gpio26, standby gpio35, shared VIO/VANA GPIOs.
+
+Probe always logs a short CCI address scan (incl. 0x0c for dw9718s) and
+retries the opposite reset polarity if the first chip-id read fails.
+
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ drivers/media/i2c/Kconfig  |   8 +
+ drivers/media/i2c/Makefile |   1 +
+ drivers/media/i2c/s5k4h8.c | 476 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 485 insertions(+)
+ create mode 100644 drivers/media/i2c/s5k4h8.c
+
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+index 5d173e0..c721927 100644
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -793,6 +793,14 @@ config VIDEO_S5K6A3
+ 	  This is a V4L2 sensor driver for Samsung S5K6A3 raw
+ 	  camera sensor.
+ 
++config VIDEO_S5K4H8
++	tristate "Samsung S5K4H8 sensor support"
++	select V4L2_CCI_I2C
++	help
++	  This is a Video4Linux2 sensor driver for the Samsung S5K4H8
++	  8MP raw camera sensor. Initial bring-up supports probe/chip-id
++	  only; streaming mode tables are device-specific follow-ups.
++
+ config VIDEO_S5KJN1
+ 	tristate "Samsung S5KJN1 sensor support"
+ 	select V4L2_CCI_I2C
+diff --git a/drivers/media/i2c/Makefile b/drivers/media/i2c/Makefile
+index e45359e..f496602 100644
+--- a/drivers/media/i2c/Makefile
++++ b/drivers/media/i2c/Makefile
+@@ -130,6 +130,7 @@ obj-$(CONFIG_VIDEO_S5C73M3) += s5c73m3/
+ obj-$(CONFIG_VIDEO_S5K3M5) += s5k3m5.o
+ obj-$(CONFIG_VIDEO_S5K5BAF) += s5k5baf.o
+ obj-$(CONFIG_VIDEO_S5K6A3) += s5k6a3.o
++obj-$(CONFIG_VIDEO_S5K4H8) += s5k4h8.o
+ obj-$(CONFIG_VIDEO_S5KJN1) += s5kjn1.o
+ obj-$(CONFIG_VIDEO_SAA6588) += saa6588.o
+ obj-$(CONFIG_VIDEO_SAA6752HS) += saa6752hs.o
+diff --git a/drivers/media/i2c/s5k4h8.c b/drivers/media/i2c/s5k4h8.c
+new file mode 100644
+index 0000000..04711eb
+--- /dev/null
++++ b/drivers/media/i2c/s5k4h8.c
+@@ -0,0 +1,476 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Samsung S5K4H8 8MP camera sensor — perry bring-up (probe / chip-id first).
++ *
++ * Hardware map (XT1765 / msm8917-camera-sensor-mot-perry.dtsi + stock lib):
++ *  - CCI master 0, CSIPHY0, 4 MIPI data lanes, MCLK0 @ 24 MHz
++ *  - 8-bit write slave 0x5A → 7-bit 0x2D (stock libmmcamera_s5k4h8.so)
++ *  - Chip id 0x4088 at register 0x0000
++ *  - Standby on gpio35 (modelled as reset, active-low XSHUTDOWN-style)
++ *
++ * Streaming init tables are not yet ported; this driver exists to prove
++ * power + i2c identity on mainline CAMSS/CCI before full mode tables land.
++ *
++ * Copyright (C) 2026 Aneesh Pradhan <aneeshpradhan@acm.org>
++ */
++
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/i2c.h>
++#include <linux/math64.h>
++#include <linux/module.h>
++#include <linux/pm_runtime.h>
++#include <linux/regulator/consumer.h>
++#include <linux/units.h>
++#include <media/v4l2-cci.h>
++#include <media/v4l2-ctrls.h>
++#include <media/v4l2-fwnode.h>
++#include <media/v4l2-subdev.h>
++
++#define S5K4H8_CHIP_ID			0x4088
++#define S5K4H8_REG_CHIP_ID		CCI_REG16(0x0000)
++
++#define S5K4H8_MCLK_FREQ_24MHZ		(24 * HZ_PER_MHZ)
++#define S5K4H8_WIDTH			3264
++#define S5K4H8_HEIGHT			2448
++#define S5K4H8_DATA_LANES		4
++/* Placeholder until stock link rate is reverse-engineered for capture. */
++#define S5K4H8_LINK_FREQ_DEFAULT	(420ULL * HZ_PER_MHZ)
++
++#define to_s5k4h8(_sd)			container_of(_sd, struct s5k4h8, sd)
++
++static const s64 s5k4h8_link_freq_menu[] = {
++	S5K4H8_LINK_FREQ_DEFAULT,
++};
++
++static const char * const s5k4h8_supply_names[] = {
++	"avdd",		/* 2.8V analog (gpio39 load switch on perry) */
++	"dovdd",	/* 1.8V I/O (gpio27 + pm8937_l6) */
++	"dvdd",		/* 1.2V digital core (pm8937_l23) */
++};
++
++#define S5K4H8_NUM_SUPPLIES ARRAY_SIZE(s5k4h8_supply_names)
++
++struct s5k4h8 {
++	struct device *dev;
++	struct regmap *regmap;
++	struct clk *mclk;
++	struct gpio_desc *reset_gpio;
++	struct regulator_bulk_data supplies[S5K4H8_NUM_SUPPLIES];
++
++	struct v4l2_subdev sd;
++	struct media_pad pad;
++	struct v4l2_ctrl_handler ctrl_handler;
++	struct v4l2_ctrl *link_freq;
++	struct v4l2_ctrl *pixel_rate;
++};
++
++static int s5k4h8_power_on(struct device *dev)
++{
++	struct v4l2_subdev *sd = dev_get_drvdata(dev);
++	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
++	int ret;
++
++	ret = regulator_bulk_enable(S5K4H8_NUM_SUPPLIES, s5k4h8->supplies);
++	if (ret) {
++		dev_err(dev, "failed to enable regulators: %d\n", ret);
++		return ret;
++	}
++
++	ret = clk_prepare_enable(s5k4h8->mclk);
++	if (ret) {
++		dev_err(dev, "failed to enable mclk: %d\n", ret);
++		goto disable_regs;
++	}
++
++	/* Release XSHUTDOWN / standby (active-low). */
++	gpiod_set_value_cansleep(s5k4h8->reset_gpio, 0);
++	fsleep(10 * USEC_PER_MSEC);
++
++	return 0;
++
++disable_regs:
++	regulator_bulk_disable(S5K4H8_NUM_SUPPLIES, s5k4h8->supplies);
++	return ret;
++}
++
++static int s5k4h8_power_off(struct device *dev)
++{
++	struct v4l2_subdev *sd = dev_get_drvdata(dev);
++	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
++
++	gpiod_set_value_cansleep(s5k4h8->reset_gpio, 1);
++	clk_disable_unprepare(s5k4h8->mclk);
++	regulator_bulk_disable(S5K4H8_NUM_SUPPLIES, s5k4h8->supplies);
++
++	return 0;
++}
++
++/*
++ * After power-up, try reading 16-bit reg 0x0000 at several plausible 7-bit
++ * addresses. Logs every ACK so we can confirm stock 0x2d / catch strap variants
++ * and also see the dw9718s actuator (typically 0x0c) if VAF is on later.
++ */
++static void s5k4h8_bus_scan(struct s5k4h8 *s5k4h8)
++{
++	struct i2c_client *client = v4l2_get_subdevdata(&s5k4h8->sd);
++	struct i2c_adapter *adap = client->adapter;
++	u8 addrs[] = {
++		0x0c, 0x10, 0x1a, 0x20, 0x2d, 0x36, 0x37, 0x5a, 0x6c,
++	};
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(addrs); i++) {
++		u8 wbuf[2] = { 0x00, 0x00 };
++		u8 rbuf[2] = { 0 };
++		struct i2c_msg msgs[2] = {
++			{
++				.addr = addrs[i],
++				.flags = 0,
++				.len = 2,
++				.buf = wbuf,
++			},
++			{
++				.addr = addrs[i],
++				.flags = I2C_M_RD,
++				.len = 2,
++				.buf = rbuf,
++			},
++		};
++		int ret = i2c_transfer(adap, msgs, 2);
++
++		if (ret == 2)
++			dev_info(s5k4h8->dev,
++				 "cci scan: addr=0x%02x reg0000=0x%02x%02x\n",
++				 addrs[i], rbuf[0], rbuf[1]);
++		else
++			dev_info(s5k4h8->dev,
++				 "cci scan: addr=0x%02x ret=%d\n",
++				 addrs[i], ret);
++	}
++}
++
++static int s5k4h8_identify(struct s5k4h8 *s5k4h8)
++{
++	u64 val = 0;
++	int ret;
++
++	ret = cci_read(s5k4h8->regmap, S5K4H8_REG_CHIP_ID, &val, NULL);
++	if (ret) {
++		dev_err(s5k4h8->dev, "chip id read failed: %d\n", ret);
++		s5k4h8_bus_scan(s5k4h8);
++		return ret;
++	}
++
++	if (val != S5K4H8_CHIP_ID) {
++		dev_err(s5k4h8->dev,
++			"unexpected chip id 0x%04llx (want 0x%04x)\n",
++			val, S5K4H8_CHIP_ID);
++		s5k4h8_bus_scan(s5k4h8);
++		return -ENODEV;
++	}
++
++	dev_info(s5k4h8->dev, "Detected S5K4H8 sensor (id 0x%04x)\n",
++		 S5K4H8_CHIP_ID);
++	return 0;
++}
++
++static int s5k4h8_enum_mbus_code(struct v4l2_subdev *sd,
++				 struct v4l2_subdev_state *sd_state,
++				 struct v4l2_subdev_mbus_code_enum *code)
++{
++	if (code->index > 0)
++		return -EINVAL;
++
++	code->code = MEDIA_BUS_FMT_SGRBG10_1X10;
++	return 0;
++}
++
++static int s5k4h8_enum_frame_size(struct v4l2_subdev *sd,
++				  struct v4l2_subdev_state *sd_state,
++				  struct v4l2_subdev_frame_size_enum *fse)
++{
++	if (fse->index > 0 || fse->code != MEDIA_BUS_FMT_SGRBG10_1X10)
++		return -EINVAL;
++
++	fse->min_width = S5K4H8_WIDTH;
++	fse->max_width = S5K4H8_WIDTH;
++	fse->min_height = S5K4H8_HEIGHT;
++	fse->max_height = S5K4H8_HEIGHT;
++	return 0;
++}
++
++static int s5k4h8_set_format(struct v4l2_subdev *sd,
++			     struct v4l2_subdev_state *sd_state,
++			     struct v4l2_subdev_format *fmt)
++{
++	struct v4l2_mbus_framefmt *format;
++
++	format = v4l2_subdev_state_get_format(sd_state, 0);
++	format->code = MEDIA_BUS_FMT_SGRBG10_1X10;
++	format->width = S5K4H8_WIDTH;
++	format->height = S5K4H8_HEIGHT;
++	format->field = V4L2_FIELD_NONE;
++	format->colorspace = V4L2_COLORSPACE_RAW;
++	fmt->format = *format;
++
++	return 0;
++}
++
++static int s5k4h8_init_state(struct v4l2_subdev *sd,
++			     struct v4l2_subdev_state *sd_state)
++{
++	struct v4l2_subdev_format fmt = {
++		.which = V4L2_SUBDEV_FORMAT_TRY,
++		.format = {
++			.code = MEDIA_BUS_FMT_SGRBG10_1X10,
++			.width = S5K4H8_WIDTH,
++			.height = S5K4H8_HEIGHT,
++		},
++	};
++
++	return s5k4h8_set_format(sd, sd_state, &fmt);
++}
++
++static int s5k4h8_s_stream(struct v4l2_subdev *sd, int enable)
++{
++	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
++
++	/* Mode tables not ported yet — enumerate / identify only. */
++	if (enable)
++		return dev_err_probe(s5k4h8->dev, -EOPNOTSUPP,
++				     "s5k4h8 streaming not implemented yet\n");
++	return 0;
++}
++
++static const struct v4l2_subdev_video_ops s5k4h8_video_ops = {
++	.s_stream = s5k4h8_s_stream,
++};
++
++static const struct v4l2_subdev_pad_ops s5k4h8_pad_ops = {
++	.enum_mbus_code = s5k4h8_enum_mbus_code,
++	.enum_frame_size = s5k4h8_enum_frame_size,
++	.get_fmt = v4l2_subdev_get_fmt,
++	.set_fmt = s5k4h8_set_format,
++};
++
++static const struct v4l2_subdev_ops s5k4h8_subdev_ops = {
++	.video = &s5k4h8_video_ops,
++	.pad = &s5k4h8_pad_ops,
++};
++
++static const struct v4l2_subdev_internal_ops s5k4h8_internal_ops = {
++	.init_state = s5k4h8_init_state,
++};
++
++static const struct media_entity_operations s5k4h8_entity_ops = {
++	.link_validate = v4l2_subdev_link_validate,
++};
++
++static int s5k4h8_check_hwcfg(struct s5k4h8 *s5k4h8)
++{
++	struct fwnode_handle *endpoint;
++	struct v4l2_fwnode_endpoint bus_cfg = {
++		.bus_type = V4L2_MBUS_CSI2_DPHY,
++	};
++	int ret;
++
++	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(s5k4h8->dev),
++						  NULL);
++	if (!endpoint)
++		return -EINVAL;
++
++	ret = v4l2_fwnode_endpoint_alloc_parse(endpoint, &bus_cfg);
++	fwnode_handle_put(endpoint);
++	if (ret)
++		return ret;
++
++	if (bus_cfg.bus.mipi_csi2.num_data_lanes != S5K4H8_DATA_LANES) {
++		dev_err(s5k4h8->dev, "expected %u data lanes, got %u\n",
++			S5K4H8_DATA_LANES,
++			bus_cfg.bus.mipi_csi2.num_data_lanes);
++		ret = -EINVAL;
++	}
++
++	v4l2_fwnode_endpoint_free(&bus_cfg);
++	return ret;
++}
++
++static int s5k4h8_init_controls(struct s5k4h8 *s5k4h8)
++{
++	struct v4l2_ctrl_handler *hdl = &s5k4h8->ctrl_handler;
++	/* Rough pixel rate placeholder: link_freq * 2 * lanes / bits. */
++	u64 pixel_rate = div_u64(S5K4H8_LINK_FREQ_DEFAULT * 2 *
++				 S5K4H8_DATA_LANES, 10);
++	int ret;
++
++	ret = v4l2_ctrl_handler_init(hdl, 2);
++	if (ret)
++		return ret;
++
++	s5k4h8->link_freq = v4l2_ctrl_new_int_menu(hdl, NULL,
++						   V4L2_CID_LINK_FREQ,
++						   0, 0,
++						   s5k4h8_link_freq_menu);
++	s5k4h8->pixel_rate = v4l2_ctrl_new_std(hdl, NULL,
++						V4L2_CID_PIXEL_RATE,
++						0, pixel_rate, 1, pixel_rate);
++	if (s5k4h8->link_freq)
++		s5k4h8->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++	s5k4h8->sd.ctrl_handler = hdl;
++	return hdl->error;
++}
++
++static int s5k4h8_probe(struct i2c_client *client)
++{
++	struct s5k4h8 *s5k4h8;
++	unsigned long freq;
++	unsigned int i;
++	int ret;
++
++	s5k4h8 = devm_kzalloc(&client->dev, sizeof(*s5k4h8), GFP_KERNEL);
++	if (!s5k4h8)
++		return -ENOMEM;
++
++	s5k4h8->dev = &client->dev;
++	v4l2_i2c_subdev_init(&s5k4h8->sd, client, &s5k4h8_subdev_ops);
++	s5k4h8->sd.internal_ops = &s5k4h8_internal_ops;
++
++	s5k4h8->regmap = devm_cci_regmap_init_i2c(client, 16);
++	if (IS_ERR(s5k4h8->regmap))
++		return dev_err_probe(s5k4h8->dev, PTR_ERR(s5k4h8->regmap),
++				     "failed to init CCI regmap\n");
++
++	s5k4h8->mclk = devm_clk_get(s5k4h8->dev, "mclk");
++	if (IS_ERR(s5k4h8->mclk))
++		return dev_err_probe(s5k4h8->dev, PTR_ERR(s5k4h8->mclk),
++				     "failed to get mclk\n");
++
++	freq = clk_get_rate(s5k4h8->mclk);
++	if (freq && freq != S5K4H8_MCLK_FREQ_24MHZ)
++		dev_warn(s5k4h8->dev,
++			 "mclk rate %lu Hz (expected %u); continuing\n",
++			 freq, S5K4H8_MCLK_FREQ_24MHZ);
++
++	ret = s5k4h8_check_hwcfg(s5k4h8);
++	if (ret)
++		return dev_err_probe(s5k4h8->dev, ret,
++				     "invalid endpoint configuration\n");
++
++	s5k4h8->reset_gpio = devm_gpiod_get(s5k4h8->dev, "reset",
++					    GPIOD_OUT_HIGH);
++	if (IS_ERR(s5k4h8->reset_gpio))
++		return dev_err_probe(s5k4h8->dev, PTR_ERR(s5k4h8->reset_gpio),
++				     "failed to get reset-gpios\n");
++
++	for (i = 0; i < S5K4H8_NUM_SUPPLIES; i++)
++		s5k4h8->supplies[i].supply = s5k4h8_supply_names[i];
++
++	ret = devm_regulator_bulk_get(s5k4h8->dev, S5K4H8_NUM_SUPPLIES,
++				      s5k4h8->supplies);
++	if (ret)
++		return dev_err_probe(s5k4h8->dev, ret,
++				     "failed to get regulators\n");
++
++	/* Identify requires power + mclk + reset release. */
++	v4l2_set_subdevdata(&s5k4h8->sd, client);
++	dev_set_drvdata(s5k4h8->dev, &s5k4h8->sd);
++
++	ret = s5k4h8_power_on(s5k4h8->dev);
++	if (ret)
++		return ret;
++
++	/*
++	 * Stock labels gpio35 "standby". Mainline sensors usually treat the
++	 * equivalent pin as active-low XSHUTDOWN (reset deasserted = 0). If
++	 * that polarity is wrong the bus is silent — flip and re-scan once.
++	 */
++	dev_info(s5k4h8->dev, "recon: reset deasserted (active-low try)\n");
++	s5k4h8_bus_scan(s5k4h8);
++	ret = s5k4h8_identify(s5k4h8);
++	if (ret) {
++		dev_info(s5k4h8->dev,
++			 "recon: flipping reset polarity and retrying\n");
++		gpiod_set_value_cansleep(s5k4h8->reset_gpio, 1);
++		fsleep(10 * USEC_PER_MSEC);
++		s5k4h8_bus_scan(s5k4h8);
++		ret = s5k4h8_identify(s5k4h8);
++		if (ret)
++			goto err_power;
++		dev_warn(s5k4h8->dev,
++			 "sensor responded with inverted reset polarity; DT may need GPIO_ACTIVE_HIGH\n");
++	}
++
++	ret = s5k4h8_init_controls(s5k4h8);
++	if (ret)
++		goto err_power;
++
++	s5k4h8->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
++	s5k4h8->sd.entity.ops = &s5k4h8_entity_ops;
++	s5k4h8->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
++	s5k4h8->pad.flags = MEDIA_PAD_FL_SOURCE;
++	s5k4h8->sd.state_lock = s5k4h8->ctrl_handler.lock;
++
++	ret = media_entity_pads_init(&s5k4h8->sd.entity, 1, &s5k4h8->pad);
++	if (ret)
++		goto err_ctrls;
++
++	ret = v4l2_async_register_subdev_sensor(&s5k4h8->sd);
++	if (ret)
++		goto err_entity;
++
++	pm_runtime_set_active(s5k4h8->dev);
++	pm_runtime_enable(s5k4h8->dev);
++	pm_runtime_idle(s5k4h8->dev);
++
++	return 0;
++
++err_entity:
++	media_entity_cleanup(&s5k4h8->sd.entity);
++err_ctrls:
++	v4l2_ctrl_handler_free(&s5k4h8->ctrl_handler);
++err_power:
++	s5k4h8_power_off(s5k4h8->dev);
++	return ret;
++}
++
++static void s5k4h8_remove(struct i2c_client *client)
++{
++	struct v4l2_subdev *sd = i2c_get_clientdata(client);
++	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
++
++	v4l2_async_unregister_subdev(sd);
++	media_entity_cleanup(&sd->entity);
++	v4l2_ctrl_handler_free(&s5k4h8->ctrl_handler);
++	pm_runtime_disable(s5k4h8->dev);
++	if (!pm_runtime_status_suspended(s5k4h8->dev))
++		s5k4h8_power_off(s5k4h8->dev);
++	pm_runtime_set_suspended(s5k4h8->dev);
++}
++
++static const struct dev_pm_ops s5k4h8_pm_ops = {
++	SET_RUNTIME_PM_OPS(s5k4h8_power_off, s5k4h8_power_on, NULL)
++};
++
++static const struct of_device_id s5k4h8_of_match[] = {
++	{ .compatible = "samsung,s5k4h8" },
++	{ /* sentinel */ }
++};
++MODULE_DEVICE_TABLE(of, s5k4h8_of_match);
++
++static struct i2c_driver s5k4h8_i2c_driver = {
++	.driver = {
++		.name = "s5k4h8",
++		.pm = &s5k4h8_pm_ops,
++		.of_match_table = s5k4h8_of_match,
++	},
++	.probe = s5k4h8_probe,
++	.remove = s5k4h8_remove,
++};
++module_i2c_driver(s5k4h8_i2c_driver);
++
++MODULE_DESCRIPTION("Samsung S5K4H8 camera sensor driver (perry bring-up)");
++MODULE_AUTHOR("Aneesh Pradhan <aneeshpradhan@acm.org>");
++MODULE_LICENSE("GPL");
+-- 
+2.53.0
+
