@@ -2484,3 +2484,49 @@ perry`). Flashing `boot` from inside older lk2nd reported OKAY but left
 **Session close:** handoff top rewritten with full session log + scoped
 next-session board (default: full-apps UX smoke). Git `82f21c0` / `0f3d3ee`
 on origin/main.
+
+## 2026-07-22 — UX: severe GPU hang under Neverball (Adreno ringbuffer / recover −22)
+
+User smoke on Phosh **7.1.3-msm89x7**: graphics stress with **Neverball**
+trips msm/adreno:
+
+```
+drm:adreno_idle [msm]] *ERROR* 03000620: timeout waiting to drain rungbuffer 0 rptr/wptr = 10/12
+msm_dpu 1a01000.display-controller: [drm:adreno_recover [msm]] *ERROR* gpu hw init failed: -22
+```
+
+Logged as handoff track **1b** (SEVERE). Prior matrix only confirmed GPU
+bound + basic GL — not game load. P1.3 opp work still baselines-only;
+hang may justify revisiting after full dmesg/mesa capture. Not bisected
+vs 7.0.9 / mesa yet.
+
+## 2026-07-22 — UX: camera app finds zero devices on pmOS (Android work N/A)
+
+User: Phosh camera app opens; **no cameras found**. Logged as handoff
+track **1c**.
+
+**Applicability of LineageOS 18.1 camera work:** the Android path
+(patches 0011–0015, montana platform blobs, qcamerasvr, 3.18 CCI) does
+**not** run on pmOS mainline. Useful carry is hardware intel only
+(sensor IDs / GPIOs / regulators) for a future CAMSS + libcamera bring-up;
+not a port of the vendor HAL.
+
+**Priority pivot (same day, user):** camera is **#1 sole active track** —
+GPU hang, UX polish, upstream follow-through, and other board items are
+**blocked** until at least one sensor enumerates and can preview/capture
+under pmOS. Handoff board rewritten accordingly.
+
+## 2026-07-22 EOD — session close (upstream mailed + camera #1 + DTS v2)
+
+**Context window close-out.** Full state in `docs/handoff.md` top
+("CAMERA FIRST"). Summary:
+
+1. **barni2000 Gates 3+4 mailed** to linux-arm-msm (rpmcc + initial
+   MSM8920/perry DTS). Fork notes on linux#48 / #57.
+2. **DTS v2** re-roll: Makefile DTB alphabetical sort (Sashiko). Lore
+   `20260723014627.63310-1-aneeshpradhan@acm.org`.
+3. **UX:** GPU hang under Neverball logged (parked). Camera zero-devices
+   = **sole #1 priority**; all other tracks blocked.
+4. **SMTP:** Gmail `aneeshpradhan2004@gmail.com` + From ACM; secrets
+   outside repo.
+5. Next opener: camera CAMSS bring-up only.
