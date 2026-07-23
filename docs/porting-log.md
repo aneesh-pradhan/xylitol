@@ -2530,3 +2530,95 @@ under pmOS. Handoff board rewritten accordingly.
 4. **SMTP:** Gmail `aneeshpradhan2004@gmail.com` + From ACM; secrets
    outside repo.
 5. Next opener: camera CAMSS bring-up only.
+
+## 2026-07-22 — pmOS mainline camera: front OV5695 ENUMERATES (root cause: i2c addr 0x10, not 0x36)
+
+**Milestone: the front camera comes up on mainline CAMSS.** From "Phosh sees
+zero cameras / `/dev/video0..1` = Venus only" to a registered V4L2 subdev that
+libcamera lists. Full reference: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+Capture (frame delivery) is **not** working yet — blocked on `VFE sof timeout`.
+
+### What was disabled and what we enabled
+
+Base `msm8917.dtsi` (fork `msm89x7/7.1.3`, the tag the pmOS kernel builds from)
+already defines `camss@1b34000` (`qcom,msm8917-camss`) and `cci@1b0c000`
+(`qcom,msm8974-cci`) plus all camera pinctrl — all `status = "disabled"`. So
+nothing camera exists until DT flips them on. No other msm8917/msm8937 board
+enables CAMSS on mainline, so perry is the first to exercise this path
+(closest template: msm8916 `apq8016-sbc-d3-camera-mezzanine` / ov5640).
+
+New carry patch **`pmos/linux-motorola-perry/patches/0007-...`**: enable
+`&camss` + `&cci` (cci0 only), add front **OV5695** on CCI master 0 / CSIPHY1,
+two gpio-switched fixed regulators (avdd gpio39 / dovdd gpio27, dvdd =
+pm8937_l23). Config: `CONFIG_VIDEO_OV5695=m` (camss + cci i2c were already `=m`).
+
+### Hardware map (from downstream `msm8917-camera-sensor-mot-perry.dtsi`)
+
+- **Front OV5695** (mainline driver ✓): mclk2 gpio28 @24 MHz, reset gpio40
+  (active low), CSIPHY1/CSID1, 2 lanes, CCI master 0.
+- **Rear S5K4H8** (no mainline driver — deferred): mclk0 gpio26, standby
+  gpio35, dw9718s AF (also no mainline driver).
+- **CCI master-0 only**: cci1 = gpio31/32, and **gpio31 is owned by the sx9310
+  SAR sensor** — downstream says keep cci0 only. Patch restricts `&cci`
+  pinctrl to `cci0_default` and disables `cci_i2c1`.
+- Rails gpio27 (VIO 1.8V) + gpio39 (VANA 2.8V) are shared load switches.
+
+### Root cause of the initial probe failure: i2c address
+
+First probe: `ov5695 2-0036: Unexpected sensor id(000000), ret(-5)`. Ruled out
+methodically over SSH via `/sys/kernel/debug`:
+- **Clock OK** — sampled `gcc_camss_mclk2_clk` across unbind/rebind:
+  enable→1 @24 MHz, source PLL **gpll6** enable→1 (24 MHz needs gpll6:
+  `F(24000000, P_GPLL6, 1, 1, 45)`; no XO 24 MHz path). A first `gpll6=0`
+  sample was a read race.
+- **Power OK** — made avdd/dovdd `regulator-always-on`; confirmed `enabled`;
+  sensor still id 0. Not power/timing.
+- **Address = the bug** — temporary driver debug patch `0008` retried the
+  chip-id read and scanned 0x36 + 0x10:
+  ```
+  camdbg: addr=0x36 try=0..4 ret=-5 id=000000
+  camdbg: addr=0x10 try=0 ret=0 id=005695 → Detected OV005695 sensor at 0x10
+  ```
+  **Perry straps OV5695 to slave address 0x10, not the OmniVision default
+  0x36.** Detected on the first try at 0x10 → the extended settle delay was
+  unnecessary. Reverted `0008` and the always-on rails; clean `0007` uses
+  `reg = <0x10>` + driver-controlled rails.
+
+### Proof (clean build, stock driver)
+
+`ov5695 2-0010: Detected OV005695 sensor`; `/dev/media0` + video0..7 +
+v4l-subdev0..14; media graph `ov5695 2-0010 → msm_csiphy1 [ENABLED]`;
+`cam -l` → `1: 'ov5695' (…/camera@10)` at 2592×1944 (5 MP). **Satisfies the
+"≥1 sensor enumerates" done-criterion.**
+
+### Capture blocker (next work item)
+
+`cam --capture` configures the pipeline (simple handler + SoftwareISP,
+`2592x1944-BGGR-10-CSI2P`) but no frames arrive:
+```
+qcom-camss 1b34000.camss: VFE sof timeout
+qcom-camss 1b34000.camss: VFE reg update timeout
+```
+CSI receive path not delivering SOF. Leads (see camera doc §Capture):
+1. **CSI data-lane mapping** (sensor `<1 2>` / csiphy `<0 2>` — the `<0 2>` is
+   legacy 8x16 style; try `<1 2>` both) — most likely.
+2. **CAMSS `vdda` supply is dummy** (`supply vdda not found, using dummy
+   regulator`) — wire a real CSIPHY analog supply on `&camss`.
+3. link-freq / csid clock; or drive a manual `media-ctl` + `v4l2-ctl` RDI
+   capture for cleaner errors.
+
+### Workflow notes (reusable)
+
+- **In-place deploy, no fastboot:** perry boots lk2nd → extlinux on `/boot`.
+  `apk add --allow-untrusted <kernel.apk>` runs boot-deploy → rewrites
+  `/boot` vmlinuz+dtb → reboot. `/boot` backed up to
+  `/root/boot-bak-7.1.3-r1`. (`apk add <file>` reinstalls same version;
+  there is no `--force-reinstall` — that's a dnf-ism.)
+- **Build:** `pmbootstrap shutdown` before `build --force --lax` (stale chroot
+  → pre-build zap hits the umount-busy race; `--lax` skips it). Warm ccache:
+  DT/driver-only rebuild ~60 s.
+- **Reconnect after reboot:** USB gadget MAC randomizes → new `enx*`; re-add
+  `172.16.42.2/24` to it; **never** to `enp42s0` (dup /24 hijacks the route —
+  silent 100% loss); `ip neigh flush all` after MAC change or SSH hangs.
+- **SSH password** = owner's phone number → `SECRETS.md` (gitignored, new
+  this session).
