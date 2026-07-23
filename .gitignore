@@ -45,3 +45,7 @@ pmos/linux-motorola-perry/*bak-pre-*
 # private operational data (e.g. device SSH credentials). Never commit.
 docs/handoff.md
 docs/*handoff*
+
+# Credentials file (device SSH password = owner's phone number, PII). LOCAL
+# only, never commit. Handoffs point here instead of recording the password.
+SECRETS.md
