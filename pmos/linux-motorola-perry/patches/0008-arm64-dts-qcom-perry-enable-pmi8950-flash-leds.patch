@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Wed, 22 Jul 2026 20:45:00 -0700
+Subject: [PATCH 8/8] arm64: dts: qcom: perry: enable PMI8950 flash LEDs
+
+Perry routes front and rear camera flash/torch through the PMI8950 flash
+LED peripheral at 0xd300 (downstream qcom,qpnp-flash-led with flash0/1 +
+torch0/1). Mainline already has:
+
+  - pmi8950.dtsi: pmi8950_flash led-controller@d300 (disabled) with
+    compatible "qcom,spmi-flash-led-v1"
+  - drivers/leds/flash/leds-qcom-flash-v1.c (CONFIG_LEDS_QCOM_FLASH_V1)
+
+Enable both channels the same way as other msm89x7 Motorola boards
+(montana, hannah, cedric). Currents match the stock board (torch <=200 mA,
+flash <=1000 mA, timeout 1.28 s).
+
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+--- a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+@@ -259,6 +259,36 @@
+ 	status = "okay";
+ };
+ 
++
++/*
++ * Camera flash/torch (PMI8950 channels). Driver: leds-qcom-flash-v1.
++ * Channel map (torch-tested): led@0 = rear, led@1 = front.
++ * Currents match stock: torch <=200 mA, flash <=1000 mA.
++ */
++&pmi8950_flash {
++	#address-cells = <1>;
++	#size-cells = <0>;
++	status = "okay";
++
++	led@0 {
++		reg = <0>;
++		function = LED_FUNCTION_FLASH;
++		color = <LED_COLOR_ID_WHITE>;
++		led-max-microamp = <200000>;
++		flash-max-microamp = <1000000>;
++		flash-max-timeout-us = <1280000>;
++	};
++
++	led@1 {
++		reg = <1>;
++		function = LED_FUNCTION_FLASH;
++		color = <LED_COLOR_ID_WHITE>;
++		led-max-microamp = <200000>;
++		flash-max-microamp = <1000000>;
++		flash-max-timeout-us = <1280000>;
++	};
++};
++
+ &gps_mem {
+ 	status = "okay";
+ };
+-- 
+2.53.0

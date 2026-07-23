@@ -16,9 +16,15 @@ Hardware map from the downstream msm8917-camera-sensor-mot-perry.dtsi:
   - Rails: dvdd 1V2 = pm8937_l23; dovdd 1V8 gated by gpio27 (parent l6);
     avdd 2V8 gated by gpio39. The 1V8/2V8 GPIO load switches are modelled
     as fixed regulators.
+  - CAMSS CSIPHY analog: vdda-supply = pm8937_l2 (1.2V), matching the
+    msm8916-pm8916 reference; without it camss binds a dummy regulator and
+    capture hits VFE sof timeout.
+  - CSIPHY data-lanes = <0 1> (0-based physical); sensor = <1 2> (V4L2
+    logical). The apq8016 mezzanine <0 2> mapping SOF-timeouts on perry.
   - CCI master 1 (gpio31/32) stays off: gpio31 is owned by the sx9310 SAR
     sensor, so pinctrl is restricted to cci0.
 
+Verified on-device: enumerate + libcamera capture ~17.5 fps (first light).
 The rear Samsung S5K4H8 has no mainline sensor driver yet and is left
 disabled; it can be added once a driver exists.
 
@@ -29,7 +35,7 @@ Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 
 --- a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
 +++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
-@@ -531,3 +531,106 @@
+@@ -531,3 +531,118 @@
  &xo_board {
  	clock-frequency = <19200000>;
  };
@@ -67,6 +73,12 @@ Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 +};
 +
 +&camss {
++	/*
++	 * CSIPHY analog supply. msm8916-pm8916.dtsi wires camss vdda to
++	 * PMIC L2 (1.2V); perry already uses pm8937_l2 for DSI PHY vdda.
++	 * Without this, qcom-camss binds a dummy regulator (logged thrice).
++	 */
++	vdda-supply = <&pm8937_l2>;
 +	status = "okay";
 +
 +	ports {
@@ -77,7 +89,13 @@ Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 +			reg = <1>;
 +
 +			csiphy1_ep: endpoint {
-+				data-lanes = <0 2>;
++				/*
++				 * CSIPHY uses 0-based physical lane positions (see
++				 * qcom-camss lane_mask). Sensor side stays <1 2>
++				 * (V4L2 logical). <0 2> was apq8016 mezzanine routing;
++				 * <1 2> on both still VFE sof timeout on perry.
++				 */
++				data-lanes = <0 1>;
 +				remote-endpoint = <&ov5695_ep>;
 +			};
 +		};

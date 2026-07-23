@@ -5,7 +5,7 @@
 # docs/perry-custom-kernel-plan.md.
 pkgname=linux-motorola-perry
 pkgver=7.1.3
-pkgrel=1
+pkgrel=2
 pkgdesc="Mainline kernel for Motorola Moto E4 (perry / MSM8917) — xylitol carry"
 arch="aarch64"
 _carch="arm64"
@@ -45,6 +45,7 @@ source="
 	0005-drm-panel-add-motorola-perry-Ofilm-499v0-panel.patch
 	0006-arm64-dts-qcom-perry-select-Ofilm-499v0-panel.patch
 	0007-arm64-dts-qcom-perry-enable-camss-cci-ov5695-front.patch
+	0008-arm64-dts-qcom-perry-enable-pmi8950-flash-leds.patch
 "
 builddir="$srcdir/linux-$_tag"
 
