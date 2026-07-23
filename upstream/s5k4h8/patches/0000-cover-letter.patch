@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Thu, 23 Jul 2026 01:45:00 -0700
+Subject: [PATCH 0/2] media: i2c: add Samsung S5K4H8 image sensor
+
+Hi,
+
+This series adds mainline support for the Samsung S5K4H8 8 megapixel
+raw image sensor.
+
+Hardware summary:
+  - CCI / I2C control, MIPI CSI-2 4-lane @ 280 MHz (560 Mbps/lane)
+  - External MCLK 24 MHz
+  - Native array 3264x2448 SGRBG10; also 1632x1224 2x2 binning
+  - Chip id 0x4088 @ register 0x0000
+
+Register programming sequences are adapted from the Rockchip vendor
+driver (GPL-2.0); register I/O uses mainline v4l2-cci. Stream on/off
+writes the mode select register 0x0100 as an 8-bit value.
+
+The driver uses the modern V4L2 subdev active-state API (init_state,
+enable_streams / disable_streams, v4l2_subdev_init_finalize).
+
+Tested on Motorola Moto E4 (perry / MSM8917) with mainline CAMSS +
+libcamera: both this sensor (rear) and the existing OV5695 (front)
+enumerate and capture (~24 fps full-res rear, ~17.6 fps front).
+
+Series:
+  1/2 dt-bindings: media: i2c: add Samsung S5K4H8 image sensor
+  2/2 media: i2c: add Samsung S5K4H8 image sensor driver
+
+Board DTS enablement is intentionally not included here and will be a
+follow-up once the driver is accepted.
+
+Please review.
+
+Thanks,
+Aneesh
+
+Aneesh Pradhan (2):
+  dt-bindings: media: i2c: add Samsung S5K4H8 image sensor
+  media: i2c: add Samsung S5K4H8 image sensor driver
+
+-- 
+2.53.0

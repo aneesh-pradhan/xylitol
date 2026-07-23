@@ -2697,3 +2697,272 @@ echo 16 | sudo tee /sys/class/leds/white:flash_1/brightness
 | 4 | Optional: Phosh Snapshot, GPU hang 1b, upstream replies |
 
 Do not re-send upstream DTS v1; v2 is current. Authorship acm.org only.
+
+## 2026-07-22 night — rear S5K4H8 ENUMERATE (probe + chip-id)
+
+Front first light + flash already on glass (**7.1.3-r2**). This session:
+stock reverse-eng → minimal mainline driver → DT → deploy **7.1.3-r3**.
+
+### Stock reverse-eng (host)
+
+| Artifact | Finding |
+|---|---|
+| `libmmcamera_s5k4h8.so` | slave **0x5A** (8-bit write → 7-bit **0x2d**), chip id **0x4088**, MCLK 24 MHz, **3264×2448** |
+| `libactuator_dw9718s.so` | `dongwoon` / `dw9718s`, slave **0x18** → 7-bit **0x0c** |
+| Downstream `msm8917-camera-sensor-mot-perry.dtsi` | mclk0/gpio26, standby gpio35, CSIPHY0, LaneMask `0x1F`, VAF l22 |
+
+### Patches / package
+
+| Item | Detail |
+|---|---|
+| `0009` | `media: i2c: add Samsung S5K4H8 sensor (probe/chip-id)` — power, CCI scan, id read; no stream tables yet |
+| `0010` | DT `camera@2d` + camss `port@0` (4-lane CSIPHY0) |
+| Config | `CONFIG_VIDEO_S5K4H8=m` |
+| pkgrel | **3** (on glass `#4-perry-xylitol`) |
+| Apply script | copy all `NNNN-*.patch` (was `000*` only — missed 0010) |
+
+### On-device proof
+
+```
+s5k4h8 2-002d: recon: reset deasserted (active-low try)
+s5k4h8 2-002d: cci scan: addr=0x2d reg0000=0x4088
+s5k4h8 2-002d: Detected S5K4H8 sensor (id 0x4088)
+# other scan addrs ret=-6 (incl. 0x0c AF — VAF not powered)
+# front OV5695 still captures ~17.6 fps (shared-rail regression OK)
+```
+
+libcamera: rear entity present but skipped (missing mandatory V4L2 controls
++ no `s_stream`). Front still listed and captures.
+
+### Next (at enumerate freeze)
+
+1. Commit recon (`0009`/`0010` + docs).
+2. Port streaming mode tables + exposure/gain/vblank → rear first light.
+3. dw9718s AF (VAF l22, 0x0c).
+
+Full write-up: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-22 night — rear S5K4H8 FIRST LIGHT (Rockchip tables)
+
+### Breakthrough source
+
+User located a full GPL-2.0 Rockchip vendor driver:
+
+- https://git.servator.de/scpcom/linux/-/blob/94c738a0b0830b0749ef66eb9e7ba6e514f183df/drivers/media/i2c/s5k4h8.c
+- Commit `94c738a0b0830b0749ef66eb9e7ba6e514f183df` (scpcom/linux)
+- Copyright Fuzhou Rockchip Electronics Co., Ltd. (2017); “otp is not verified”
+
+**Local mirrors:**
+
+| Path | Role |
+|---|---|
+| `upstream/s5k4h8-rockchip-ref/` | durable in-repo snapshot (+ README provenance) |
+| `artifacts/refs/s5k4h8-rockchip-94c738a0/` | same tree under gitignored `artifacts/` |
+
+Fetched files: `s5k4h8.c` (1539 LOC), `rk-camera-module.h`, Kconfig/Makefile
+snippets from that commit.
+
+### Why Rockchip beat a pure stock-lib dump
+
+| Item | Stock `libmmcamera_s5k4h8.so` alone | Rockchip driver |
+|---|---|---|
+| TNP / 6F12 firmware | present but awkward 8-byte packing | clean `s5k4h8_global_regs[]` |
+| FCFC page before F4xx | easy to miss in binary extract | explicit `{0xFCFC, 0x4000}` |
+| Stream on | ambiguous | **8-bit 0x01** @ 0x0100 |
+| Modes | full-res table extractable | 3264×2448 + 1632×1224 with fps notes |
+| Link rate | guess | **280 MHz** documented |
+
+Mainline port keeps Rockchip **register tables + stream width + controls**;
+drops RKMODULE ioctls, rk pinctrl names, OTP apply, raw i2c helpers → uses
+`v4l2-cci` + DT supplies/gpios/mclk like perry front.
+
+### Mainline integration bugs fixed while iterating r4–r8
+
+1. **`s_stream` width** — must be `CCI_REG8(0x0100)` values 0x01/0x00.
+2. **Pad ops Oops** — `s5k4h8_set_format` crashed (`Internal error: Oops` @
+   `s5k4h8_set_format+0xc8`) when `ctrl_handler.lock` was NULL and/or pad
+   state API mismatched libcamera. **Fix:** copy the working **ov5695**
+   pattern (custom `get_fmt`/`set_fmt`, `struct mutex` as handler + state
+   lock). Do **not** rely only on `v4l2_subdev_get_fmt` for this sensor.
+
+### On-glass result (package **7.1.3-r8**, build `#9-perry-xylitol`)
+
+```
+cam -l
+# 1: 's5k4h8' (.../camera@2d)
+# 2: 'ov5695' (.../camera@10)
+
+cam --camera /base/soc@0/cci@1b0c000/i2c-bus@0/camera@2d --capture=3
+# Input 3264x2448-GRBG-10-CSI2P stride 4080
+# ~24 fps, bytesused 31961088, no VFE sof timeout, no Oops
+
+cam --camera .../camera@10 --capture=2
+# front still ~17.6 fps (shared-rail regression OK)
+```
+
+Still: `artifacts/camera-rear-first-light-2026-07-22/s5k4h8-rear-first-light.jpg`.
+
+### Patches / package at first light
+
+| Item | Detail |
+|---|---|
+| `0009` | full streaming `s5k4h8.c` (Rockchip tables, mainline CCI, ov5695 pads) |
+| `0010` | DT rear node; **link-frequencies = 280000000** |
+| Config | `CONFIG_VIDEO_S5K4H8=m` |
+| pkgrel | **8** |
+
+### Next
+
+1. Commit streaming freeze + docs + `upstream/s5k4h8-rockchip-ref/`.
+2. **dw9718s AF** — `pm8937_l22`, i2c 0x0c.
+3. Optional: Phosh both cams, selection/crop, IPA yaml, OTP.
+
+Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-22 night — dw9718 Tegra reference fetched (AF prep)
+
+User provided NVIDIA Tegra focuser source for the DW9718 family:
+
+- https://android.googlesource.com/kernel/tegra/+/2268683075e741190919217a72fcf13eb174dc57/drivers/media/platform/tegra/dw9718.c
+- Commit `2268683075e741190919217a72fcf13eb174dc57`
+- GPL-2.0, Copyright NVIDIA 2013
+
+**Saved under:**
+
+| Path | Contents |
+|---|---|
+| `upstream/dw9718-tegra-ref/` | `dw9718.c` (1132), `dw9718.h` (reg map), `nvc*.h`, README |
+| `artifacts/refs/dw9718-tegra-22686830/` | gitignored duplicate |
+
+**Register map (`dw9718.h`):** POWER_DN 0x00, CONTROL 0x01, VCM_CODE_MSB/LSB
+0x02/0x03, SWITCH_MODE 0x04, SACT 0x05, STATUS 0x06. Position 10-bit
+(0–1023) via 16-bit write to MSB. Infinity/macro defaults 70/620 in this
+Tegra board file (perry OTP may differ).
+
+**Port plan (superseded — see next entry):** not NVC MISC — prefer mainline
+`dw9719` which already has DW9718S.
+
+## 2026-07-22 night — lore dw9719 v2 / mainline DW9718S already in-tree
+
+User pointed at phone-devel series:
+
+https://lore.kernel.org/phone-devel/20250120-dw9719-v2-0-028cdaa156e5@apitzsch.eu/T/
+
+(André Apitzsch Message-ID `20250120-dw9719-v2-0-028cdaa156e5@apitzsch.eu`).
+Lore HTML blocked by Anubis here; **git history shows the outcome landed.**
+
+### What this means for perry
+
+| Fact | Detail |
+|---|---|
+| Driver | `drivers/media/i2c/dw9719.c` on msm89x7 **v7.1.3-r1** |
+| Compatible | **`dongwoon,dw9718s`** (exact stock actuator name) |
+| DW9718S add | `b327384a1349` Val Packett; SoB André Apitzsch; **tested motorola-nora** |
+| Binding | `dongwoon,dw9719.yaml` (maintainer Apitzsch) |
+| Perry defconfig today | `# CONFIG_VIDEO_DW9719 is not set` |
+
+**AF bring-up = enable module + DT**, not a new .c file. Tegra NVC + PDF remain
+secondary references for DAC behavior / calibration limits.
+
+Local notes + snapshots: `upstream/dw9719-mainline-notes/`.
+
+## 2026-07-22 night — rear dw9718s AF ENABLED (config + DT 0011, pkgrel 9)
+
+Config + DT only — no new VCM driver. Mainline `dw9719.c` already matches
+`dongwoon,dw9718s` (see prior lore entry).
+
+### Changes
+
+| Item | Detail |
+|---|---|
+| Config | `CONFIG_VIDEO_DW9719=m` in `config-motorola-perry.aarch64` |
+| Patch **`0011`** | CCI `lens@c` @ **0x0c**, `vdd-supply = <&pm8937_l22>`, `dongwoon,sac-mode = <4>`; rear `camera@2d` gets `lens-focus = <&dw9718s>` |
+| Package | `linux-motorola-perry` **7.1.3-r9** |
+| Build | `#10-perry-xylitol` |
+
+### On-device proof
+
+```
+uname: 7.1.3-msm89x7 #10-perry-xylitol
+apk:   linux-motorola-perry-7.1.3-r9
+
+# dw9719 loaded; media entity:
+#   dw9719 2-000c  Lens  →  /dev/v4l-subdev16
+
+# focus_absolute sweep: 0 ↔ 512 ↔ 1023 ↔ 0  OK
+# rear ~24 fps, front ~17.6 fps — no regression
+```
+
+Dual-camera + flash + rear AF are all ✅ on glass. Remaining camera work is
+optional polish (Phosh/Snapshot, IPA yaml, OTP/AWB, flash labels).
+
+Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-22 late — camera polish (Phosh/WP, IPA stubs, orientation/crop)
+
+Validated on device. Packages: **alsa-ucm 1-r1**, **device 1-r6**,
+**linux-motorola-perry 7.1.3-r11** (`#12-perry-xylitol`).
+
+### What landed
+
+| Piece | Detail |
+|---|---|
+| WirePlumber / Phosh | Removed `50-perry-disable-libcamera.conf` from alsa-ucm package + apply/install scripts. Cameras appear as libcamera sources (**Built-in Front/Back**). |
+| Device package | pkgrel **6**; depends on `pipewire-spa-libcamera`; ships IPA yaml stubs → `/usr/share/libcamera/ipa/simple/{s5k4h8,ov5695}.yaml`. SoftISP **helper still deferred**. |
+| Kernel **0012** | DT `orientation`/`rotation` (front 270, rear 90); LED labels `flash-rear` / `flash-front`. **No `flash-leds`** — adding them caused async stall (`leds-qcom-flash-v1` has no V4L2 flash class). |
+| Kernel **0013** | s5k4h8: `v4l2_fwnode_device_parse` Location/Rotation + `get_selection` (3264×2448). |
+| Kernel **0014** | ov5695: same for 2592×1944. |
+
+### On-device proof
+
+- Location **Front/270** + **Back/90**; selection sizes match native modes
+- Dual capture still OK; AF unchanged
+- `wpctl` Sources show Built-in Front/Back
+- Sysfs LEDs: `flash-rear` / `flash-front`
+
+### Still deferred
+
+- OTP / AWB
+- SoftISP IPA helper tuning (stubs only)
+- libcamera **FlashMode** (blocked until V4L2 LED glue exists — do not re-add `flash-leds`)
+
+Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-23 night — dual Phosh torch QS pause (visible, not pressable)
+
+Goal: separate rear + front torch toggles in the Phosh shade.
+
+### LED naming arc
+
+| Names | Result |
+|---|---|
+| `flash-rear` / `flash-front` (post-polish) | Stock Phosh torch QS disappeared (`*:flash` / `*:torch` globs miss) |
+| `white:flash` / `white:flash_1` (r12) | Stock single torch returned |
+| **`rear:lamp` / `front:lamp` (r13)** | Stock torch gone on purpose; custom plugins own both |
+
+Sysfs torch still works: `echo N > /sys/class/leds/{rear,front}:lamp/brightness`
+(max 16; xylitol in `feedbackd` group can write).
+
+### Plugin
+
+New local package `pmos/phosh-plugin-perry-torch/` (one `.so`, two QS types:
+`perry-rear-torch-quick-setting`, `perry-front-torch-quick-setting`).
+Installed on glass as **1-r1**. Icons: Phosh `torch-*-symbolic` (picker SVGs
+under `/usr/share/phosh/plugins/icons/`).
+
+### Fixes this session
+
+1. Plugin `Icon=` + `{Id}-symbolic.svg` install path (stock pattern).
+2. **Load failure:** `phosh_quick_setting_set_status_icon` is **not exported**
+   from libphosh → use `g_object_set (…, "status-icon", …)`. After this, tiles
+   **became visible**.
+
+### Pause state (user)
+
+Front + rear torch buttons are **visible** but **cannot be pressed**.
+Next: rewire like stock `simple-custom-quick-setting` (GTK template + click
+callback); verify `clicked` + sysfs write. Prefer **reboot** over `pkill phoc`
+(drops seat to phrog greeter).
+
+Handoff: local `docs/handoff.md` §1a. Camera bible flash section updated in
+`docs/pmos-camera-perry.md`.

@@ -1,0 +1,11 @@
+# Fragment for drivers/media/i2c/Kconfig (place near other Samsung S5K* sensors)
+
+config VIDEO_S5K4H8
+	tristate "Samsung S5K4H8 sensor support"
+	select V4L2_CCI_I2C
+	help
+	  This is a V4L2 sensor driver for the Samsung S5K4H8 8 megapixel
+	  raw camera sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called s5k4h8.

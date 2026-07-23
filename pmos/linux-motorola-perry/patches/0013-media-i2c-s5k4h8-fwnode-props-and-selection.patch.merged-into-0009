@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Wed, 22 Jul 2026 22:06:32 -0700
+Subject: [PATCH] media: i2c: s5k4h8: add fwnode properties and
+ get_selection
+
+Parse DT orientation/rotation into V4L2 Location/Rotation controls and
+expose fixed crop/native selection rectangles for libcamera SoftISP.
+
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ drivers/media/i2c/s5k4h8.c | 45 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/i2c/s5k4h8.c b/drivers/media/i2c/s5k4h8.c
+index 764fb3bfd..48a330707 100644
+--- a/drivers/media/i2c/s5k4h8.c
++++ b/drivers/media/i2c/s5k4h8.c
+@@ -50,6 +50,10 @@
+ #define S5K4H8_GAIN_MAX			1024
+ #define S5K4H8_GAIN_DEFAULT		32
+ 
++/* Full array / native size (3264x2448 mode). */
++#define S5K4H8_NATIVE_WIDTH		3264
++#define S5K4H8_NATIVE_HEIGHT		2448
++
+ #define to_s5k4h8(_sd)			container_of(_sd, struct s5k4h8, sd)
+ 
+ static const s64 s5k4h8_link_freq_menu[] = {
+@@ -465,12 +469,13 @@ static const struct v4l2_ctrl_ops s5k4h8_ctrl_ops = {
+ 
+ static int s5k4h8_init_controls(struct s5k4h8 *s5k4h8)
+ {
++	struct v4l2_fwnode_device_properties props;
+ 	const struct s5k4h8_mode *mode = s5k4h8->cur_mode;
+ 	struct v4l2_ctrl_handler *hdl = &s5k4h8->ctrl_handler;
+ 	s64 exposure_max, vblank_def, hblank;
+ 	int ret;
+ 
+-	ret = v4l2_ctrl_handler_init(hdl, 6);
++	ret = v4l2_ctrl_handler_init(hdl, 8);
+ 	if (ret)
+ 		return ret;
+ 	hdl->lock = &s5k4h8->mutex;
+@@ -507,6 +512,14 @@ static int s5k4h8_init_controls(struct s5k4h8 *s5k4h8)
+ 	if (hdl->error)
+ 		return hdl->error;
+ 
++	ret = v4l2_fwnode_device_parse(s5k4h8->dev, &props);
++	if (ret)
++		return ret;
++
++	ret = v4l2_ctrl_new_fwnode_properties(hdl, &s5k4h8_ctrl_ops, &props);
++	if (ret)
++		return ret;
++
+ 	s5k4h8->sd.ctrl_handler = hdl;
+ 	return 0;
+ }
+@@ -660,11 +673,41 @@ static const struct v4l2_subdev_video_ops s5k4h8_video_ops = {
+ 	.s_stream = s5k4h8_s_stream,
+ };
+ 
++static int s5k4h8_get_selection(struct v4l2_subdev *sd,
++				struct v4l2_subdev_state *sd_state,
++				struct v4l2_subdev_selection *sel)
++{
++	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
++
++	switch (sel->target) {
++	case V4L2_SEL_TGT_CROP:
++		mutex_lock(&s5k4h8->mutex);
++		sel->r.top = 0;
++		sel->r.left = 0;
++		sel->r.width = s5k4h8->cur_mode->width;
++		sel->r.height = s5k4h8->cur_mode->height;
++		mutex_unlock(&s5k4h8->mutex);
++		return 0;
++
++	case V4L2_SEL_TGT_NATIVE_SIZE:
++	case V4L2_SEL_TGT_CROP_DEFAULT:
++	case V4L2_SEL_TGT_CROP_BOUNDS:
++		sel->r.top = 0;
++		sel->r.left = 0;
++		sel->r.width = S5K4H8_NATIVE_WIDTH;
++		sel->r.height = S5K4H8_NATIVE_HEIGHT;
++		return 0;
++	}
++
++	return -EINVAL;
++}
++
+ static const struct v4l2_subdev_pad_ops s5k4h8_pad_ops = {
+ 	.enum_mbus_code = s5k4h8_enum_mbus_code,
+ 	.enum_frame_size = s5k4h8_enum_frame_size,
+ 	.get_fmt = s5k4h8_get_format,
+ 	.set_fmt = s5k4h8_set_format,
++	.get_selection = s5k4h8_get_selection,
+ };
+ 
+ static const struct v4l2_subdev_ops s5k4h8_subdev_ops = {
+-- 
+2.53.0
+

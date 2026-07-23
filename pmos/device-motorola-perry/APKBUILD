@@ -7,7 +7,7 @@
 pkgname=device-motorola-perry
 pkgdesc="Motorola Moto E4 (perry / XT1765, MSM8917)"
 pkgver=1
-pkgrel=5
+pkgrel=6
 url="https://github.com/aneesh-pradhan/xylitol"
 license="MIT"
 arch="aarch64"
@@ -21,6 +21,8 @@ depends="
 	lk2nd-msm8952
 	mkbootimg
 	msm-firmware-loader
+	phosh-plugin-perry-torch
+	pipewire-spa-libcamera
 	postmarketos-base
 	soc-qcom-msm89x7
 "
@@ -32,6 +34,8 @@ source="
 	50-perry-usb-nosuspend.rules
 	60-perry-emmc-scheduler.rules
 	80-device-motorola-perry.preset
+	ipa-simple-s5k4h8.yaml
+	ipa-simple-ov5695.yaml
 "
 
 build() {
@@ -60,7 +64,14 @@ package() {
 	# Linger for default image user (PipeWire/WirePlumber without open login)
 	install -d "$pkgdir"/var/lib/systemd/linger
 	touch "$pkgdir"/var/lib/systemd/linger/xylitol
+
+	# Soft-ISP IPA tuning stubs for Snapshot / libcamera simple IPA
+	install -Dm644 "$srcdir"/ipa-simple-s5k4h8.yaml \
+		"$pkgdir"/usr/share/libcamera/ipa/simple/s5k4h8.yaml
+	install -Dm644 "$srcdir"/ipa-simple-ov5695.yaml \
+		"$pkgdir"/usr/share/libcamera/ipa/simple/ov5695.yaml
 }
+
 
 sha512sums="
 7dbe373b6d57fd756c7a2e791d6c515e4027201e484e107640469fe4bb79e76c4575b45e95c7d5bb7345547c4bc7fb7562ea2e04614dcc3f9ddbef6e01fe79db  deviceinfo
@@ -69,4 +80,6 @@ b179d1a607e98d82facf9e87d9493258224176e24b3937e58a83815c132f35e4855de3ce68a48827
 bcfc4e18bcaf1b252f701620a0007f6cf4f485ceeb606c2a79a5d42bd240fdd1880d13b5be12ce4b434c77924c91f95170f83e53f1b2e2966c84ddb0d51fa12f  50-perry-usb-nosuspend.rules
 3e54e764f8883e6a8e7f80eb2dad1b0489132af4993601141ed771b00d7ec2934e8f836ec8a6189faf69d9bba04fc2f773cf03c1853d71a0933c713a18465d28  60-perry-emmc-scheduler.rules
 f25bd21d7ef669dd432f2b00d5386e6d7f05fd9ea269024ae5f5dc0d6627f96b8f0be7d1f4eab4f351afa232db977ac43aa69d52cecb86d87b60dec7297ad082  80-device-motorola-perry.preset
+2ee566653b17d565d2c0de67cbe6ebad25df5aac6051cad78e6bae52016fa2ca0247e964d735ac776b3e0bd447ead9c4fcb26cd7629228cdba3ceb91b46f378f  ipa-simple-s5k4h8.yaml
+2ee566653b17d565d2c0de67cbe6ebad25df5aac6051cad78e6bae52016fa2ca0247e964d735ac776b3e0bd447ead9c4fcb26cd7629228cdba3ceb91b46f378f  ipa-simple-ov5695.yaml
 "

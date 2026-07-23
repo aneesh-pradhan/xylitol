@@ -1,0 +1,72 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Wed, 22 Jul 2026 22:06:32 -0700
+Subject: [PATCH] arm64: dts: qcom: perry: camera orientation and torch LED
+ names
+
+Expose V4L2 Location/Rotation via orientation/rotation on both sensors
+(stock MountAngle: rear 90, front 270).
+
+Name PMI8950 flash channels `rear:lamp` / `front:lamp` so they do NOT
+match Phosh/gmobile's `*:flash` / `*:torch` globs. Stock Phosh only
+supports one built-in torch QS; perry uses the xylitol
+phosh-plugin-perry-torch package for separate front + rear toggles.
+
+Keep phandle labels for a future flash-leds wiring. Do NOT add
+flash-leds phandles yet (leds-qcom-flash-v1 has no V4L2 flash).
+
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ .../dts/qcom/msm8917-motorola-perry-common.dtsi    | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+index a78ab7f43..e7f8a9b0c 100644
+--- a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+@@ -270,19 +270,21 @@ &pmi8950_flash {
+ 	#size-cells = <0>;
+ 	status = "okay";
+ 
+-	led@0 {
++	perry_flash_rear: led@0 {
+ 		reg = <0>;
+ 		function = LED_FUNCTION_FLASH;
+ 		color = <LED_COLOR_ID_WHITE>;
++		label = "rear:lamp"; /* not *:flash — custom Phosh QS */
+ 		led-max-microamp = <200000>;
+ 		flash-max-microamp = <1000000>;
+ 		flash-max-timeout-us = <1280000>;
+ 	};
+ 
+-	led@1 {
++	perry_flash_front: led@1 {
+ 		reg = <1>;
+ 		function = LED_FUNCTION_FLASH;
+ 		color = <LED_COLOR_ID_WHITE>;
++		label = "front:lamp"; /* not *:flash — custom Phosh QS */
+ 		led-max-microamp = <200000>;
+ 		flash-max-microamp = <1000000>;
+ 		flash-max-timeout-us = <1280000>;
+@@ -673,6 +675,9 @@ camera@2d {
+ 		compatible = "samsung,s5k4h8";
+ 		reg = <0x2d>;
+ 
++		orientation = <1>; /* back */
++		rotation = <90>;   /* stock MountAngle */
++
+ 		clocks = <&gcc GCC_CAMSS_MCLK0_CLK>;
+ 		clock-names = "mclk";
+ 		assigned-clocks = <&gcc GCC_CAMSS_MCLK0_CLK>;
+@@ -709,6 +714,9 @@ camera@10 {
+ 		compatible = "ovti,ov5695";
+ 		reg = <0x10>;
+ 
++		orientation = <0>; /* front */
++		rotation = <270>;
++
+ 		clocks = <&gcc GCC_CAMSS_MCLK2_CLK>;
+ 		clock-names = "xvclk";
+ 		assigned-clocks = <&gcc GCC_CAMSS_MCLK2_CLK>;
+-- 
+2.53.0

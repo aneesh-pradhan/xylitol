@@ -5,7 +5,7 @@
 # docs/perry-custom-kernel-plan.md.
 pkgname=linux-motorola-perry
 pkgver=7.1.3
-pkgrel=2
+pkgrel=15
 pkgdesc="Mainline kernel for Motorola Moto E4 (perry / MSM8917) — xylitol carry"
 arch="aarch64"
 _carch="arm64"
@@ -46,6 +46,11 @@ source="
 	0006-arm64-dts-qcom-perry-select-Ofilm-499v0-panel.patch
 	0007-arm64-dts-qcom-perry-enable-camss-cci-ov5695-front.patch
 	0008-arm64-dts-qcom-perry-enable-pmi8950-flash-leds.patch
+	0009-media-i2c-add-Samsung-S5K4H8-sensor-probe-chip-id.patch
+	0010-arm64-dts-qcom-perry-enable-rear-s5k4h8-camera.patch
+	0011-arm64-dts-qcom-perry-enable-rear-dw9718s-af.patch
+	0012-arm64-dts-qcom-perry-camera-orientation-flash-labels.patch
+	0014-media-i2c-ov5695-fwnode-props-and-selection.patch
 "
 builddir="$srcdir/linux-$_tag"
 
@@ -78,12 +83,18 @@ package() {
 # sha512sums filled by: pmbootstrap checksum linux-motorola-perry
 sha512sums="
 c4bebf0d92f803297004d14573fbf0ccca5fc8927944f0aeecd767472ca21639ec931b6648b5601ec46eb49dd489939ae00e17f36933307bcdd371b87059796a  linux-postmarketos-qcom-msm89x7-v7.1.3-r1.tar.gz
-b39eaf4b81b30281eecb86006381817451bd0146bfc97839bcd3f25a6d3d604dfe0ec535afbcf7462170efdced179c44bc627b12a6ad26ba15e0c9ad696e0391  config-motorola-perry.aarch64
+fabca8fe265d8933f95c9eaa96b873a4ccbd7891ab84b69d4db1b008af78cb0294e6707c71d78bf7fa635b8ccd7c70c5ae8ce14e04dff969550f62ab311462d6  config-motorola-perry.aarch64
 8999c9e81b4b140c02698886428a0ec0678d7c113efb0278e4e30f729bf7c68bc4d8492373eb6b3033ef013e6063e8cbd867f8119e5faf16e3b392d421e9a494  0001-Input-rmi_i2c-introduce-reset-GPIO-handling.patch
 13a8ac26bf5ce5f5e267e76a538c7aa3e4be0c385342208abce856708b54bf24ae7bbb586c7688720c079b15385e10a65dd8b883649cac2516694c45382a3e7a  0002-arm64-qcom-add-support-for-MSM8920.patch
 6cfe2b20302fbfb7e08cc1ab5b28b11227f29be676a3e57046aff7090522e67075d77ab348c7d711d0da5b0ba0245989134dfb34aef390309784f2ebec63939a  0003-arm64-dts-qcom-add-support-for-motorola-perry.patch
 55e48223b021ef79c1f4e95d95626a5b348ef5988524148358d81c845ff716bbcaacbbf37c8885596de09b51d855286731523d458f2c397825b993cbae49b045  0004-drm-panel-add-motorola-perry-Tianma-499v1-panel.patch
 8db59af39641c504a99b9f353202632d73c773acc9921e23e7aa29a3dc6663d58e171bfc11dd023afd5e82f08e6ad8a945070a826eb84dd3b37a751fb160c61a  0005-drm-panel-add-motorola-perry-Ofilm-499v0-panel.patch
 aa7224c31831610dd8936be1f9c1d55719f913f45a2d702db9391d84aeb2abfcb4f9341d052cdf6c26d5c38049a31279a90045aa439d26df2680a9ca1af568bc  0006-arm64-dts-qcom-perry-select-Ofilm-499v0-panel.patch
-ebfd3483d35944955a1e81c5cf36d8da456e4f636d6d3a2e6adf2776abbac16e51191ab856a92045bd9bc98d73982c421723beef6220a1122f8344bf76ee30d4  0007-arm64-dts-qcom-perry-enable-camss-cci-ov5695-front.patch
+7856a65b5f400a7a64d429280ff929d7958b488abaaf279fa0721cedce8344fc63f411df9c43ebdd318f0b05c358bc335390c12a3a4e57750211231fd373c595  0007-arm64-dts-qcom-perry-enable-camss-cci-ov5695-front.patch
+6a6c3d07feb105bf06b169d004353938c18e07ab574cf9ad92bd23da22f741b7cd025612f4fc6d22aa8e08c30952b1075853fcf3014d20345741b45d4d3faf36  0008-arm64-dts-qcom-perry-enable-pmi8950-flash-leds.patch
+c602f693728d4c1026dfecd7b2feca066fda60acd3df2b74194350563d92e30b2142ab77d52e596faadb5253769423d70868f31a1d1923ea755355de56c7128b  0009-media-i2c-add-Samsung-S5K4H8-sensor-probe-chip-id.patch
+9db8021b9ba70e2504601c34aeb205658d15d69e58444d2d4d84240516b2eb661343b12ad1dd729271c12b5542f79e2b4b9d2cdc90f82842af70be3a4ac82bbb  0010-arm64-dts-qcom-perry-enable-rear-s5k4h8-camera.patch
+f77431ea41c2cc0b45a7fe4e134f7bfbf4b793bc73978a53980d0247531c67a2395d3178e7980e769a209cb91c66ae333d26d61e6bc5968397419ffe188fd1d6  0011-arm64-dts-qcom-perry-enable-rear-dw9718s-af.patch
+58899c7692d704b0b3a551ae5ff49037e524e0b1265486466eb06e0259dd421a90ba16cf34f8bb24a741c2b2de1a0d3e76f0b4a1ae8b4cf404e83e57b36c7f9b  0012-arm64-dts-qcom-perry-camera-orientation-flash-labels.patch
+de7013253a90ea65af24eba841406ed5ccc07c414d45aea93cafe337137eaaa1260b2b9a58b5b35eb29b01a87c4c4f701438e2694106972e2d831ce9594d2edc  0014-media-i2c-ov5695-fwnode-props-and-selection.patch
 "

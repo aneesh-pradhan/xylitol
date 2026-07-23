@@ -14,31 +14,24 @@
 # source. Survives `pmbootstrap install`, unlike the runtime installer
 # scripts/pmos-install-perry-ucm.sh.
 #
-# It also drops a WirePlumber config that disables the libcamera monitor:
-# perry's cameras are off in the DT and that monitor crash-loops the session
-# manager, flapping the audio devices. (For a headless SSH bring-up you also
-# want `loginctl enable-linger <user>` so pipewire/wireplumber persist without
-# an open session; that is a runtime step, not shipped here.)
+# Cameras: CAMSS/CCI are enabled (linux-motorola-perry). Do NOT disable
+# WirePlumber's libcamera monitor — Snapshot needs pipewire-spa-libcamera.
 pkgname=alsa-ucm-motorola-perry
 pkgver=1
-pkgrel=0
+pkgrel=1
 pkgdesc="ALSA UCM2 audio profile for Moto E4 (perry) on mainline msm89x7"
 url="https://github.com/aneesh-pradhan/xylitol"
 arch="noarch"
 license="MIT"
 depends="alsa-ucm-conf"
 options="!check"
-source="motorola-perry.conf
-	50-perry-disable-libcamera.conf"
+source="motorola-perry.conf"
 
 package() {
 	install -Dm644 "$srcdir/motorola-perry.conf" \
 		"$pkgdir/usr/share/alsa/ucm2/conf.d/motorola-perry/motorola-perry.conf"
-	install -Dm644 "$srcdir/50-perry-disable-libcamera.conf" \
-		"$pkgdir/etc/wireplumber/wireplumber.conf.d/50-perry-disable-libcamera.conf"
 }
 
 sha512sums="
 36bff7834a3893226b2abff8a91313079a7bebd60b2a84f69640debfb9a1800eb14943138e5c471ea35484c94ccd087984f11e8ad3cdb18263be3372941f6d90  motorola-perry.conf
-3999a1d5c3855a58f2717b2cd8f729792f2b52bea1c7d6741309d50f28299a76c8511746c137252d630c324ac922791291d7ac618055ccc505fba58d162f9c04  50-perry-disable-libcamera.conf
 "

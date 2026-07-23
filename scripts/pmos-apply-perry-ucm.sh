@@ -2,9 +2,9 @@
 # Install the alsa-ucm-motorola-perry pmaport into the live pmaports tree.
 #
 # This is the DURABLE audio fix: the package installs perry's ALSA UCM2 profile
-# (+ a WirePlumber libcamera-monitor disable) into the rootfs at build time, so
-# audio survives `pmbootstrap install` — unlike scripts/pmos-install-perry-ucm.sh,
-# which patches a running device and is lost on the next rootfs regen.
+# into the rootfs at build time, so audio survives `pmbootstrap install` —
+# unlike scripts/pmos-install-perry-ucm.sh, which patches a running device and
+# is lost on the next rootfs regen.
 #
 # After running this:
 #
@@ -38,9 +38,10 @@ echo "pmaports  : $PMAPORTS"
 echo "aport dst : $DEST"
 
 mkdir -p "$DEST"
+# Drop legacy WP libcamera-disable if a prior apply left it in pmaports.
+rm -f "$DEST/50-perry-disable-libcamera.conf"
 cp -v "$APORT_SRC/APKBUILD" \
       "$APORT_SRC/motorola-perry.conf" \
-      "$APORT_SRC/50-perry-disable-libcamera.conf" \
       "$DEST/"
 
 echo
