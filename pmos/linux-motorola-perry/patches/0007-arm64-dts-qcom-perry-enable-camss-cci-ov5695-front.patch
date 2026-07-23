@@ -1,0 +1,140 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Wed, 22 Jul 2026 19:50:00 -0700
+Subject: [PATCH 7/7] arm64: dts: qcom: perry: enable camss/cci + front OV5695
+
+Perry ships CAMSS and CCI disabled (base msm8917.dtsi), so Phosh/libcamera
+sees zero sensors and /dev/video* are Venus enc/dec only. Bring up the front
+camera on mainline: enable &camss and &cci, and add the OmniVision OV5695
+(5 MP, fixed focus) on CCI master 0 / CSIPHY1.
+
+Hardware map from the downstream msm8917-camera-sensor-mot-perry.dtsi:
+  - Front OV5695: MCLK2 (gpio28) @ 24 MHz, reset gpio40 (active low),
+    CSIPHY1/CSID1, 2 MIPI data lanes on CCI master 0.
+  - Slave address is strapped to 0x10 (not the OmniVision default 0x36);
+    verified on-device (0x36 -> EIO, 0x10 -> chip id 0x005695).
+  - Rails: dvdd 1V2 = pm8937_l23; dovdd 1V8 gated by gpio27 (parent l6);
+    avdd 2V8 gated by gpio39. The 1V8/2V8 GPIO load switches are modelled
+    as fixed regulators.
+  - CCI master 1 (gpio31/32) stays off: gpio31 is owned by the sx9310 SAR
+    sensor, so pinctrl is restricted to cci0.
+
+The rear Samsung S5K4H8 has no mainline sensor driver yet and is left
+disabled; it can be added once a driver exists.
+
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi | 103 ++++++++++++++++++++++++++++++
+ 1 file changed, 103 insertions(+)
+
+--- a/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8917-motorola-perry-common.dtsi
+@@ -531,3 +531,106 @@
+ &xo_board {
+ 	clock-frequency = <19200000>;
+ };
++
++/*
++ * Camera bring-up (pmOS mainline): enable CAMSS + CCI and wire the front
++ * OmniVision OV5695 (5 MP, fixed focus) on CCI master 0 / CSIPHY1. The rear
++ * Samsung S5K4H8 has no mainline sensor driver yet and is left off. Hardware
++ * map taken from the downstream msm8917-camera-sensor-mot-perry.dtsi.
++ */
++/ {
++	/*
++	 * Perry gates the camera 2V8 analog and 1V8 I/O rails with TLMM GPIOs
++	 * (shared by both sensors on the stock board). Model them as fixed
++	 * regulators so the sensor driver can sequence power.
++	 */
++	cam_vana_2v8: regulator-cam-vana {
++		compatible = "regulator-fixed";
++		regulator-name = "cam_vana_2v8";
++		regulator-min-microvolt = <2800000>;
++		regulator-max-microvolt = <2800000>;
++		gpio = <&tlmm 39 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++	};
++
++	cam_vio_1v8: regulator-cam-vio {
++		compatible = "regulator-fixed";
++		regulator-name = "cam_vio_1v8";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		gpio = <&tlmm 27 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++		vin-supply = <&pm8937_l6>;
++	};
++};
++
++&camss {
++	status = "okay";
++
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		port@1 {
++			reg = <1>;
++
++			csiphy1_ep: endpoint {
++				data-lanes = <0 2>;
++				remote-endpoint = <&ov5695_ep>;
++			};
++		};
++	};
++};
++
++&cci {
++	/*
++	 * All cameras hang off CCI master 0 (gpio29/30). Master 1 (gpio31/32)
++	 * is unused: gpio31 is owned by the sx9310 SAR sensor on the stock
++	 * board, so restrict pinctrl to cci0 to avoid a claim conflict.
++	 */
++	pinctrl-names = "default";
++	pinctrl-0 = <&cci0_default>;
++	status = "okay";
++};
++
++&cci_i2c0 {
++	#address-cells = <1>;
++	#size-cells = <0>;
++
++	/*
++	 * Front camera: OmniVision OV5695. Perry straps the slave address to
++	 * 0x10 (not the OmniVision default 0x36) - verified on-device: 0x36
++	 * returns EIO, 0x10 reads chip id 0x005695.
++	 */
++	camera@10 {
++		compatible = "ovti,ov5695";
++		reg = <0x10>;
++
++		clocks = <&gcc GCC_CAMSS_MCLK2_CLK>;
++		clock-names = "xvclk";
++		assigned-clocks = <&gcc GCC_CAMSS_MCLK2_CLK>;
++		assigned-clock-rates = <24000000>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&camss_mclk2_default>;
++
++		reset-gpios = <&tlmm 40 GPIO_ACTIVE_LOW>;
++
++		avdd-supply = <&cam_vana_2v8>;
++		dovdd-supply = <&cam_vio_1v8>;
++		dvdd-supply = <&pm8937_l23>;
++
++		port {
++			ov5695_ep: endpoint {
++				remote-endpoint = <&csiphy1_ep>;
++				data-lanes = <1 2>;
++				link-frequencies = /bits/ 64 <420000000>;
++			};
++		};
++	};
++};
++
++&cci_i2c1 {
++	/* gpio31 conflicts with sx9310 SAR; keep master 1 off. */
++	status = "disabled";
++};
+-- 
+2.53.0
