@@ -73,8 +73,8 @@ index e962dca..16ac04e 100644
 +			s5k4h8_ep: endpoint {
 +				remote-endpoint = <&csiphy0_ep>;
 +				data-lanes = <1 2 3 4>;
-+				/* Placeholder link rate until capture tables land. */
-+				link-frequencies = /bits/ 64 <420000000>;
++				/* 280 MHz link (Rockchip s5k4h8 / 560 Mbps/lane). */
++				link-frequencies = /bits/ 64 <280000000>;
 +			};
 +		};
 +	};

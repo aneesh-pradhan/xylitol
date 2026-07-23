@@ -1,9 +1,10 @@
 # Camera bring-up (carry on top of 0001–0006 base/panel):
 #   0007 — CAMSS/CCI + front OV5695 (first light)
 #   0008 — PMI8950 flash/torch LEDs
-#   0009 — Samsung S5K4H8 sensor driver (probe/chip-id; no stream yet)
-#   0010 — rear S5K4H8 DT (camera@2d, CSIPHY0 4-lane)
-# See docs/pmos-camera-perry.md.
+#   0009 — Samsung S5K4H8 sensor (Rockchip tables → mainline CCI; first light)
+#   0010 — rear S5K4H8 DT (camera@2d, CSIPHY0 4-lane, link 280 MHz)
+# Rockchip upstream snapshot: upstream/s5k4h8-rockchip-ref/
+# See docs/pmos-camera-perry.md (verbose dual-camera bring-up).
 #
 # Future P1+ numbered patches (perf / DT), applied after 0001–0006.
 #

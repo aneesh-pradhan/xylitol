@@ -2734,10 +2734,134 @@ s5k4h8 2-002d: Detected S5K4H8 sensor (id 0x4088)
 libcamera: rear entity present but skipped (missing mandatory V4L2 controls
 + no `s_stream`). Front still listed and captures.
 
-### Next
+### Next (at enumerate freeze)
 
 1. Commit recon (`0009`/`0010` + docs).
 2. Port streaming mode tables + exposure/gain/vblank → rear first light.
 3. dw9718s AF (VAF l22, 0x0c).
 
 Full write-up: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-22 night — rear S5K4H8 FIRST LIGHT (Rockchip tables)
+
+### Breakthrough source
+
+User located a full GPL-2.0 Rockchip vendor driver:
+
+- https://git.servator.de/scpcom/linux/-/blob/94c738a0b0830b0749ef66eb9e7ba6e514f183df/drivers/media/i2c/s5k4h8.c
+- Commit `94c738a0b0830b0749ef66eb9e7ba6e514f183df` (scpcom/linux)
+- Copyright Fuzhou Rockchip Electronics Co., Ltd. (2017); “otp is not verified”
+
+**Local mirrors:**
+
+| Path | Role |
+|---|---|
+| `upstream/s5k4h8-rockchip-ref/` | durable in-repo snapshot (+ README provenance) |
+| `artifacts/refs/s5k4h8-rockchip-94c738a0/` | same tree under gitignored `artifacts/` |
+
+Fetched files: `s5k4h8.c` (1539 LOC), `rk-camera-module.h`, Kconfig/Makefile
+snippets from that commit.
+
+### Why Rockchip beat a pure stock-lib dump
+
+| Item | Stock `libmmcamera_s5k4h8.so` alone | Rockchip driver |
+|---|---|---|
+| TNP / 6F12 firmware | present but awkward 8-byte packing | clean `s5k4h8_global_regs[]` |
+| FCFC page before F4xx | easy to miss in binary extract | explicit `{0xFCFC, 0x4000}` |
+| Stream on | ambiguous | **8-bit 0x01** @ 0x0100 |
+| Modes | full-res table extractable | 3264×2448 + 1632×1224 with fps notes |
+| Link rate | guess | **280 MHz** documented |
+
+Mainline port keeps Rockchip **register tables + stream width + controls**;
+drops RKMODULE ioctls, rk pinctrl names, OTP apply, raw i2c helpers → uses
+`v4l2-cci` + DT supplies/gpios/mclk like perry front.
+
+### Mainline integration bugs fixed while iterating r4–r8
+
+1. **`s_stream` width** — must be `CCI_REG8(0x0100)` values 0x01/0x00.
+2. **Pad ops Oops** — `s5k4h8_set_format` crashed (`Internal error: Oops` @
+   `s5k4h8_set_format+0xc8`) when `ctrl_handler.lock` was NULL and/or pad
+   state API mismatched libcamera. **Fix:** copy the working **ov5695**
+   pattern (custom `get_fmt`/`set_fmt`, `struct mutex` as handler + state
+   lock). Do **not** rely only on `v4l2_subdev_get_fmt` for this sensor.
+
+### On-glass result (package **7.1.3-r8**, build `#9-perry-xylitol`)
+
+```
+cam -l
+# 1: 's5k4h8' (.../camera@2d)
+# 2: 'ov5695' (.../camera@10)
+
+cam --camera /base/soc@0/cci@1b0c000/i2c-bus@0/camera@2d --capture=3
+# Input 3264x2448-GRBG-10-CSI2P stride 4080
+# ~24 fps, bytesused 31961088, no VFE sof timeout, no Oops
+
+cam --camera .../camera@10 --capture=2
+# front still ~17.6 fps (shared-rail regression OK)
+```
+
+Still: `artifacts/camera-rear-first-light-2026-07-22/s5k4h8-rear-first-light.jpg`.
+
+### Patches / package at first light
+
+| Item | Detail |
+|---|---|
+| `0009` | full streaming `s5k4h8.c` (Rockchip tables, mainline CCI, ov5695 pads) |
+| `0010` | DT rear node; **link-frequencies = 280000000** |
+| Config | `CONFIG_VIDEO_S5K4H8=m` |
+| pkgrel | **8** |
+
+### Next
+
+1. Commit streaming freeze + docs + `upstream/s5k4h8-rockchip-ref/`.
+2. **dw9718s AF** — `pm8937_l22`, i2c 0x0c.
+3. Optional: Phosh both cams, selection/crop, IPA yaml, OTP.
+
+Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-22 night — dw9718 Tegra reference fetched (AF prep)
+
+User provided NVIDIA Tegra focuser source for the DW9718 family:
+
+- https://android.googlesource.com/kernel/tegra/+/2268683075e741190919217a72fcf13eb174dc57/drivers/media/platform/tegra/dw9718.c
+- Commit `2268683075e741190919217a72fcf13eb174dc57`
+- GPL-2.0, Copyright NVIDIA 2013
+
+**Saved under:**
+
+| Path | Contents |
+|---|---|
+| `upstream/dw9718-tegra-ref/` | `dw9718.c` (1132), `dw9718.h` (reg map), `nvc*.h`, README |
+| `artifacts/refs/dw9718-tegra-22686830/` | gitignored duplicate |
+
+**Register map (`dw9718.h`):** POWER_DN 0x00, CONTROL 0x01, VCM_CODE_MSB/LSB
+0x02/0x03, SWITCH_MODE 0x04, SACT 0x05, STATUS 0x06. Position 10-bit
+(0–1023) via 16-bit write to MSB. Infinity/macro defaults 70/620 in this
+Tegra board file (perry OTP may differ).
+
+**Port plan (superseded — see next entry):** not NVC MISC — prefer mainline
+`dw9719` which already has DW9718S.
+
+## 2026-07-22 night — lore dw9719 v2 / mainline DW9718S already in-tree
+
+User pointed at phone-devel series:
+
+https://lore.kernel.org/phone-devel/20250120-dw9719-v2-0-028cdaa156e5@apitzsch.eu/T/
+
+(André Apitzsch Message-ID `20250120-dw9719-v2-0-028cdaa156e5@apitzsch.eu`).
+Lore HTML blocked by Anubis here; **git history shows the outcome landed.**
+
+### What this means for perry
+
+| Fact | Detail |
+|---|---|
+| Driver | `drivers/media/i2c/dw9719.c` on msm89x7 **v7.1.3-r1** |
+| Compatible | **`dongwoon,dw9718s`** (exact stock actuator name) |
+| DW9718S add | `b327384a1349` Val Packett; SoB André Apitzsch; **tested motorola-nora** |
+| Binding | `dongwoon,dw9719.yaml` (maintainer Apitzsch) |
+| Perry defconfig today | `# CONFIG_VIDEO_DW9719 is not set` |
+
+**AF bring-up = enable module + DT**, not a new .c file. Tegra NVC + PDF remain
+secondary references for DAC behavior / calibration limits.
+
+Local notes + snapshots: `upstream/dw9719-mainline-notes/`.

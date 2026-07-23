@@ -1,44 +1,29 @@
-From d37f838763a46eff254249eb1c0c95369a2201df Mon Sep 17 00:00:00 2001
+From 144fe30520344d93fba723c40e3c6aeabb597ccd Mon Sep 17 00:00:00 2001
 From: Aneesh Pradhan <aneeshpradhan@acm.org>
-Date: Wed, 22 Jul 2026 20:55:48 -0700
-Subject: [PATCH] media: i2c: add Samsung S5K4H8 sensor (probe/chip-id)
-
-Minimal mainline driver for the rear Samsung S5K4H8 (8 MP) fitted on the
-Motorola Moto E4 (perry / XT1765). This revision proves power sequencing
-and chip-id identity on Qualcomm CAMSS/CCI; streaming mode tables are not
-ported yet (s_stream returns -EOPNOTSUPP).
-
-Stock reverse-engineering notes:
-  - libmmcamera_s5k4h8.so: 8-bit slave 0x5A (7-bit 0x2D), chip id 0x4088
-    at reg 0x0000, native mode 3264x2448, MCLK 24 MHz, 4 CSI lanes.
-  - Downstream DTS: mclk0/gpio26, standby gpio35, shared VIO/VANA GPIOs.
-
-Probe always logs a short CCI address scan (incl. 0x0c for dw9718s) and
-retries the opposite reset polarity if the first chip-id read fails.
+Date: Wed, 22 Jul 2026 21:36:31 -0700
+Subject: [PATCH] media: i2c: S5K4H8 Rockchip tables + ov5695 pad ops
 
 Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 ---
- drivers/media/i2c/Kconfig  |   8 +
+ drivers/media/i2c/Kconfig  |   6 +
  drivers/media/i2c/Makefile |   1 +
- drivers/media/i2c/s5k4h8.c | 476 +++++++++++++++++++++++++++++++++++++
- 3 files changed, 485 insertions(+)
+ drivers/media/i2c/s5k4h8.c | 831 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 838 insertions(+)
  create mode 100644 drivers/media/i2c/s5k4h8.c
 
 diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
-index 5d173e0..c721927 100644
+index 5d173e0..e958757 100644
 --- a/drivers/media/i2c/Kconfig
 +++ b/drivers/media/i2c/Kconfig
-@@ -793,6 +793,14 @@ config VIDEO_S5K6A3
+@@ -793,6 +793,12 @@ config VIDEO_S5K6A3
  	  This is a V4L2 sensor driver for Samsung S5K6A3 raw
  	  camera sensor.
  
 +config VIDEO_S5K4H8
-+	tristate "Samsung S5K4H8 sensor support"
++	tristate "Samsung S5K4H8"
 +	select V4L2_CCI_I2C
 +	help
-+	  This is a Video4Linux2 sensor driver for the Samsung S5K4H8
-+	  8MP raw camera sensor. Initial bring-up supports probe/chip-id
-+	  only; streaming mode tables are device-specific follow-ups.
++	  S5K4H8.
 +
  config VIDEO_S5KJN1
  	tristate "Samsung S5KJN1 sensor support"
@@ -57,23 +42,20 @@ index e45359e..f496602 100644
  obj-$(CONFIG_VIDEO_SAA6752HS) += saa6752hs.o
 diff --git a/drivers/media/i2c/s5k4h8.c b/drivers/media/i2c/s5k4h8.c
 new file mode 100644
-index 0000000..04711eb
+index 0000000..764fb3b
 --- /dev/null
 +++ b/drivers/media/i2c/s5k4h8.c
-@@ -0,0 +1,476 @@
+@@ -0,0 +1,831 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * Samsung S5K4H8 8MP camera sensor — perry bring-up (probe / chip-id first).
++ * Samsung S5K4H8 8MP camera sensor driver
 + *
-+ * Hardware map (XT1765 / msm8917-camera-sensor-mot-perry.dtsi + stock lib):
-+ *  - CCI master 0, CSIPHY0, 4 MIPI data lanes, MCLK0 @ 24 MHz
-+ *  - 8-bit write slave 0x5A → 7-bit 0x2D (stock libmmcamera_s5k4h8.so)
-+ *  - Chip id 0x4088 at register 0x0000
-+ *  - Standby on gpio35 (modelled as reset, active-low XSHUTDOWN-style)
++ * Register tables adapted from the Rockchip vendor driver
++ * (Fuzhou Rockchip Electronics Co., Ltd., 2017) which matches the
++ * XT1765 stock libmmcamera_s5k4h8.so firmware stream. Mainline port
++ * for Qualcomm CAMSS/CCI on Motorola Moto E4 (perry).
 + *
-+ * Streaming init tables are not yet ported; this driver exists to prove
-+ * power + i2c identity on mainline CAMSS/CCI before full mode tables land.
-+ *
++ * Copyright (C) 2017 Fuzhou Rockchip Electronics Co., Ltd.
 + * Copyright (C) 2026 Aneesh Pradhan <aneeshpradhan@acm.org>
 + */
 +
@@ -81,8 +63,8 @@ index 0000000..04711eb
 +#include <linux/delay.h>
 +#include <linux/gpio/consumer.h>
 +#include <linux/i2c.h>
-+#include <linux/math64.h>
 +#include <linux/module.h>
++#include <linux/mutex.h>
 +#include <linux/pm_runtime.h>
 +#include <linux/regulator/consumer.h>
 +#include <linux/units.h>
@@ -94,26 +76,307 @@ index 0000000..04711eb
 +#define S5K4H8_CHIP_ID			0x4088
 +#define S5K4H8_REG_CHIP_ID		CCI_REG16(0x0000)
 +
-+#define S5K4H8_MCLK_FREQ_24MHZ		(24 * HZ_PER_MHZ)
-+#define S5K4H8_WIDTH			3264
-+#define S5K4H8_HEIGHT			2448
++/* Mode select: Rockchip writes this as 8-bit 0x01 / 0x00. */
++#define S5K4H8_REG_CTRL_MODE		CCI_REG8(0x0100)
++#define S5K4H8_MODE_STANDBY		0x00
++#define S5K4H8_MODE_STREAMING		0x01
++
++#define S5K4H8_REG_EXPOSURE		CCI_REG16(0x0202)
++#define S5K4H8_REG_AGAIN		CCI_REG16(0x0204)
++#define S5K4H8_REG_VTS			CCI_REG16(0x0340)
++
++#define S5K4H8_MCLK_FREQ		(24 * HZ_PER_MHZ)
 +#define S5K4H8_DATA_LANES		4
-+/* Placeholder until stock link rate is reverse-engineered for capture. */
-+#define S5K4H8_LINK_FREQ_DEFAULT	(420ULL * HZ_PER_MHZ)
++#define S5K4H8_LINK_FREQ		(280ULL * HZ_PER_MHZ)
++/* pixel_rate = link_freq * 2 * lanes / bpp */
++#define S5K4H8_PIXEL_RATE		(S5K4H8_LINK_FREQ * 2 * S5K4H8_DATA_LANES / 10)
++
++#define S5K4H8_EXPOSURE_MIN		4
++#define S5K4H8_EXPOSURE_MARGIN		4
++#define S5K4H8_VTS_MAX			0x1fff
++#define S5K4H8_GAIN_MIN			32
++#define S5K4H8_GAIN_MAX			1024
++#define S5K4H8_GAIN_DEFAULT		32
 +
 +#define to_s5k4h8(_sd)			container_of(_sd, struct s5k4h8, sd)
 +
 +static const s64 s5k4h8_link_freq_menu[] = {
-+	S5K4H8_LINK_FREQ_DEFAULT,
++	S5K4H8_LINK_FREQ,
 +};
 +
 +static const char * const s5k4h8_supply_names[] = {
-+	"avdd",		/* 2.8V analog (gpio39 load switch on perry) */
-+	"dovdd",	/* 1.8V I/O (gpio27 + pm8937_l6) */
-+	"dvdd",		/* 1.2V digital core (pm8937_l23) */
++	"avdd",
++	"dovdd",
++	"dvdd",
 +};
 +
 +#define S5K4H8_NUM_SUPPLIES ARRAY_SIZE(s5k4h8_supply_names)
++
++/* Global / TNP firmware (from Rockchip s5k4h8.c; matches XT1765 stock lib) */
++static const struct cci_reg_sequence s5k4h8_global_regs[] = {
++	{ CCI_REG16(0x6028), 0x2000 },
++	{ CCI_REG16(0x602a), 0x1fd0 },
++	{ CCI_REG16(0x6f12), 0x0448 },
++	{ CCI_REG16(0x6f12), 0x0349 },
++	{ CCI_REG16(0x6f12), 0x0160 },
++	{ CCI_REG16(0x6f12), 0xc26a },
++	{ CCI_REG16(0x6f12), 0x511a },
++	{ CCI_REG16(0x6f12), 0x8180 },
++	{ CCI_REG16(0x6f12), 0x00f0 },
++	{ CCI_REG16(0x6f12), 0x60b8 },
++	{ CCI_REG16(0x6f12), 0x2000 },
++	{ CCI_REG16(0x6f12), 0x20e8 },
++	{ CCI_REG16(0x6f12), 0x2000 },
++	{ CCI_REG16(0x6f12), 0x13a0 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x38b5 },
++	{ CCI_REG16(0x6f12), 0x0021 },
++	{ CCI_REG16(0x6f12), 0x0446 },
++	{ CCI_REG16(0x6f12), 0x8df8 },
++	{ CCI_REG16(0x6f12), 0x0010 },
++	{ CCI_REG16(0x6f12), 0x00f5 },
++	{ CCI_REG16(0x6f12), 0xb470 },
++	{ CCI_REG16(0x6f12), 0x0122 },
++	{ CCI_REG16(0x6f12), 0x6946 },
++	{ CCI_REG16(0x6f12), 0x00f0 },
++	{ CCI_REG16(0x6f12), 0x59f8 },
++	{ CCI_REG16(0x6f12), 0x9df8 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0xff28 },
++	{ CCI_REG16(0x6f12), 0x05d0 },
++	{ CCI_REG16(0x6f12), 0x0020 },
++	{ CCI_REG16(0x6f12), 0x08b1 },
++	{ CCI_REG16(0x6f12), 0x04f2 },
++	{ CCI_REG16(0x6f12), 0x6914 },
++	{ CCI_REG16(0x6f12), 0x2046 },
++	{ CCI_REG16(0x6f12), 0x38bd },
++	{ CCI_REG16(0x6f12), 0x0120 },
++	{ CCI_REG16(0x6f12), 0xf8e7 },
++	{ CCI_REG16(0x6f12), 0x10b5 },
++	{ CCI_REG16(0x6f12), 0x92b0 },
++	{ CCI_REG16(0x6f12), 0x0c46 },
++	{ CCI_REG16(0x6f12), 0x4822 },
++	{ CCI_REG16(0x6f12), 0x6946 },
++	{ CCI_REG16(0x6f12), 0x00f0 },
++	{ CCI_REG16(0x6f12), 0x46f8 },
++	{ CCI_REG16(0x6f12), 0x0020 },
++	{ CCI_REG16(0x6f12), 0x6946 },
++	{ CCI_REG16(0x6f12), 0x04eb },
++	{ CCI_REG16(0x6f12), 0x4003 },
++	{ CCI_REG16(0x6f12), 0x0a5c },
++	{ CCI_REG16(0x6f12), 0x02f0 },
++	{ CCI_REG16(0x6f12), 0x0f02 },
++	{ CCI_REG16(0x6f12), 0x04f8 },
++	{ CCI_REG16(0x6f12), 0x1020 },
++	{ CCI_REG16(0x6f12), 0x0a5c },
++	{ CCI_REG16(0x6f12), 0x401c },
++	{ CCI_REG16(0x6f12), 0x1209 },
++	{ CCI_REG16(0x6f12), 0x5a70 },
++	{ CCI_REG16(0x6f12), 0x4828 },
++	{ CCI_REG16(0x6f12), 0xf2d3 },
++	{ CCI_REG16(0x6f12), 0x12b0 },
++	{ CCI_REG16(0x6f12), 0x10bd },
++	{ CCI_REG16(0x6f12), 0x2de9 },
++	{ CCI_REG16(0x6f12), 0xf041 },
++	{ CCI_REG16(0x6f12), 0x164e },
++	{ CCI_REG16(0x6f12), 0x0f46 },
++	{ CCI_REG16(0x6f12), 0x06f1 },
++	{ CCI_REG16(0x6f12), 0x1105 },
++	{ CCI_REG16(0x6f12), 0xa236 },
++	{ CCI_REG16(0x6f12), 0xb0b1 },
++	{ CCI_REG16(0x6f12), 0x1449 },
++	{ CCI_REG16(0x6f12), 0x1248 },
++	{ CCI_REG16(0x6f12), 0x0968 },
++	{ CCI_REG16(0x6f12), 0x0078 },
++	{ CCI_REG16(0x6f12), 0xb1f8 },
++	{ CCI_REG16(0x6f12), 0x6a10 },
++	{ CCI_REG16(0x6f12), 0xc007 },
++	{ CCI_REG16(0x6f12), 0x0ed0 },
++	{ CCI_REG16(0x6f12), 0x0846 },
++	{ CCI_REG16(0x6f12), 0xfff7 },
++	{ CCI_REG16(0x6f12), 0xbeff },
++	{ CCI_REG16(0x6f12), 0x84b2 },
++	{ CCI_REG16(0x6f12), 0x2946 },
++	{ CCI_REG16(0x6f12), 0x2046 },
++	{ CCI_REG16(0x6f12), 0xfff7 },
++	{ CCI_REG16(0x6f12), 0xd0ff },
++	{ CCI_REG16(0x6f12), 0x4ff4 },
++	{ CCI_REG16(0x6f12), 0x9072 },
++	{ CCI_REG16(0x6f12), 0x3146 },
++	{ CCI_REG16(0x6f12), 0x04f1 },
++	{ CCI_REG16(0x6f12), 0x4800 },
++	{ CCI_REG16(0x6f12), 0x00f0 },
++	{ CCI_REG16(0x6f12), 0x16f8 },
++	{ CCI_REG16(0x6f12), 0x002f },
++	{ CCI_REG16(0x6f12), 0x05d0 },
++	{ CCI_REG16(0x6f12), 0x3146 },
++	{ CCI_REG16(0x6f12), 0x2846 },
++	{ CCI_REG16(0x6f12), 0xbde8 },
++	{ CCI_REG16(0x6f12), 0xf041 },
++	{ CCI_REG16(0x6f12), 0x00f0 },
++	{ CCI_REG16(0x6f12), 0x13b8 },
++	{ CCI_REG16(0x6f12), 0xbde8 },
++	{ CCI_REG16(0x6f12), 0xf081 },
++	{ CCI_REG16(0x6f12), 0x0022 },
++	{ CCI_REG16(0x6f12), 0xaff2 },
++	{ CCI_REG16(0x6f12), 0x5501 },
++	{ CCI_REG16(0x6f12), 0x0348 },
++	{ CCI_REG16(0x6f12), 0x00f0 },
++	{ CCI_REG16(0x6f12), 0x10b8 },
++	{ CCI_REG16(0x6f12), 0x2000 },
++	{ CCI_REG16(0x6f12), 0x0c40 },
++	{ CCI_REG16(0x6f12), 0x2000 },
++	{ CCI_REG16(0x6f12), 0x0560 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x152d },
++	{ CCI_REG16(0x6f12), 0x48f6 },
++	{ CCI_REG16(0x6f12), 0x296c },
++	{ CCI_REG16(0x6f12), 0xc0f2 },
++	{ CCI_REG16(0x6f12), 0x000c },
++	{ CCI_REG16(0x6f12), 0x6047 },
++	{ CCI_REG16(0x6f12), 0x41f2 },
++	{ CCI_REG16(0x6f12), 0x950c },
++	{ CCI_REG16(0x6f12), 0xc0f2 },
++	{ CCI_REG16(0x6f12), 0x000c },
++	{ CCI_REG16(0x6f12), 0x6047 },
++	{ CCI_REG16(0x6f12), 0x49f2 },
++	{ CCI_REG16(0x6f12), 0x514c },
++	{ CCI_REG16(0x6f12), 0xc0f2 },
++	{ CCI_REG16(0x6f12), 0x000c },
++	{ CCI_REG16(0x6f12), 0x6047 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x4088 },
++	{ CCI_REG16(0x6f12), 0x0166 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0x6f12), 0x0002 },
++	{ CCI_REG16(0x5360), 0x0004 },
++	{ CCI_REG16(0x3078), 0x0059 },
++	{ CCI_REG16(0x307c), 0x0025 },
++	{ CCI_REG16(0x36d0), 0x00dd },
++	{ CCI_REG16(0x36d2), 0x0100 },
++	{ CCI_REG16(0x306a), 0x00ef },
++	{ CCI_REG16(0x6028), 0x4000 },
++	{ CCI_REG16(0x602a), 0x6214 },
++	{ CCI_REG16(0x6f12), 0x7971 },
++	{ CCI_REG16(0x602a), 0x6218 },
++	{ CCI_REG16(0x6f12), 0x7150 },
++	{ CCI_REG16(0x6028), 0x2000 },
++	{ CCI_REG16(0x602a), 0x0ec6 },
++	{ CCI_REG16(0x6f12), 0x0000 },
++	{ CCI_REG16(0xfcfc), 0x4000 },
++	{ CCI_REG16(0xf490), 0x0030 },
++	{ CCI_REG16(0xf47a), 0x0012 },
++	{ CCI_REG16(0xf428), 0x0200 },
++	{ CCI_REG16(0xf48e), 0x0010 },
++	{ CCI_REG16(0xf45c), 0x0004 },
++	{ CCI_REG16(0x0b04), 0x0101 },
++	{ CCI_REG16(0x0b00), 0x0080 },
++	{ CCI_REG16(0x6028), 0x2000 },
++	{ CCI_REG16(0x602a), 0x0c40 },
++	{ CCI_REG16(0x6f12), 0x0140 },
++	{ CCI_REG16(0xfcfc), 0x4000 },
++	{ CCI_REG16(0x0202), 0x0465 },
++	{ CCI_REG16(0x31aa), 0x0004 },
++	{ CCI_REG16(0x1006), 0x0006 },
++	{ CCI_REG16(0x31fa), 0x0000 },
++	{ CCI_REG16(0x020e), 0x0100 },
++};
++
++/* 3264x2448 @ ~25fps, 4-lane, link ~280 MHz */
++static const struct cci_reg_sequence s5k4h8_3264x2448_regs[] = {
++	{ CCI_REG16(0x0200), 0x0618 },
++	{ CCI_REG16(0x0344), 0x0008 },
++	{ CCI_REG16(0x0348), 0x0cc7 },
++	{ CCI_REG16(0x0346), 0x0008 },
++	{ CCI_REG16(0x034a), 0x0997 },
++	{ CCI_REG16(0x034c), 0x0cc0 },
++	{ CCI_REG16(0x034e), 0x0990 },
++	{ CCI_REG16(0x0342), 0x0ea0 },
++	{ CCI_REG16(0x0340), 0x09bc },
++	{ CCI_REG16(0x0900), 0x0111 },
++	{ CCI_REG16(0x0380), 0x0001 },
++	{ CCI_REG16(0x0382), 0x0001 },
++	{ CCI_REG16(0x0384), 0x0001 },
++	{ CCI_REG16(0x0386), 0x0001 },
++	{ CCI_REG16(0x0400), 0x0002 },
++	{ CCI_REG16(0x0404), 0x0010 },
++	{ CCI_REG16(0x0114), 0x0330 },
++	{ CCI_REG16(0x0136), 0x1800 },
++	{ CCI_REG16(0x0300), 0x0005 },
++	{ CCI_REG16(0x0302), 0x0001 },
++	{ CCI_REG16(0x0304), 0x0006 },
++	{ CCI_REG16(0x0306), 0x008c },
++	{ CCI_REG16(0x030c), 0x0006 },
++	{ CCI_REG16(0x030e), 0x008c },
++	{ CCI_REG16(0x3008), 0x0000 },
++};
++
++/* 1632x1224 2x2 binning @ ~30fps */
++static const struct cci_reg_sequence s5k4h8_1632x1224_regs[] = {
++	{ CCI_REG16(0x0200), 0x0800 },
++	{ CCI_REG16(0x0344), 0x0008 },
++	{ CCI_REG16(0x0348), 0x0cc7 },
++	{ CCI_REG16(0x0346), 0x0008 },
++	{ CCI_REG16(0x034a), 0x0997 },
++	{ CCI_REG16(0x034c), 0x0660 },
++	{ CCI_REG16(0x034e), 0x04c8 },
++	{ CCI_REG16(0x0342), 0x0ea0 },
++	{ CCI_REG16(0x0340), 0x04e0 },
++	{ CCI_REG16(0x0900), 0x0212 },
++	{ CCI_REG16(0x0380), 0x0001 },
++	{ CCI_REG16(0x0382), 0x0001 },
++	{ CCI_REG16(0x0384), 0x0001 },
++	{ CCI_REG16(0x0386), 0x0003 },
++	{ CCI_REG16(0x0400), 0x0002 },
++	{ CCI_REG16(0x0404), 0x0020 },
++	{ CCI_REG16(0x0114), 0x0330 },
++	{ CCI_REG16(0x0136), 0x1800 },
++	{ CCI_REG16(0x0300), 0x0005 },
++	{ CCI_REG16(0x0302), 0x0002 },
++	{ CCI_REG16(0x0304), 0x0004 },
++	{ CCI_REG16(0x0306), 0x0075 },
++	{ CCI_REG16(0x030c), 0x0006 },
++	{ CCI_REG16(0x030e), 0x008c },
++	{ CCI_REG16(0x3008), 0x0000 },
++};
++
++struct s5k4h8_mode {
++	u32 width;
++	u32 height;
++	u32 hts_def;
++	u32 vts_def;
++	u32 exp_def;
++	const struct cci_reg_sequence *reg_list;
++	unsigned int num_regs;
++};
++
++static const struct s5k4h8_mode s5k4h8_modes[] = {
++	{
++		.width = 1632,
++		.height = 1224,
++		.exp_def = 0x04b0,
++		.hts_def = 0x0ea0,
++		.vts_def = 0x04e0,
++		.reg_list = s5k4h8_1632x1224_regs,
++		.num_regs = ARRAY_SIZE(s5k4h8_1632x1224_regs),
++	},
++	{
++		.width = 3264,
++		.height = 2448,
++		.exp_def = 0x09b0,
++		.hts_def = 0x0ea0,
++		.vts_def = 0x09bc,
++		.reg_list = s5k4h8_3264x2448_regs,
++		.num_regs = ARRAY_SIZE(s5k4h8_3264x2448_regs),
++	},
++};
 +
 +struct s5k4h8 {
 +	struct device *dev;
@@ -125,8 +388,16 @@ index 0000000..04711eb
 +	struct v4l2_subdev sd;
 +	struct media_pad pad;
 +	struct v4l2_ctrl_handler ctrl_handler;
++	struct v4l2_ctrl *exposure;
++	struct v4l2_ctrl *again;
++	struct v4l2_ctrl *vblank;
++	struct v4l2_ctrl *hblank;
 +	struct v4l2_ctrl *link_freq;
 +	struct v4l2_ctrl *pixel_rate;
++	const struct s5k4h8_mode *cur_mode;
++	struct mutex mutex;
++	bool streaming;
++	bool global_inited;
 +};
 +
 +static int s5k4h8_power_on(struct device *dev)
@@ -136,21 +407,18 @@ index 0000000..04711eb
 +	int ret;
 +
 +	ret = regulator_bulk_enable(S5K4H8_NUM_SUPPLIES, s5k4h8->supplies);
-+	if (ret) {
-+		dev_err(dev, "failed to enable regulators: %d\n", ret);
++	if (ret)
 +		return ret;
-+	}
 +
 +	ret = clk_prepare_enable(s5k4h8->mclk);
-+	if (ret) {
-+		dev_err(dev, "failed to enable mclk: %d\n", ret);
++	if (ret)
 +		goto disable_regs;
-+	}
 +
-+	/* Release XSHUTDOWN / standby (active-low). */
++	/* Release XSHUTDOWN (active-low). */
 +	gpiod_set_value_cansleep(s5k4h8->reset_gpio, 0);
 +	fsleep(10 * USEC_PER_MSEC);
 +
++	s5k4h8->global_inited = false;
 +	return 0;
 +
 +disable_regs:
@@ -166,52 +434,8 @@ index 0000000..04711eb
 +	gpiod_set_value_cansleep(s5k4h8->reset_gpio, 1);
 +	clk_disable_unprepare(s5k4h8->mclk);
 +	regulator_bulk_disable(S5K4H8_NUM_SUPPLIES, s5k4h8->supplies);
-+
++	s5k4h8->global_inited = false;
 +	return 0;
-+}
-+
-+/*
-+ * After power-up, try reading 16-bit reg 0x0000 at several plausible 7-bit
-+ * addresses. Logs every ACK so we can confirm stock 0x2d / catch strap variants
-+ * and also see the dw9718s actuator (typically 0x0c) if VAF is on later.
-+ */
-+static void s5k4h8_bus_scan(struct s5k4h8 *s5k4h8)
-+{
-+	struct i2c_client *client = v4l2_get_subdevdata(&s5k4h8->sd);
-+	struct i2c_adapter *adap = client->adapter;
-+	u8 addrs[] = {
-+		0x0c, 0x10, 0x1a, 0x20, 0x2d, 0x36, 0x37, 0x5a, 0x6c,
-+	};
-+	unsigned int i;
-+
-+	for (i = 0; i < ARRAY_SIZE(addrs); i++) {
-+		u8 wbuf[2] = { 0x00, 0x00 };
-+		u8 rbuf[2] = { 0 };
-+		struct i2c_msg msgs[2] = {
-+			{
-+				.addr = addrs[i],
-+				.flags = 0,
-+				.len = 2,
-+				.buf = wbuf,
-+			},
-+			{
-+				.addr = addrs[i],
-+				.flags = I2C_M_RD,
-+				.len = 2,
-+				.buf = rbuf,
-+			},
-+		};
-+		int ret = i2c_transfer(adap, msgs, 2);
-+
-+		if (ret == 2)
-+			dev_info(s5k4h8->dev,
-+				 "cci scan: addr=0x%02x reg0000=0x%02x%02x\n",
-+				 addrs[i], rbuf[0], rbuf[1]);
-+		else
-+			dev_info(s5k4h8->dev,
-+				 "cci scan: addr=0x%02x ret=%d\n",
-+				 addrs[i], ret);
-+	}
 +}
 +
 +static int s5k4h8_identify(struct s5k4h8 *s5k4h8)
@@ -220,22 +444,118 @@ index 0000000..04711eb
 +	int ret;
 +
 +	ret = cci_read(s5k4h8->regmap, S5K4H8_REG_CHIP_ID, &val, NULL);
-+	if (ret) {
-+		dev_err(s5k4h8->dev, "chip id read failed: %d\n", ret);
-+		s5k4h8_bus_scan(s5k4h8);
++	if (ret)
 +		return ret;
-+	}
 +
 +	if (val != S5K4H8_CHIP_ID) {
-+		dev_err(s5k4h8->dev,
-+			"unexpected chip id 0x%04llx (want 0x%04x)\n",
++		dev_err(s5k4h8->dev, "chip id 0x%04llx (want 0x%04x)\n",
 +			val, S5K4H8_CHIP_ID);
-+		s5k4h8_bus_scan(s5k4h8);
 +		return -ENODEV;
 +	}
 +
 +	dev_info(s5k4h8->dev, "Detected S5K4H8 sensor (id 0x%04x)\n",
 +		 S5K4H8_CHIP_ID);
++	return 0;
++}
++
++static int s5k4h8_write_globals(struct s5k4h8 *s5k4h8)
++{
++	int ret = 0;
++
++	if (s5k4h8->global_inited)
++		return 0;
++
++	cci_multi_reg_write(s5k4h8->regmap, s5k4h8_global_regs,
++			    ARRAY_SIZE(s5k4h8_global_regs), &ret);
++	if (!ret)
++		s5k4h8->global_inited = true;
++	return ret;
++}
++
++static int s5k4h8_set_ctrl(struct v4l2_ctrl *ctrl)
++{
++	struct s5k4h8 *s5k4h8 = container_of(ctrl->handler, struct s5k4h8,
++					     ctrl_handler);
++	s64 max;
++	int ret = 0;
++
++	if (ctrl->id == V4L2_CID_VBLANK) {
++		max = s5k4h8->cur_mode->height + ctrl->val - S5K4H8_EXPOSURE_MARGIN;
++		__v4l2_ctrl_modify_range(s5k4h8->exposure, S5K4H8_EXPOSURE_MIN,
++					 max, 1, min_t(s64, s5k4h8->exposure->val, max));
++	}
++
++	if (pm_runtime_get_if_in_use(s5k4h8->dev) <= 0)
++		return 0;
++
++	switch (ctrl->id) {
++	case V4L2_CID_EXPOSURE:
++		cci_write(s5k4h8->regmap, S5K4H8_REG_EXPOSURE, ctrl->val, &ret);
++		break;
++	case V4L2_CID_ANALOGUE_GAIN:
++		cci_write(s5k4h8->regmap, S5K4H8_REG_AGAIN, ctrl->val, &ret);
++		break;
++	case V4L2_CID_VBLANK:
++		cci_write(s5k4h8->regmap, S5K4H8_REG_VTS,
++			  s5k4h8->cur_mode->height + ctrl->val, &ret);
++		break;
++	default:
++		break;
++	}
++
++	pm_runtime_put(s5k4h8->dev);
++	return ret;
++}
++
++static const struct v4l2_ctrl_ops s5k4h8_ctrl_ops = {
++	.s_ctrl = s5k4h8_set_ctrl,
++};
++
++static int s5k4h8_init_controls(struct s5k4h8 *s5k4h8)
++{
++	const struct s5k4h8_mode *mode = s5k4h8->cur_mode;
++	struct v4l2_ctrl_handler *hdl = &s5k4h8->ctrl_handler;
++	s64 exposure_max, vblank_def, hblank;
++	int ret;
++
++	ret = v4l2_ctrl_handler_init(hdl, 6);
++	if (ret)
++		return ret;
++	hdl->lock = &s5k4h8->mutex;
++
++	s5k4h8->link_freq = v4l2_ctrl_new_int_menu(hdl, NULL, V4L2_CID_LINK_FREQ,
++						   0, 0, s5k4h8_link_freq_menu);
++	if (s5k4h8->link_freq)
++		s5k4h8->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++	s5k4h8->pixel_rate = v4l2_ctrl_new_std(hdl, NULL, V4L2_CID_PIXEL_RATE,
++						0, S5K4H8_PIXEL_RATE, 1,
++						S5K4H8_PIXEL_RATE);
++
++	hblank = mode->hts_def - mode->width;
++	s5k4h8->hblank = v4l2_ctrl_new_std(hdl, NULL, V4L2_CID_HBLANK,
++					   hblank, hblank, 1, hblank);
++	if (s5k4h8->hblank)
++		s5k4h8->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++	vblank_def = mode->vts_def - mode->height;
++	s5k4h8->vblank = v4l2_ctrl_new_std(hdl, &s5k4h8_ctrl_ops, V4L2_CID_VBLANK,
++					   vblank_def, S5K4H8_VTS_MAX - mode->height,
++					   1, vblank_def);
++
++	exposure_max = mode->vts_def - S5K4H8_EXPOSURE_MARGIN;
++	s5k4h8->exposure = v4l2_ctrl_new_std(hdl, &s5k4h8_ctrl_ops, V4L2_CID_EXPOSURE,
++					     S5K4H8_EXPOSURE_MIN, exposure_max, 1,
++					     mode->exp_def);
++
++	s5k4h8->again = v4l2_ctrl_new_std(hdl, &s5k4h8_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
++					  S5K4H8_GAIN_MIN, S5K4H8_GAIN_MAX, 1,
++					  S5K4H8_GAIN_DEFAULT);
++
++	if (hdl->error)
++		return hdl->error;
++
++	s5k4h8->sd.ctrl_handler = hdl;
 +	return 0;
 +}
 +
@@ -245,7 +565,6 @@ index 0000000..04711eb
 +{
 +	if (code->index > 0)
 +		return -EINVAL;
-+
 +	code->code = MEDIA_BUS_FMT_SGRBG10_1X10;
 +	return 0;
 +}
@@ -254,57 +573,135 @@ index 0000000..04711eb
 +				  struct v4l2_subdev_state *sd_state,
 +				  struct v4l2_subdev_frame_size_enum *fse)
 +{
-+	if (fse->index > 0 || fse->code != MEDIA_BUS_FMT_SGRBG10_1X10)
++	if (fse->index >= ARRAY_SIZE(s5k4h8_modes) ||
++	    fse->code != MEDIA_BUS_FMT_SGRBG10_1X10)
 +		return -EINVAL;
 +
-+	fse->min_width = S5K4H8_WIDTH;
-+	fse->max_width = S5K4H8_WIDTH;
-+	fse->min_height = S5K4H8_HEIGHT;
-+	fse->max_height = S5K4H8_HEIGHT;
++	fse->min_width = fse->max_width = s5k4h8_modes[fse->index].width;
++	fse->min_height = fse->max_height = s5k4h8_modes[fse->index].height;
 +	return 0;
++}
++
++static const struct s5k4h8_mode *s5k4h8_find_mode(u32 width, u32 height)
++{
++	const struct s5k4h8_mode *best = &s5k4h8_modes[0];
++	int best_dist = -1;
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(s5k4h8_modes); i++) {
++		int dist = abs((int)s5k4h8_modes[i].width - (int)width) +
++			   abs((int)s5k4h8_modes[i].height - (int)height);
++
++		if (best_dist < 0 || dist < best_dist) {
++			best_dist = dist;
++			best = &s5k4h8_modes[i];
++		}
++	}
++	return best;
++}
++
++static void s5k4h8_update_pad_format(const struct s5k4h8_mode *mode,
++				     struct v4l2_mbus_framefmt *fmt)
++{
++	fmt->code = MEDIA_BUS_FMT_SGRBG10_1X10;
++	fmt->width = mode->width;
++	fmt->height = mode->height;
++	fmt->field = V4L2_FIELD_NONE;
++	fmt->colorspace = V4L2_COLORSPACE_RAW;
++	fmt->ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
++	fmt->quantization = V4L2_QUANTIZATION_FULL_RANGE;
++	fmt->xfer_func = V4L2_XFER_FUNC_NONE;
 +}
 +
 +static int s5k4h8_set_format(struct v4l2_subdev *sd,
 +			     struct v4l2_subdev_state *sd_state,
 +			     struct v4l2_subdev_format *fmt)
 +{
-+	struct v4l2_mbus_framefmt *format;
++	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
++	const struct s5k4h8_mode *mode;
++	s64 hblank, vblank_def, exposure_max;
 +
-+	format = v4l2_subdev_state_get_format(sd_state, 0);
-+	format->code = MEDIA_BUS_FMT_SGRBG10_1X10;
-+	format->width = S5K4H8_WIDTH;
-+	format->height = S5K4H8_HEIGHT;
-+	format->field = V4L2_FIELD_NONE;
-+	format->colorspace = V4L2_COLORSPACE_RAW;
-+	fmt->format = *format;
++	mutex_lock(&s5k4h8->mutex);
 +
++	mode = s5k4h8_find_mode(fmt->format.width, fmt->format.height);
++	s5k4h8_update_pad_format(mode, &fmt->format);
++
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++		*v4l2_subdev_state_get_format(sd_state, fmt->pad) = fmt->format;
++	} else {
++		s5k4h8->cur_mode = mode;
++		hblank = mode->hts_def - mode->width;
++		__v4l2_ctrl_modify_range(s5k4h8->hblank, hblank, hblank, 1, hblank);
++		vblank_def = mode->vts_def - mode->height;
++		__v4l2_ctrl_modify_range(s5k4h8->vblank, vblank_def,
++					 S5K4H8_VTS_MAX - mode->height, 1,
++					 vblank_def);
++		exposure_max = mode->vts_def - S5K4H8_EXPOSURE_MARGIN;
++		__v4l2_ctrl_modify_range(s5k4h8->exposure, S5K4H8_EXPOSURE_MIN,
++					 exposure_max, 1,
++					 min_t(s64, mode->exp_def, exposure_max));
++	}
++
++	mutex_unlock(&s5k4h8->mutex);
 +	return 0;
 +}
 +
-+static int s5k4h8_init_state(struct v4l2_subdev *sd,
-+			     struct v4l2_subdev_state *sd_state)
++static int s5k4h8_get_format(struct v4l2_subdev *sd,
++			     struct v4l2_subdev_state *sd_state,
++			     struct v4l2_subdev_format *fmt)
 +{
-+	struct v4l2_subdev_format fmt = {
-+		.which = V4L2_SUBDEV_FORMAT_TRY,
-+		.format = {
-+			.code = MEDIA_BUS_FMT_SGRBG10_1X10,
-+			.width = S5K4H8_WIDTH,
-+			.height = S5K4H8_HEIGHT,
-+		},
-+	};
++	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
 +
-+	return s5k4h8_set_format(sd, sd_state, &fmt);
++	mutex_lock(&s5k4h8->mutex);
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++		fmt->format = *v4l2_subdev_state_get_format(sd_state, fmt->pad);
++	} else {
++		s5k4h8_update_pad_format(s5k4h8->cur_mode, &fmt->format);
++	}
++	mutex_unlock(&s5k4h8->mutex);
++	return 0;
 +}
 +
 +static int s5k4h8_s_stream(struct v4l2_subdev *sd, int enable)
 +{
 +	struct s5k4h8 *s5k4h8 = to_s5k4h8(sd);
++	int ret = 0;
 +
-+	/* Mode tables not ported yet — enumerate / identify only. */
-+	if (enable)
-+		return dev_err_probe(s5k4h8->dev, -EOPNOTSUPP,
-+				     "s5k4h8 streaming not implemented yet\n");
++	if (enable) {
++		ret = pm_runtime_resume_and_get(s5k4h8->dev);
++		if (ret < 0)
++			return ret;
++
++		ret = s5k4h8_write_globals(s5k4h8);
++		if (ret)
++			goto err_pm;
++
++		cci_multi_reg_write(s5k4h8->regmap, s5k4h8->cur_mode->reg_list,
++				    s5k4h8->cur_mode->num_regs, &ret);
++		if (ret)
++			goto err_pm;
++
++		ret = __v4l2_ctrl_handler_setup(s5k4h8->sd.ctrl_handler);
++		if (ret)
++			goto err_pm;
++
++		cci_write(s5k4h8->regmap, S5K4H8_REG_CTRL_MODE,
++			  S5K4H8_MODE_STREAMING, &ret);
++		if (ret)
++			goto err_pm;
++
++		s5k4h8->streaming = true;
++		return 0;
++	}
++
++	cci_write(s5k4h8->regmap, S5K4H8_REG_CTRL_MODE, S5K4H8_MODE_STANDBY, NULL);
++	s5k4h8->streaming = false;
++	pm_runtime_put_autosuspend(s5k4h8->dev);
 +	return 0;
++
++err_pm:
++	pm_runtime_put(s5k4h8->dev);
++	return ret;
 +}
 +
 +static const struct v4l2_subdev_video_ops s5k4h8_video_ops = {
@@ -314,17 +711,13 @@ index 0000000..04711eb
 +static const struct v4l2_subdev_pad_ops s5k4h8_pad_ops = {
 +	.enum_mbus_code = s5k4h8_enum_mbus_code,
 +	.enum_frame_size = s5k4h8_enum_frame_size,
-+	.get_fmt = v4l2_subdev_get_fmt,
++	.get_fmt = s5k4h8_get_format,
 +	.set_fmt = s5k4h8_set_format,
 +};
 +
 +static const struct v4l2_subdev_ops s5k4h8_subdev_ops = {
 +	.video = &s5k4h8_video_ops,
 +	.pad = &s5k4h8_pad_ops,
-+};
-+
-+static const struct v4l2_subdev_internal_ops s5k4h8_internal_ops = {
-+	.init_state = s5k4h8_init_state,
 +};
 +
 +static const struct media_entity_operations s5k4h8_entity_ops = {
@@ -339,8 +732,7 @@ index 0000000..04711eb
 +	};
 +	int ret;
 +
-+	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(s5k4h8->dev),
-+						  NULL);
++	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(s5k4h8->dev), NULL);
 +	if (!endpoint)
 +		return -EINVAL;
 +
@@ -351,8 +743,7 @@ index 0000000..04711eb
 +
 +	if (bus_cfg.bus.mipi_csi2.num_data_lanes != S5K4H8_DATA_LANES) {
 +		dev_err(s5k4h8->dev, "expected %u data lanes, got %u\n",
-+			S5K4H8_DATA_LANES,
-+			bus_cfg.bus.mipi_csi2.num_data_lanes);
++			S5K4H8_DATA_LANES, bus_cfg.bus.mipi_csi2.num_data_lanes);
 +		ret = -EINVAL;
 +	}
 +
@@ -360,36 +751,9 @@ index 0000000..04711eb
 +	return ret;
 +}
 +
-+static int s5k4h8_init_controls(struct s5k4h8 *s5k4h8)
-+{
-+	struct v4l2_ctrl_handler *hdl = &s5k4h8->ctrl_handler;
-+	/* Rough pixel rate placeholder: link_freq * 2 * lanes / bits. */
-+	u64 pixel_rate = div_u64(S5K4H8_LINK_FREQ_DEFAULT * 2 *
-+				 S5K4H8_DATA_LANES, 10);
-+	int ret;
-+
-+	ret = v4l2_ctrl_handler_init(hdl, 2);
-+	if (ret)
-+		return ret;
-+
-+	s5k4h8->link_freq = v4l2_ctrl_new_int_menu(hdl, NULL,
-+						   V4L2_CID_LINK_FREQ,
-+						   0, 0,
-+						   s5k4h8_link_freq_menu);
-+	s5k4h8->pixel_rate = v4l2_ctrl_new_std(hdl, NULL,
-+						V4L2_CID_PIXEL_RATE,
-+						0, pixel_rate, 1, pixel_rate);
-+	if (s5k4h8->link_freq)
-+		s5k4h8->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
-+
-+	s5k4h8->sd.ctrl_handler = hdl;
-+	return hdl->error;
-+}
-+
 +static int s5k4h8_probe(struct i2c_client *client)
 +{
 +	struct s5k4h8 *s5k4h8;
-+	unsigned long freq;
 +	unsigned int i;
 +	int ret;
 +
@@ -398,35 +762,26 @@ index 0000000..04711eb
 +		return -ENOMEM;
 +
 +	s5k4h8->dev = &client->dev;
++	s5k4h8->cur_mode = &s5k4h8_modes[1]; /* prefer full-res */
 +	v4l2_i2c_subdev_init(&s5k4h8->sd, client, &s5k4h8_subdev_ops);
-+	s5k4h8->sd.internal_ops = &s5k4h8_internal_ops;
 +
 +	s5k4h8->regmap = devm_cci_regmap_init_i2c(client, 16);
 +	if (IS_ERR(s5k4h8->regmap))
 +		return dev_err_probe(s5k4h8->dev, PTR_ERR(s5k4h8->regmap),
-+				     "failed to init CCI regmap\n");
++				     "cci regmap\n");
 +
 +	s5k4h8->mclk = devm_clk_get(s5k4h8->dev, "mclk");
 +	if (IS_ERR(s5k4h8->mclk))
-+		return dev_err_probe(s5k4h8->dev, PTR_ERR(s5k4h8->mclk),
-+				     "failed to get mclk\n");
-+
-+	freq = clk_get_rate(s5k4h8->mclk);
-+	if (freq && freq != S5K4H8_MCLK_FREQ_24MHZ)
-+		dev_warn(s5k4h8->dev,
-+			 "mclk rate %lu Hz (expected %u); continuing\n",
-+			 freq, S5K4H8_MCLK_FREQ_24MHZ);
++		return dev_err_probe(s5k4h8->dev, PTR_ERR(s5k4h8->mclk), "mclk\n");
 +
 +	ret = s5k4h8_check_hwcfg(s5k4h8);
 +	if (ret)
-+		return dev_err_probe(s5k4h8->dev, ret,
-+				     "invalid endpoint configuration\n");
++		return dev_err_probe(s5k4h8->dev, ret, "hwcfg\n");
 +
-+	s5k4h8->reset_gpio = devm_gpiod_get(s5k4h8->dev, "reset",
-+					    GPIOD_OUT_HIGH);
++	s5k4h8->reset_gpio = devm_gpiod_get(s5k4h8->dev, "reset", GPIOD_OUT_HIGH);
 +	if (IS_ERR(s5k4h8->reset_gpio))
 +		return dev_err_probe(s5k4h8->dev, PTR_ERR(s5k4h8->reset_gpio),
-+				     "failed to get reset-gpios\n");
++				     "reset-gpios\n");
 +
 +	for (i = 0; i < S5K4H8_NUM_SUPPLIES; i++)
 +		s5k4h8->supplies[i].supply = s5k4h8_supply_names[i];
@@ -434,47 +789,31 @@ index 0000000..04711eb
 +	ret = devm_regulator_bulk_get(s5k4h8->dev, S5K4H8_NUM_SUPPLIES,
 +				      s5k4h8->supplies);
 +	if (ret)
-+		return dev_err_probe(s5k4h8->dev, ret,
-+				     "failed to get regulators\n");
++		return dev_err_probe(s5k4h8->dev, ret, "regulators\n");
 +
-+	/* Identify requires power + mclk + reset release. */
-+	v4l2_set_subdevdata(&s5k4h8->sd, client);
 +	dev_set_drvdata(s5k4h8->dev, &s5k4h8->sd);
 +
 +	ret = s5k4h8_power_on(s5k4h8->dev);
 +	if (ret)
 +		return ret;
 +
-+	/*
-+	 * Stock labels gpio35 "standby". Mainline sensors usually treat the
-+	 * equivalent pin as active-low XSHUTDOWN (reset deasserted = 0). If
-+	 * that polarity is wrong the bus is silent — flip and re-scan once.
-+	 */
-+	dev_info(s5k4h8->dev, "recon: reset deasserted (active-low try)\n");
-+	s5k4h8_bus_scan(s5k4h8);
 +	ret = s5k4h8_identify(s5k4h8);
-+	if (ret) {
-+		dev_info(s5k4h8->dev,
-+			 "recon: flipping reset polarity and retrying\n");
-+		gpiod_set_value_cansleep(s5k4h8->reset_gpio, 1);
-+		fsleep(10 * USEC_PER_MSEC);
-+		s5k4h8_bus_scan(s5k4h8);
-+		ret = s5k4h8_identify(s5k4h8);
-+		if (ret)
-+			goto err_power;
-+		dev_warn(s5k4h8->dev,
-+			 "sensor responded with inverted reset polarity; DT may need GPIO_ACTIVE_HIGH\n");
-+	}
++	if (ret)
++		goto err_power;
++
++	mutex_init(&s5k4h8->mutex);
 +
 +	ret = s5k4h8_init_controls(s5k4h8);
 +	if (ret)
 +		goto err_power;
 +
++	/* Wire lock after handler exists (ov5695 pattern). */
++	s5k4h8->ctrl_handler.lock = &s5k4h8->mutex;
 +	s5k4h8->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 +	s5k4h8->sd.entity.ops = &s5k4h8_entity_ops;
 +	s5k4h8->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 +	s5k4h8->pad.flags = MEDIA_PAD_FL_SOURCE;
-+	s5k4h8->sd.state_lock = s5k4h8->ctrl_handler.lock;
++	s5k4h8->sd.state_lock = &s5k4h8->mutex;
 +
 +	ret = media_entity_pads_init(&s5k4h8->sd.entity, 1, &s5k4h8->pad);
 +	if (ret)
@@ -486,8 +825,9 @@ index 0000000..04711eb
 +
 +	pm_runtime_set_active(s5k4h8->dev);
 +	pm_runtime_enable(s5k4h8->dev);
++	pm_runtime_set_autosuspend_delay(s5k4h8->dev, 1000);
++	pm_runtime_use_autosuspend(s5k4h8->dev);
 +	pm_runtime_idle(s5k4h8->dev);
-+
 +	return 0;
 +
 +err_entity:
@@ -534,7 +874,7 @@ index 0000000..04711eb
 +};
 +module_i2c_driver(s5k4h8_i2c_driver);
 +
-+MODULE_DESCRIPTION("Samsung S5K4H8 camera sensor driver (perry bring-up)");
++MODULE_DESCRIPTION("Samsung S5K4H8 camera sensor driver");
 +MODULE_AUTHOR("Aneesh Pradhan <aneeshpradhan@acm.org>");
 +MODULE_LICENSE("GPL");
 -- 
