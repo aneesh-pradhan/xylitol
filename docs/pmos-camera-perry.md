@@ -1,18 +1,21 @@
 # pmOS mainline camera bring-up — perry (MSM8917 / XT1765)
 
-**Status (2026-07-22 night): dual-camera FIRST LIGHT + flash + rear AF.** ✅✅✅
+**Status (2026-07-22 late): dual-camera + AF + polish.** ✅✅✅
 
 | Subsystem | Status |
 |---|---|
 | Front OV5695 enumerate | ✅ i2c **0x10**, CSIPHY1 |
 | Front OV5695 capture | ✅ ~17.5 fps libcamera; PPM/JPG still |
-| Flash/torch (PMI8950) | ✅ rear = `led@0`/`white:flash`, front = `led@1`/`white:flash_1` |
+| Flash/torch (PMI8950) | ✅ rear = `led@0`/`flash-rear`, front = `led@1`/`flash-front` (sysfs; **no** `flash-leds`) |
 | Rear S5K4H8 enumerate | ✅ i2c **0x2d**, chip id **0x4088**, CSIPHY0 |
 | Rear S5K4H8 capture | ✅ **first light** ~24 fps; 3264×2448 GRBG10 |
 | Rear AF dw9718s | ✅ `dw9719` / `dongwoon,dw9718s` @ **0x0c**; `focus_absolute` 0↔1023 |
+| Phosh / WirePlumber | ✅ libcamera sources (Built-in Front/Back); disable-conf removed |
+| Orientation / crop | ✅ Location Front/270 + Back/90; `get_selection` native sizes |
+| IPA yaml stubs | ✅ shipped; SoftISP helper tuning still deferred |
 
-Kernel on glass: `linux-motorola-perry` **7.1.3-r9** (`#10-perry-xylitol`).
-Patches **`0007`–`0011`**. Canonical reference for all camera work.
+Kernel on glass: `linux-motorola-perry` **7.1.3-r11** (`#12-perry-xylitol`).
+Patches **`0007`–`0014`**. Canonical reference for all camera work.
 Chronology: [`porting-log.md`](porting-log.md). Session queue:
 [`handoff.md`](handoff.md) (local/gitignored).
 
@@ -35,7 +38,11 @@ Chronology: [`porting-log.md`](porting-log.md). Session queue:
   Config: `CONFIG_VIDEO_S5K4H8=m`.
 - **`0011`:** rear **dw9718s** AF — `CONFIG_VIDEO_DW9719=m`, CCI
   `lens@c` (`dongwoon,dw9718s` @ **0x0c**, `vdd` = `pm8937_l22`),
-  `lens-focus` on `camera@2d`. pkgrel **9**.
+  `lens-focus` on `camera@2d`.
+- **`0012`–`0014` (polish, pkgrel **11**):** orientation/rotation + LED
+  labels `flash-rear`/`flash-front` (**no** `flash-leds` — async stall;
+  `leds-qcom-flash-v1` has no V4L2); s5k4h8/ov5695 fwnode Location/Rotation
+  + `get_selection`. Userspace: IPA yaml stubs + WP libcamera enabled.
 - **Gotcha #1 (front enumerate):** OV5695 i2c **`0x10`**, not `0x36`.
 - **Gotcha #2 (front capture):** need **both** CSIPHY `<0 1>` and real
   `vdda` (`pm8937_l2`).
@@ -53,7 +60,8 @@ Chronology: [`porting-log.md`](porting-log.md). Session queue:
   `artifacts/camera-rear-first-light-2026-07-22/s5k4h8-rear-first-light.jpg`.
 - **Proof (AF):** entity `dw9719 2-000c` Lens on `/dev/v4l-subdev16`;
   `focus_absolute` 0↔512↔1023↔0; rear ~24 fps / front ~17.6 fps unchanged.
-- **Flash map:** `white:flash` = **rear**, `white:flash_1` = **front**.
+- **Flash map:** `flash-rear` = **rear**, `flash-front` = **front**
+  (pre-polish sysfs names were `white:flash` / `white:flash_1`).
 
 ---
 
@@ -82,7 +90,7 @@ proprietary Nougat HAL does not port to pmOS mainline). Confirmed on-device.
 | VAF (AF) | pm8937_l22 (**dw9718s** @ **0x0c**) | — (fixed focus) |
 | CCI master | 0 | 0 |
 | Focus/actuator | ✅ **dw9718s** (`dongwoon,dw9718s` via `dw9719.c`; stock 8-bit **0x18**) | fixed |
-| Flash LED | PMI8950 `led@0` / `white:flash` | PMI8950 `led@1` / `white:flash_1` |
+| Flash LED | PMI8950 `led@0` / `flash-rear` | PMI8950 `led@1` / `flash-front` |
 
 **CCI is master-0 only.** cci0 = gpio29 (SDA) / gpio30 (SCL). cci1 =
 gpio31/gpio32 is **unused**: **gpio31 is owned by the `sx9310` SAR sensor**
@@ -237,7 +245,7 @@ node. Patch **`0008`** enables both channels (montana/hannah/cedric shape).
 | | |
 |---|---|
 | Package | `linux-motorola-perry` **7.1.3-r2** |
-| Sysfs | `/sys/class/leds/white:flash` (**rear**), `white:flash_1` (**front**) |
+| Sysfs | `/sys/class/leds/flash-rear` (**rear**), `flash-front` (**front**) |
 | Map | `led@0` = rear, `led@1` = front (torch test confirmed) |
 | Torch | `echo 16 > …/brightness` (max 16); `0` to off |
 | Flash | `flash_brightness` + `flash_strobe` (class flash attrs) |
@@ -381,12 +389,22 @@ Tegra historical regs: [`upstream/dw9718-tegra-ref/`](../upstream/dw9718-tegra-r
 
 ### Remaining camera work (optional polish)
 
-1. **Phosh / Snapshot** — both cameras via pipewire-spa-libcamera; check
-   `50-perry-disable-libcamera.conf`.
-2. **libcamera polish** — crop / selection API, rotation, IPA yaml for
-   `s5k4h8` / `ov5695`, location properties; AF via libcamera if not yet.
-3. **OTP / AWB** — optional later from Rockchip OTP path or Motorola eeprom.
-4. **Flash polish** — LED labels; libcamera flash glue.
+**Done in this polish pass** (validated on device — packages **alsa-ucm
+1-r1**, **device 1-r6**, **linux 7.1.3-r11** / `#12-perry-xylitol`):
+
+| Item | Status |
+|---|---|
+| **Phosh / WirePlumber** | ✅ Done — removed `50-perry-disable-libcamera.conf` from alsa-ucm + install scripts; cameras appear as libcamera sources (**Built-in Front/Back**). Device depends on `pipewire-spa-libcamera`. |
+| **IPA yaml stubs** | ✅ Shipped — `ipa-simple-s5k4h8.yaml` / `ipa-simple-ov5695.yaml` → `/usr/share/libcamera/ipa/simple/`. SoftISP **helper tuning still deferred**. |
+| **Orientation / crop** | ✅ Done — patches **0012**–**0014**: DT `orientation`/`rotation`; fwnode Location/Rotation; `get_selection` (rear 3264×2448, front 2592×1944). Proof: Location Front/270 + Back/90. |
+| **Flash LED labels** | ✅ Done — sysfs `flash-rear` / `flash-front` (0012). **No `flash-leds` phandles** (async stall; `leds-qcom-flash-v1` has no V4L2). |
+| **libcamera FlashMode** | ❌ Blocked — needs V4L2 flash LED bridge beyond sysfs labels. Torch/flash still work via sysfs. |
+
+Still optional later:
+
+1. **OTP / AWB** — Rockchip OTP path or Motorola eeprom.
+2. **libcamera FlashMode** — V4L2 LED class glue for `leds-qcom-flash-v1`.
+3. **IPA SoftISP helper** — real tuning beyond the shipped stubs.
 
 ### Next-session quick commands
 
@@ -409,9 +427,18 @@ v4l2-ctl -d /dev/v4l-subdev16 --set-ctrl=focus_absolute=1023
 cam --camera /base/soc@0/cci@1b0c000/i2c-bus@0/camera@2d --capture=3
 cam --camera /base/soc@0/cci@1b0c000/i2c-bus@0/camera@10 --capture=3
 
-# Flash map: L0 rear, L1 front
-echo 16 | sudo tee /sys/class/leds/white:flash/brightness; sleep 2
-echo 0  | sudo tee /sys/class/leds/white:flash/brightness
+# Flash map: flash-rear / flash-front (after polish 0012)
+echo 16 | sudo tee /sys/class/leds/flash-rear/brightness; sleep 2
+echo 0  | sudo tee /sys/class/leds/flash-rear/brightness
+
+# Polish checks (after linux 7.1.3-r11 + device 1-r6)
+wpctl status | sed -n '/Sources:/,/Filters:/p'
+# expect Built-in Front / Built-in Back under Sources
+cam --list-properties | grep -E 'Location|Rotation|Model'
+# expect Front/270 + Back/90
+v4l2-ctl -d /dev/v4l-subdev15 --get-selection target=crop_bounds
+ls /sys/class/leds/ | grep flash
+# expect flash-rear flash-front (no flash-leds V4L2 entity)
 
 # Kernel deploy: apply → checksum → shutdown → build --force --lax → scp apk → reboot
 # (see §Build / deploy below)
@@ -491,7 +518,9 @@ rebuild ~60–70 s. Reboot to sshd ~30 s.
 - **Never** ship Android `camera-vendor.mk` / montana ISP blobs on pmOS —
   the proprietary Nougat HAL cannot use mainline CAMSS/V4L2. Android tree is a
   hardware map only.
-- Dual camera + rear AF first light are done. Remaining camera work is
-  optional polish (Phosh, IPA, OTP). Never ship Android montana ISP on pmOS.
+- Dual camera + rear AF + polish (Phosh/WP libcamera, IPA stubs, orientation /
+  selection, flash labels) are done. Remaining: OTP/AWB; SoftISP helper;
+  libcamera FlashMode (`leds-qcom-flash-v1` has no V4L2 glue — do not add
+  `flash-leds` until that exists). Never ship Android montana ISP on pmOS.
 - Authorship on every commit/patch: `Aneesh Pradhan <aneeshpradhan@acm.org>`.
 - Sacred partitions `persist`/`modemst1`/`modemst2` never touched.

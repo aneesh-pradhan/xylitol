@@ -4,6 +4,9 @@
 #   0009 — Samsung S5K4H8 sensor (Rockchip tables → mainline CCI; first light)
 #   0010 — rear S5K4H8 DT (camera@2d, CSIPHY0 4-lane, link 280 MHz)
 #   0011 — rear dw9718s AF (dw9719 driver; lens@c + lens-focus)
+#   0012 — orientation/rotation + LED labels (no flash-leds until V4L2 LED)
+#   0013 — s5k4h8 fwnode Location/Rotation + get_selection (3264×2448 native)
+#   0014 — ov5695 fwnode Location/Rotation + get_selection (2592×1944 native)
 # Rockchip upstream snapshot: upstream/s5k4h8-rockchip-ref/
 # AF notes: upstream/dw9719-mainline-notes/
 # See docs/pmos-camera-perry.md (verbose dual-camera bring-up).

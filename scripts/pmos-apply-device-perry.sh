@@ -39,6 +39,8 @@ cp -v "$APORT_SRC"/APKBUILD \
   "$APORT_SRC"/50-perry-usb-nosuspend.rules \
   "$APORT_SRC"/60-perry-emmc-scheduler.rules \
   "$APORT_SRC"/80-device-motorola-perry.preset \
+  "$APORT_SRC"/ipa-simple-s5k4h8.yaml \
+  "$APORT_SRC"/ipa-simple-ov5695.yaml \
   "$DEST/"
 
 echo

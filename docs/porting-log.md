@@ -2897,3 +2897,33 @@ Dual-camera + flash + rear AF are all ✅ on glass. Remaining camera work is
 optional polish (Phosh/Snapshot, IPA yaml, OTP/AWB, flash labels).
 
 Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-22 late — camera polish (Phosh/WP, IPA stubs, orientation/crop)
+
+Validated on device. Packages: **alsa-ucm 1-r1**, **device 1-r6**,
+**linux-motorola-perry 7.1.3-r11** (`#12-perry-xylitol`).
+
+### What landed
+
+| Piece | Detail |
+|---|---|
+| WirePlumber / Phosh | Removed `50-perry-disable-libcamera.conf` from alsa-ucm package + apply/install scripts. Cameras appear as libcamera sources (**Built-in Front/Back**). |
+| Device package | pkgrel **6**; depends on `pipewire-spa-libcamera`; ships IPA yaml stubs → `/usr/share/libcamera/ipa/simple/{s5k4h8,ov5695}.yaml`. SoftISP **helper still deferred**. |
+| Kernel **0012** | DT `orientation`/`rotation` (front 270, rear 90); LED labels `flash-rear` / `flash-front`. **No `flash-leds`** — adding them caused async stall (`leds-qcom-flash-v1` has no V4L2 flash class). |
+| Kernel **0013** | s5k4h8: `v4l2_fwnode_device_parse` Location/Rotation + `get_selection` (3264×2448). |
+| Kernel **0014** | ov5695: same for 2592×1944. |
+
+### On-device proof
+
+- Location **Front/270** + **Back/90**; selection sizes match native modes
+- Dual capture still OK; AF unchanged
+- `wpctl` Sources show Built-in Front/Back
+- Sysfs LEDs: `flash-rear` / `flash-front`
+
+### Still deferred
+
+- OTP / AWB
+- SoftISP IPA helper tuning (stubs only)
+- libcamera **FlashMode** (blocked until V4L2 LED glue exists — do not re-add `flash-leds`)
+
+Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).

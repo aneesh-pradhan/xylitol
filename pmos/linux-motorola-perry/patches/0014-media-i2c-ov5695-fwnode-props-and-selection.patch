@@ -1,0 +1,113 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Aneesh Pradhan <aneeshpradhan@acm.org>
+Date: Wed, 22 Jul 2026 22:06:32 -0700
+Subject: [PATCH] media: i2c: ov5695: add fwnode properties and
+ get_selection
+
+Parse DT orientation/rotation into V4L2 Location/Rotation controls and
+expose 2592x1944 native/crop selection for libcamera SoftISP.
+
+Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
+---
+ drivers/media/i2c/ov5695.c | 45 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/i2c/ov5695.c b/drivers/media/i2c/ov5695.c
+index 5bb6ce7b3..78c00c9f5 100644
+--- a/drivers/media/i2c/ov5695.c
++++ b/drivers/media/i2c/ov5695.c
+@@ -17,6 +17,7 @@
+ #include <media/media-entity.h>
+ #include <media/v4l2-async.h>
+ #include <media/v4l2-ctrls.h>
++#include <media/v4l2-fwnode.h>
+ #include <media/v4l2-subdev.h>
+ 
+ #ifndef V4L2_CID_DIGITAL_GAIN
+@@ -30,6 +31,9 @@
+ #define CHIP_ID				0x005695
+ #define OV5695_REG_CHIP_ID		0x300a
+ 
++#define OV5695_NATIVE_WIDTH		2592
++#define OV5695_NATIVE_HEIGHT		1944
++
+ #define OV5695_REG_CTRL_MODE		0x0100
+ #define OV5695_MODE_SW_STANDBY		0x0
+ #define OV5695_MODE_STREAMING		BIT(0)
+@@ -1068,11 +1072,41 @@ static const struct v4l2_subdev_video_ops ov5695_video_ops = {
+ 	.s_stream = ov5695_s_stream,
+ };
+ 
++static int ov5695_get_selection(struct v4l2_subdev *sd,
++				struct v4l2_subdev_state *sd_state,
++				struct v4l2_subdev_selection *sel)
++{
++	struct ov5695 *ov5695 = to_ov5695(sd);
++
++	switch (sel->target) {
++	case V4L2_SEL_TGT_CROP:
++		mutex_lock(&ov5695->mutex);
++		sel->r.top = 0;
++		sel->r.left = 0;
++		sel->r.width = ov5695->cur_mode->width;
++		sel->r.height = ov5695->cur_mode->height;
++		mutex_unlock(&ov5695->mutex);
++		return 0;
++
++	case V4L2_SEL_TGT_NATIVE_SIZE:
++	case V4L2_SEL_TGT_CROP_DEFAULT:
++	case V4L2_SEL_TGT_CROP_BOUNDS:
++		sel->r.top = 0;
++		sel->r.left = 0;
++		sel->r.width = OV5695_NATIVE_WIDTH;
++		sel->r.height = OV5695_NATIVE_HEIGHT;
++		return 0;
++	}
++
++	return -EINVAL;
++}
++
+ static const struct v4l2_subdev_pad_ops ov5695_pad_ops = {
+ 	.enum_mbus_code = ov5695_enum_mbus_code,
+ 	.enum_frame_size = ov5695_enum_frame_sizes,
+ 	.get_fmt = ov5695_get_fmt,
+ 	.set_fmt = ov5695_set_fmt,
++	.get_selection = ov5695_get_selection,
+ };
+ 
+ static const struct v4l2_subdev_ops ov5695_subdev_ops = {
+@@ -1146,6 +1180,7 @@ static const struct v4l2_ctrl_ops ov5695_ctrl_ops = {
+ 
+ static int ov5695_initialize_controls(struct ov5695 *ov5695)
+ {
++	struct v4l2_fwnode_device_properties props;
+ 	const struct ov5695_mode *mode;
+ 	struct v4l2_ctrl_handler *handler;
+ 	struct v4l2_ctrl *ctrl;
+@@ -1155,7 +1190,7 @@ static int ov5695_initialize_controls(struct ov5695 *ov5695)
+ 
+ 	handler = &ov5695->ctrl_handler;
+ 	mode = ov5695->cur_mode;
+-	ret = v4l2_ctrl_handler_init(handler, 8);
++	ret = v4l2_ctrl_handler_init(handler, 10);
+ 	if (ret)
+ 		return ret;
+ 	handler->lock = &ov5695->mutex;
+@@ -1209,6 +1244,14 @@ static int ov5695_initialize_controls(struct ov5695 *ov5695)
+ 		goto err_free_handler;
+ 	}
+ 
++	ret = v4l2_fwnode_device_parse(&ov5695->client->dev, &props);
++	if (ret)
++		goto err_free_handler;
++
++	ret = v4l2_ctrl_new_fwnode_properties(handler, &ov5695_ctrl_ops, &props);
++	if (ret)
++		goto err_free_handler;
++
+ 	ov5695->subdev.ctrl_handler = handler;
+ 
+ 	return 0;
+-- 
+2.53.0
+
