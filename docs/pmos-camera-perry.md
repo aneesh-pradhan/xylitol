@@ -1,8 +1,8 @@
 # pmOS mainline camera bring-up — perry (MSM8917 / XT1765)
 
-**Status (2026-07-22): front OV5695 ENUMERATES on mainline CAMSS. Capture
-(frame delivery) NOT yet working — blocked on `VFE sof timeout` (CSI receive
-path). Rear S5K4H8 not started (no mainline driver).**
+**Status (2026-07-22 night): front OV5695 FIRST LIGHT on mainline CAMSS.** ✅
+Enumerates + **captures frames** via libcamera (`cam --capture`, ~17.5 fps,
+2584×1944 ABGR / PPM still). Rear S5K4H8 not started (no mainline driver).
 
 This is the canonical camera reference. Chronology also in
 [`porting-log.md`](porting-log.md) (2026-07-22). Session state in
@@ -18,20 +18,25 @@ This is the canonical camera reference. Chronology also in
 - Our carry patch **`pmos/linux-motorola-perry/patches/0007-...`** enables
   `&camss` + `&cci` (cci0 only) and adds the **front OmniVision OV5695**
   sensor node on CCI master 0 / CSIPHY1, plus two gpio-switched fixed
-  regulators for the analog/IO rails.
+  regulators for the analog/IO rails, plus **`vdda-supply = <&pm8937_l2>`**
+  on `&camss`.
 - Kernel config: **`CONFIG_VIDEO_OV5695=m`** (added). `CONFIG_VIDEO_QCOM_CAMSS`
   and `CONFIG_I2C_QCOM_CCI` were already `=m`.
-- **The one non-obvious gotcha that cost the most time: perry straps the
-  OV5695 i2c slave address to `0x10`, NOT the OmniVision default `0x36`.**
-  At 0x36 the sensor returns EIO / id `0x000000`; at 0x10 it reads chip id
-  `0x005695`.
-- After the fix: `ov5695 2-0010: Detected OV005695 sensor`, a v4l-subdev is
-  registered, the media graph links `ov5695 → msm_csiphy1`, and **libcamera
-  lists the camera** (`1: 'ov5695' (…/camera@10)`, 2592×1944 = 5 MP).
-- **Capture attempt** (`cam --capture`) configures the pipeline (simple
-  handler + SoftwareISP, `2592x1944-BGGR-10-CSI2P`) but no frames arrive →
-  `qcom-camss: VFE sof timeout` + `VFE reg update timeout`. This is the next
-  work item; see **Capture: next steps** below.
+- **Gotcha #1 (enumerate):** perry straps the OV5695 i2c slave address to
+  **`0x10`**, NOT the OmniVision default `0x36`. At 0x36 → EIO / id
+  `0x000000`; at 0x10 → chip id `0x005695`.
+- **Gotcha #2 (capture / VFE sof timeout):** two DT fixes together unlocked
+  frames:
+  1. **CSIPHY `data-lanes = <0 1>`** (0-based physical). Sensor stays
+     `<1 2>` (V4L2 logical). The apq8016 mezzanine template's `<0 2>` and a
+     trial of `<1 2>` on both still SOF-timed-out.
+  2. **`vdda-supply = <&pm8937_l2>`** on `&camss` (1.2 V CSIPHY analog;
+     same rail msm8916-pm8916.dtsi uses, already used for DSI PHY vdda on
+     perry). Without it: `supply vdda not found, using dummy regulator` ×3.
+- **Proof:** `ov5695 2-0010: Detected OV005695 sensor`; `cam -l` lists it;
+  `cam --camera 1 --capture=5` delivers frames @ ~17.5 fps; PPM still
+  2584×1944 with real scene content. Artifact:
+  `artifacts/camera-first-light-2026-07-22/ov5695-front-first-light.{ppm,jpg}`.
 
 ---
 
@@ -149,46 +154,69 @@ This satisfies the **"≥1 sensor enumerates"** half of the done-criterion.
 
 ---
 
-## Capture: current blocker + next steps
+## Capture: FIXED (first light 2026-07-22)
 
-`cam -c 1 --capture=5` configures the pipeline but no frames arrive:
+### What worked
+
+After enumeration, `cam --capture` hit `VFE sof timeout` until two DT
+changes landed together in patch `0007`:
+
+| DT field | Failed values tried | Working value |
+|---|---|---|
+| CSIPHY1 `data-lanes` | `<0 2>` (apq8016 mezzanine), `<1 2>` (match sensor) | **`<0 1>`** (0-based physical) |
+| Sensor `data-lanes` | — | **`<1 2>`** (unchanged, V4L2 logical) |
+| `&camss` `vdda-supply` | *(absent → dummy regulator ×3)* | **`<&pm8937_l2>`** (1.2 V) |
+
+Working capture proof:
 
 ```
-libcamera SimplePipeline: Input 2592x1944-BGGR-10-CSI2P stride 3240
-qcom-camss 1b34000.camss: VFE sof timeout
-qcom-camss 1b34000.camss: VFE reg update timeout
+$ cam --camera 1 --capture=5
+… Input 2592x1944-BGGR-10-CSI2P stride 3240
+cam0: Capture 5 frames
+… seq: 000000 … bytesused: 20404224
+… seq: 000001 … (17.52 fps)
+… seq: 000002 … (17.60 fps)
+… seq: 000003 … (17.69 fps)
+… seq: 000004 …
+# no VFE sof / reg update timeout in dmesg
 ```
 
-`VFE sof timeout` = the VFE never receives a MIPI Start-of-Frame — the CSI
-receive path (sensor → CSIPHY1 → CSID1 → ISPIF → VFE RDI) is not delivering
-data. Enumeration is fine; this is pure receive-path bring-up.
+Still write (PPM via libcamera SoftwareISP path):
 
-Leads, in rough priority order (each = one rebuild/redeploy/re-test cycle):
+```
+cam --camera 1 --capture=2 --file=/tmp/camtest/frame.ppm
+# → 2584×1944 P6, nonzero_ratio≈0.62, regional color variation (real scene)
+```
 
-1. **CSI data-lane mapping.** Current DT: sensor `data-lanes = <1 2>`,
-   csiphy1 `data-lanes = <0 2>` (copied from the apq8016 ov5640 template).
-   The `<0 2>` on the csiphy side is legacy 8x16 style and may be wrong for
-   perry's csiphy1. Try `<1 2>` on both, and/or verify against the OV5695
-   driver's 2-lane assumption. **Most likely culprit.**
-2. **CAMSS `vdda` supply is a dummy.** dmesg: `qcom-camss: supply vdda not
-   found, using dummy regulator` (×3). The camss driver requests a `vdda`
-   supply (CSIPHY/CSID analog, `init_load_uA` 9900–80160). It is not wired in
-   the base `msm8917.dtsi` camss node. On many boards the dummy is benign
-   (rail always-on), but on perry the CSIPHY analog may need a real supply
-   (candidate: `pm8937_l2` 1.2V, or the MIPI/CSI rail — check downstream /
-   msm8937 camss). Wire `vdda-supply` on `&camss` and re-test.
-3. **link-frequency / CSI clock.** OV5695 driver advertises one link freq
-   (420 MHz, `OV5695_LINK_FREQ_420MHZ`). Confirm the csid/csiphy accept it;
-   check for csid PHY-timer / clock-rate mismatches in dmesg at stream start.
-4. **Pipeline link/format setup.** libcamera's `simple` handler auto-links;
-   for a manual raw test use `media-ctl` to set matching formats
-   (`SBGGR10_1X10`, 2592×1944) on sensor→csiphy1→csid1→ispif→vfe0_rdi0, then
-   `v4l2-ctl --stream-mmap` on the RDI `/dev/videoN`. A manual pipeline gives
-   cleaner errors than libcamera's SoftwareISP path.
+Artifact on host:
+`artifacts/camera-first-light-2026-07-22/ov5695-front-first-light.{ppm,jpg}`.
 
-Diagnostic tooling is already installed on-device: `v4l-utils` (media-ctl,
-v4l2-ctl), `libcamera-tools` (cam), `i2c-tools` (i2cdetect), plus
-`pipewire-spa-libcamera` (Phosh path).
+### Why those two fields
+
+- **Lanes:** qcom-camss builds `lane_mask` from CSIPHY endpoint `data-lanes`
+  as *physical positions* (`1 << pos`). Modern mainline boards use 0-based
+  consecutive indices on the CSIPHY side (`<0 1>` for 2-lane) and 1-based
+  logical on the sensor (`<1 2>`). The apq8016 camera-mezzanine's `<0 2>` is
+  board routing for that mezzanine (skip lane 1), not a generic 8x16 rule.
+- **vdda:** `csiphy_res_8x39` (msm8917 CAMSS) requests regulator `"vdda"`.
+  msm8916-pm8916.dtsi already wires `&camss { vdda-supply = <&pm8916_l2>; }`.
+  Perry's `pm8937_l2` is the same 1.2 V class rail (also DSI PHY vdda).
+
+Isolation note: `<1 2>` on both sides alone was **not** enough (still SOF
+timeout). The successful boot had **both** `<0 1>` lanes and real `vdda`.
+
+### Remaining camera polish (not blockers for "first light")
+
+1. **Phosh / snapshot UX** — confirm `pipewire-spa-libcamera` / GNOME Snapshot
+   opens the front camera (may need udev/seat or disable the temporary
+   `50-perry-disable-libcamera.conf` if still present for audio experiments).
+2. **libcamera warnings** — missing `ov5695` sensor properties / crop
+   rectangles / rotation; optional IPA yaml. Cosmetic for capture.
+3. **Exposure / AWB** — SoftwareISP uncalibrated; indoor frames can look dim
+   or green-tinted until tuning.
+4. **Rear S5K4H8 + dw9718s** — needs new mainline drivers (deferred).
+5. **Optional A/B** — if curious which single fix was sufficient, rebuild once
+   with only `vdda` and once with only `<0 1>` lanes (current tree keeps both).
 
 ---
 

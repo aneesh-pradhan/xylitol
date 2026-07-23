@@ -2591,21 +2591,10 @@ v4l-subdev0..14; media graph `ov5695 2-0010 → msm_csiphy1 [ENABLED]`;
 `cam -l` → `1: 'ov5695' (…/camera@10)` at 2592×1944 (5 MP). **Satisfies the
 "≥1 sensor enumerates" done-criterion.**
 
-### Capture blocker (next work item)
+### Capture blocker (resolved same day — see next entry)
 
-`cam --capture` configures the pipeline (simple handler + SoftwareISP,
-`2592x1944-BGGR-10-CSI2P`) but no frames arrive:
-```
-qcom-camss 1b34000.camss: VFE sof timeout
-qcom-camss 1b34000.camss: VFE reg update timeout
-```
-CSI receive path not delivering SOF. Leads (see camera doc §Capture):
-1. **CSI data-lane mapping** (sensor `<1 2>` / csiphy `<0 2>` — the `<0 2>` is
-   legacy 8x16 style; try `<1 2>` both) — most likely.
-2. **CAMSS `vdda` supply is dummy** (`supply vdda not found, using dummy
-   regulator`) — wire a real CSIPHY analog supply on `&camss`.
-3. link-freq / csid clock; or drive a manual `media-ctl` + `v4l2-ctl` RDI
-   capture for cleaner errors.
+Initially `cam --capture` hit `VFE sof timeout`. Fixed 2026-07-22 night:
+CSIPHY `data-lanes = <0 1>` + `vdda-supply = <&pm8937_l2>`. Details below.
 
 ### Workflow notes (reusable)
 
@@ -2622,3 +2611,43 @@ CSI receive path not delivering SOF. Leads (see camera doc §Capture):
   silent 100% loss); `ip neigh flush all` after MAC change or SSH hangs.
 - **SSH password** = owner's phone number → `SECRETS.md` (gitignored, new
   this session).
+
+## 2026-07-22 night — front OV5695 FIRST LIGHT (capture works)
+
+**Milestone: frames.** Front camera now streams on mainline CAMSS + libcamera.
+Done-criterion "preview or still works" is **met** for the front OV5695.
+
+### Experiments
+
+1. CSIPHY `data-lanes` `<0 2>` → `<1 2>` (match sensor): still `VFE sof timeout`.
+2. CSIPHY `data-lanes` **`<0 1>`** + **`vdda-supply = <&pm8937_l2>`** on
+   `&camss`: **frames arrive**.
+
+Live DT confirmed: CSIPHY lanes `00 00 00 00 00 00 00 01`, sensor
+`00 00 00 01 00 00 00 02`, `vdda-supply` phandle present. dmesg no longer
+logs `supply vdda not found`.
+
+### Proof
+
+```
+cam --camera 1 --capture=5
+# Input 2592x1944-BGGR-10-CSI2P stride 3240
+# Capture 5 frames @ ~17.5 fps, bytesused 20404224 each
+# no VFE sof / reg update timeout
+
+cam --camera 1 --capture=2 --file=/tmp/camtest/frame.ppm
+# 2584×1944 P6, nonzero_ratio≈0.62, regional RGB variation (real scene)
+```
+
+Artifact: `artifacts/camera-first-light-2026-07-22/ov5695-front-first-light.{ppm,jpg}`.
+
+### Why it worked
+
+- **Lanes:** qcom-camss uses CSIPHY `data-lanes` as 0-based physical positions
+  for `lane_mask`. Sensor side stays V4L2 logical `<1 2>`. apq8016 mezzanine
+  `<0 2>` is board-specific routing, not a generic 8x16 rule.
+- **vdda:** msm8917 camss (`csiphy_res_8x39`) requests `"vdda"`; msm8916
+  reference wires PMIC L2 1.2 V. Dummy regulator → no MIPI SOF on perry.
+
+Full write-up: [`pmos-camera-perry.md`](pmos-camera-perry.md). Patch `0007`
+updated in-tree (not yet committed this session unless user asks).
