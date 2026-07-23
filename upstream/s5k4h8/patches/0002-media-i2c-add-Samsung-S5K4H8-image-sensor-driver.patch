@@ -1,26 +1,59 @@
-From 50ed12477fd10dc071dc76b83c43e13871254185 Mon Sep 17 00:00:00 2001
+From 12de1fb68f156942433165055481fa80cc859cd9 Mon Sep 17 00:00:00 2001
 From: Aneesh Pradhan <aneeshpradhan@acm.org>
-Date: Thu, 23 Jul 2026 01:38:12 -0700
-Subject: [PATCH] media: i2c: add Samsung S5K4H8 image sensor driver
+Date: Thu, 23 Jul 2026 01:43:02 -0700
+Subject: [PATCH 2/2] media: i2c: add Samsung S5K4H8 image sensor driver
 
 Add a V4L2 sub-device driver for the Samsung S5K4H8 8MP raw sensor
-(MIPI CSI-2, 4-lane, 280 MHz link, 24 MHz MCLK). Register tables are
-adapted from the Rockchip vendor driver; I/O uses mainline v4l2-cci.
-Uses the modern subdev active-state API (init_state, enable_streams).
+(MIPI CSI-2, 4-lane, 280 MHz link, 24 MHz MCLK). Register programming
+sequences are adapted from the Rockchip vendor driver; register I/O
+uses mainline v4l2-cci.
+
+The driver uses the modern V4L2 subdev active-state API
+(init_state, enable_streams / disable_streams, v4l2_subdev_init_finalize).
+
+Supported modes:
+  - 3264x2448 SGRBG10 @ ~25 fps
+  - 1632x1224 SGRBG10 2x2 binning @ ~30 fps
+
+Controls: exposure, analogue gain, VBLANK, LINK_FREQ, PIXEL_RATE,
+fwnode Location/Rotation. Selection targets expose crop and native size.
+
+Tested on Motorola Moto E4 (perry / MSM8917) with mainline CAMSS and
+libcamera (~24 fps full-resolution capture).
 
 Signed-off-by: Aneesh Pradhan <aneeshpradhan@acm.org>
 ---
+ MAINTAINERS                |   8 +
  drivers/media/i2c/Kconfig  |  10 +
  drivers/media/i2c/Makefile |   1 +
  drivers/media/i2c/s5k4h8.c | 909 +++++++++++++++++++++++++++++++++++++
- 3 files changed, 920 insertions(+)
+ 4 files changed, 928 insertions(+)
  create mode 100644 drivers/media/i2c/s5k4h8.c
 
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 1ab8736850ea..9783f7708c30 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -24099,6 +24099,14 @@ T:	git git://linuxtv.org/media_tree.git
+ F:	Documentation/devicetree/bindings/media/i2c/samsung,s5k3m5.yaml
+ F:	drivers/media/i2c/s5k3m5.c
+ 
++SAMSUNG S5K4H8 CAMERA DRIVER
++M:	Aneesh Pradhan <aneeshpradhan@acm.org>
++L:	linux-media@vger.kernel.org
++S:	Maintained
++T:	git git://linuxtv.org/media_tree.git
++F:	Documentation/devicetree/bindings/media/i2c/samsung,s5k4h8.yaml
++F:	drivers/media/i2c/s5k4h8.c
++
+ SAMSUNG S5K5BAF CAMERA DRIVER
+ M:	Sylwester Nawrocki <s.nawrocki@samsung.com>
+ M:	Andrzej Hajda <andrzej.hajda@intel.com>
 diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
-index 924a46f..bee2a4c 100644
+index 5d173e0ecf42..224f3c5f740b 100644
 --- a/drivers/media/i2c/Kconfig
 +++ b/drivers/media/i2c/Kconfig
-@@ -804,6 +804,16 @@ config VIDEO_S5K3M5
+@@ -781,6 +781,16 @@ config VIDEO_S5K3M5
  	  To compile this driver as a module, choose M here: the
  	  module will be called s5k3m5.
  
@@ -38,12 +71,12 @@ index 924a46f..bee2a4c 100644
  	tristate "Samsung S5K5BAF sensor support"
  	help
 diff --git a/drivers/media/i2c/Makefile b/drivers/media/i2c/Makefile
-index d6f5cec..980c178 100644
+index e45359efe0e4..032dc2f6540f 100644
 --- a/drivers/media/i2c/Makefile
 +++ b/drivers/media/i2c/Makefile
-@@ -130,6 +130,7 @@ obj-$(CONFIG_VIDEO_RJ54N1) += rj54n1cb0c.o
+@@ -128,6 +128,7 @@ obj-$(CONFIG_VIDEO_RDACM21) += rdacm21.o
+ obj-$(CONFIG_VIDEO_RJ54N1) += rj54n1cb0c.o
  obj-$(CONFIG_VIDEO_S5C73M3) += s5c73m3/
- obj-$(CONFIG_VIDEO_S5K2XX) += s5k2xx.o
  obj-$(CONFIG_VIDEO_S5K3M5) += s5k3m5.o
 +obj-$(CONFIG_VIDEO_S5K4H8) += s5k4h8.o
  obj-$(CONFIG_VIDEO_S5K5BAF) += s5k5baf.o
@@ -51,7 +84,7 @@ index d6f5cec..980c178 100644
  obj-$(CONFIG_VIDEO_S5KJN1) += s5kjn1.o
 diff --git a/drivers/media/i2c/s5k4h8.c b/drivers/media/i2c/s5k4h8.c
 new file mode 100644
-index 0000000..f548676
+index 000000000000..f5486762e304
 --- /dev/null
 +++ b/drivers/media/i2c/s5k4h8.c
 @@ -0,0 +1,909 @@

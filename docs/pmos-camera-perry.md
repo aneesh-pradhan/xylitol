@@ -245,15 +245,28 @@ node. Patch **`0008`** enables both channels (montana/hannah/cedric shape).
 
 | | |
 |---|---|
-| Package | `linux-motorola-perry` **7.1.3-r12** |
-| Sysfs | `/sys/class/leds/white:flash` (**rear**), `white:flash_1` (**front**) |
+| Package | `linux-motorola-perry` **≥ 7.1.3-r13** (lamp names; see below) |
+| Sysfs **(current)** | `/sys/class/leds/rear:lamp` (**rear**), `front:lamp` (**front**) |
 | Map | `led@0` = rear, `led@1` = front (torch test confirmed) |
 | Torch | `echo 16 > …/brightness` (max 16); `0` to off |
 | Flash | `flash_brightness` + `flash_strobe` (class flash attrs) |
 | Note | dummy `flash-boost`/`torch-boost` regulators — same as siblings |
-| Phosh | Keep default color+function names (`white:flash`). Human `label`s
-  like `flash-rear` break Phosh/gmobile/feedbackd `*:flash` / `*:torch`
-  globs and hide the torch QS tile. |
+
+**LED naming vs Phosh (important):**
+
+| Names | Stock Phosh single torch | Dual custom QS |
+|---|---|---|
+| `white:flash` / `white:flash_1` | ✅ stock tile (rear only) | ❌ stock claims first match |
+| `flash-rear` / `flash-front` | ❌ no `*:flash` match | (unused) |
+| **`rear:lamp` / `front:lamp`** | ❌ intentional | ✅ plugin owns both |
+
+Custom package: [`pmos/phosh-plugin-perry-torch/`](../pmos/phosh-plugin-perry-torch/)
+(`perry-{rear,front}-torch-quick-setting`). **Paused 2026-07-23:** tiles
+**visible** in the shade but **not pressable** — next session must fix click
+wiring (prefer Phosh `simple-custom-quick-setting` GTK template pattern;
+do **not** call `phosh_quick_setting_set_status_icon` — not exported from
+libphosh; use `status-icon` GObject property / template child). Full pause
+notes in local `docs/handoff.md` §1a.
 
 ### Rear S5K4H8 ENUMERATE then FIRST LIGHT (2026-07-22 night)
 
@@ -522,9 +535,14 @@ rebuild ~60–70 s. Reboot to sshd ~30 s.
 - **Never** ship Android `camera-vendor.mk` / montana ISP blobs on pmOS —
   the proprietary Nougat HAL cannot use mainline CAMSS/V4L2. Android tree is a
   hardware map only.
-- Dual camera + rear AF + polish (Phosh/WP libcamera, IPA stubs, orientation /
-  selection, flash labels) are done. Remaining: OTP/AWB; SoftISP helper;
-  libcamera FlashMode (`leds-qcom-flash-v1` has no V4L2 glue — do not add
-  `flash-leds` until that exists). Never ship Android montana ISP on pmOS.
+- Dual camera + rear AF + still capture are done. **Open UX (2026-07-23):**
+  Phosh viewfinder **upside-down on both cameras** and **extremely laggy /
+  choppy with tearing** — research before mainline mail; see handoff §1b.
+  Remaining: orientation/preview pipeline, OTP/AWB, SoftISP helper, FlashMode
+  (`leds-qcom-flash-v1` has no V4L2 glue — do not add `flash-leds` until that
+  exists). Never ship Android montana ISP on pmOS.
+- S5K4H8 mainline draft: [`upstream/s5k4h8/`](../upstream/s5k4h8/) (modern
+  subdev API, format-patch ready) — **hold send** until preview/orientation
+  scaffolding is stronger.
 - Authorship on every commit/patch: `Aneesh Pradhan <aneeshpradhan@acm.org>`.
 - Sacred partitions `persist`/`modemst1`/`modemst2` never touched.

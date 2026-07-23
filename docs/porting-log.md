@@ -2927,3 +2927,42 @@ Validated on device. Packages: **alsa-ucm 1-r1**, **device 1-r6**,
 - libcamera **FlashMode** (blocked until V4L2 LED glue exists — do not re-add `flash-leds`)
 
 Verbose: [`pmos-camera-perry.md`](pmos-camera-perry.md).
+
+## 2026-07-23 night — dual Phosh torch QS pause (visible, not pressable)
+
+Goal: separate rear + front torch toggles in the Phosh shade.
+
+### LED naming arc
+
+| Names | Result |
+|---|---|
+| `flash-rear` / `flash-front` (post-polish) | Stock Phosh torch QS disappeared (`*:flash` / `*:torch` globs miss) |
+| `white:flash` / `white:flash_1` (r12) | Stock single torch returned |
+| **`rear:lamp` / `front:lamp` (r13)** | Stock torch gone on purpose; custom plugins own both |
+
+Sysfs torch still works: `echo N > /sys/class/leds/{rear,front}:lamp/brightness`
+(max 16; xylitol in `feedbackd` group can write).
+
+### Plugin
+
+New local package `pmos/phosh-plugin-perry-torch/` (one `.so`, two QS types:
+`perry-rear-torch-quick-setting`, `perry-front-torch-quick-setting`).
+Installed on glass as **1-r1**. Icons: Phosh `torch-*-symbolic` (picker SVGs
+under `/usr/share/phosh/plugins/icons/`).
+
+### Fixes this session
+
+1. Plugin `Icon=` + `{Id}-symbolic.svg` install path (stock pattern).
+2. **Load failure:** `phosh_quick_setting_set_status_icon` is **not exported**
+   from libphosh → use `g_object_set (…, "status-icon", …)`. After this, tiles
+   **became visible**.
+
+### Pause state (user)
+
+Front + rear torch buttons are **visible** but **cannot be pressed**.
+Next: rewire like stock `simple-custom-quick-setting` (GTK template + click
+callback); verify `clicked` + sysfs write. Prefer **reboot** over `pkill phoc`
+(drops seat to phrog greeter).
+
+Handoff: local `docs/handoff.md` §1a. Camera bible flash section updated in
+`docs/pmos-camera-perry.md`.

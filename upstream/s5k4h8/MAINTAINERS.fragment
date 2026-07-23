@@ -1,0 +1,7 @@
+SAMSUNG S5K4H8 CAMERA DRIVER
+M:	Aneesh Pradhan <aneeshpradhan@acm.org>
+L:	linux-media@vger.kernel.org
+S:	Maintained
+T:	git git://linuxtv.org/media_tree.git
+F:	Documentation/devicetree/bindings/media/i2c/samsung,s5k4h8.yaml
+F:	drivers/media/i2c/s5k4h8.c

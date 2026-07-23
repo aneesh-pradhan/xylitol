@@ -1,11 +1,11 @@
 # Camera bring-up (carry on top of 0001–0006 base/panel):
 #   0007 — CAMSS/CCI + front OV5695 (first light)
 #   0008 — PMI8950 flash/torch LEDs
-#   0009 — Samsung S5K4H8 sensor (Rockchip tables → mainline CCI; first light)
+#   0009 — Samsung S5K4H8 full driver (upstream-prep polish; includes former 0013)
 #   0010 — rear S5K4H8 DT (camera@2d, CSIPHY0 4-lane, link 280 MHz)
 #   0011 — rear dw9718s AF (dw9719 driver; lens@c + lens-focus)
-#   0012 — orientation/rotation + flash node phandles (no LED label; keep white:flash for Phosh)
-#   0013 — s5k4h8 fwnode Location/Rotation + get_selection (3264×2448 native)
+#   0012 — orientation/rotation + LED names rear:lamp/front:lamp (custom Phosh QS)
+#   0013 — MERGED into 0009 (fwnode + get_selection); file kept as .merged-into-0009
 #   0014 — ov5695 fwnode Location/Rotation + get_selection (2592×1944 native)
 # Rockchip upstream snapshot: upstream/s5k4h8-rockchip-ref/
 # AF notes: upstream/dw9719-mainline-notes/
