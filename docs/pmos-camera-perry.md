@@ -1,42 +1,39 @@
 # pmOS mainline camera bring-up — perry (MSM8917 / XT1765)
 
-**Status (2026-07-22 night): front OV5695 FIRST LIGHT on mainline CAMSS.** ✅
-Enumerates + **captures frames** via libcamera (`cam --capture`, ~17.5 fps,
-2584×1944 ABGR / PPM still). Rear S5K4H8 not started (no mainline driver).
+**Status (2026-07-22 EOD): front OV5695 FIRST LIGHT + PMI8950 flash/torch.** ✅
 
-This is the canonical camera reference. Chronology also in
-[`porting-log.md`](porting-log.md) (2026-07-22). Session state in
-[`handoff.md`](handoff.md).
+| Subsystem | Status |
+|---|---|
+| Front OV5695 enumerate | ✅ i2c **0x10**, CSIPHY1 |
+| Front OV5695 capture | ✅ ~17.5 fps libcamera; PPM/JPG still |
+| Flash/torch (PMI8950) | ✅ rear = `led@0`/`white:flash`, front = `led@1`/`white:flash_1` |
+| Rear S5K4H8 | ❌ no mainline driver — **next** |
+| Rear AF dw9718s | ❌ no mainline driver — with rear |
+
+Kernel on glass: `linux-motorola-perry` **7.1.3-r2**. Patches **`0007`**
+(camera) + **`0008`** (flash). Canonical reference for all camera work.
+Chronology: [`porting-log.md`](porting-log.md). Session queue:
+[`handoff.md`](handoff.md) (local/gitignored).
 
 ---
 
 ## TL;DR
 
 - Perry ships **CAMSS + CCI disabled** in the base `msm8917.dtsi`; stock
-  `/dev/video0..1` are Venus enc/dec only. Nothing camera exists until DT
-  enables it.
-- Our carry patch **`pmos/linux-motorola-perry/patches/0007-...`** enables
-  `&camss` + `&cci` (cci0 only) and adds the **front OmniVision OV5695**
-  sensor node on CCI master 0 / CSIPHY1, plus two gpio-switched fixed
-  regulators for the analog/IO rails, plus **`vdda-supply = <&pm8937_l2>`**
-  on `&camss`.
-- Kernel config: **`CONFIG_VIDEO_OV5695=m`** (added). `CONFIG_VIDEO_QCOM_CAMSS`
-  and `CONFIG_I2C_QCOM_CCI` were already `=m`.
-- **Gotcha #1 (enumerate):** perry straps the OV5695 i2c slave address to
-  **`0x10`**, NOT the OmniVision default `0x36`. At 0x36 → EIO / id
-  `0x000000`; at 0x10 → chip id `0x005695`.
-- **Gotcha #2 (capture / VFE sof timeout):** two DT fixes together unlocked
-  frames:
-  1. **CSIPHY `data-lanes = <0 1>`** (0-based physical). Sensor stays
-     `<1 2>` (V4L2 logical). The apq8016 mezzanine template's `<0 2>` and a
-     trial of `<1 2>` on both still SOF-timed-out.
-  2. **`vdda-supply = <&pm8937_l2>`** on `&camss` (1.2 V CSIPHY analog;
-     same rail msm8916-pm8916.dtsi uses, already used for DSI PHY vdda on
-     perry). Without it: `supply vdda not found, using dummy regulator` ×3.
-- **Proof:** `ov5695 2-0010: Detected OV005695 sensor`; `cam -l` lists it;
-  `cam --camera 1 --capture=5` delivers frames @ ~17.5 fps; PPM still
-  2584×1944 with real scene content. Artifact:
+  `/dev/video0..1` are Venus enc/dec only until DT enables them.
+- **`0007`:** `&camss` + `&cci` (cci0 only) + front **OV5695** on CCI0/CSIPHY1
+  + gpio fixed rails + **`vdda-supply = <&pm8937_l2>`** + CSIPHY
+  **`data-lanes = <0 1>`**. Config: `CONFIG_VIDEO_OV5695=m`.
+- **`0008`:** `&pmi8950_flash` both channels (`leds-qcom-flash-v1`, already
+  `CONFIG_LEDS_QCOM_FLASH_V1=m`). Torch-tested channel map below.
+- **Gotcha #1 (enumerate):** OV5695 strapped to i2c **`0x10`**, not OmniVision
+  default `0x36`.
+- **Gotcha #2 (capture):** need **both** CSIPHY `<0 1>` and real `vdda`
+  (`pm8937_l2`). `<0 2>` or `<1 2>`-both or dummy vdda → `VFE sof timeout`.
+- **Proof:** `cam --camera 1 --capture=5` @ ~17.5 fps; artifact
   `artifacts/camera-first-light-2026-07-22/ov5695-front-first-light.{ppm,jpg}`.
+- **Flash map (user-confirmed):** `white:flash` = **rear**, `white:flash_1` =
+  **front**.
 
 ---
 
@@ -48,18 +45,22 @@ proprietary Nougat HAL does not port to pmOS mainline). Confirmed on-device.
 
 | | Rear `camera@0` | Front `camera@1` |
 |---|---|---|
-| Sensor | **s5k4h8** (Samsung) | **ov5695** (OmniVision, 5 MP) |
-| Mainline V4L2 driver | ❌ none | ✅ `drivers/media/i2c/ov5695.c` |
-| CSIPHY / CSID | 0 | **1** |
+| Sensor | **s5k4h8** (Samsung, ~8 MP) | **ov5695** (OmniVision, 5 MP) |
+| Mainline V4L2 driver | ❌ **none — next work** | ✅ `drivers/media/i2c/ov5695.c` |
+| Bring-up status | not started | ✅ enumerate + capture |
+| CSIPHY / CSID | **0** | **1** |
+| Stock CSI lanes | LaneMask `0x1F` (likely 4-lane) | LaneMask `0x07` (2-lane) ✅ |
 | MCLK | mclk0 = gpio26, 24 MHz | **mclk2 = gpio28, 24 MHz** |
 | Reset / standby | standby = gpio35 | **reset = gpio40** (active low) |
-| i2c slave addr | (rear, TBD) | **0x10** (NOT 0x36 — verified) |
+| i2c slave addr | TBD (scan next) | **0x10** (NOT 0x36 — verified) |
+| EEPROM (OTP) | slave **0x5A** | 0x20 |
 | VIO 1.8V (dovdd) | pm8937_l6 + gpio27 enable | pm8937_l6 + gpio27 enable |
 | VDIG 1.2V (dvdd) | pm8937_l23 | pm8937_l23 |
 | VANA 2.8V (avdd) | gpio39 enable | gpio39 enable |
-| VAF (AF) | pm8937_l22 (dw9718s) | — (fixed focus) |
+| VAF (AF) | pm8937_l22 (**dw9718s**) | — (fixed focus) |
 | CCI master | 0 | 0 |
-| Focus/actuator | AF via **dw9718s** | fixed |
+| Focus/actuator | **dw9718s** (no mainline driver) | fixed |
+| Flash LED | PMI8950 `led@0` / `white:flash` | PMI8950 `led@1` / `white:flash_1` |
 
 **CCI is master-0 only.** cci0 = gpio29 (SDA) / gpio30 (SCL). cci1 =
 gpio31/gpio32 is **unused**: **gpio31 is owned by the `sx9310` SAR sensor**
@@ -205,6 +206,21 @@ Artifact on host:
 Isolation note: `<1 2>` on both sides alone was **not** enough (still SOF
 timeout). The successful boot had **both** `<0 1>` lanes and real `vdda`.
 
+### Flash / torch (PMI8950) — enabled 2026-07-22 night
+
+Front and rear share the **PMI8950** flash LED peripheral (`0xd300`).
+Mainline already ships `leds-qcom-flash-v1` + a disabled `pmi8950_flash`
+node. Patch **`0008`** enables both channels (montana/hannah/cedric shape).
+
+| | |
+|---|---|
+| Package | `linux-motorola-perry` **7.1.3-r2** |
+| Sysfs | `/sys/class/leds/white:flash` (**rear**), `white:flash_1` (**front**) |
+| Map | `led@0` = rear, `led@1` = front (torch test confirmed) |
+| Torch | `echo 16 > …/brightness` (max 16); `0` to off |
+| Flash | `flash_brightness` + `flash_strobe` (class flash attrs) |
+| Note | dummy `flash-boost`/`torch-boost` regulators — same as siblings |
+
 ### Remaining camera polish (not blockers for "first light")
 
 1. **Phosh / snapshot UX** — confirm `pipewire-spa-libcamera` / GNOME Snapshot
@@ -214,9 +230,31 @@ timeout). The successful boot had **both** `<0 1>` lanes and real `vdda`.
    rectangles / rotation; optional IPA yaml. Cosmetic for capture.
 3. **Exposure / AWB** — SoftwareISP uncalibrated; indoor frames can look dim
    or green-tinted until tuning.
-4. **Rear S5K4H8 + dw9718s** — needs new mainline drivers (deferred).
-5. **Optional A/B** — if curious which single fix was sufficient, rebuild once
-   with only `vdda` and once with only `<0 1>` lanes (current tree keeps both).
+4. **Rear S5K4H8 + dw9718s** — **next north star.** No mainline drivers.
+   Start with CCI i2c scan (power + mclk0 + release standby), then new
+   V4L2 sensor driver (~1–1.5k LOC scale), then AF VCM (dw9714-family cousins
+   exist). Stock: CSIPHY0, likely 4-lane, EEPROM 0x5A, VAF l22.
+5. **Flash polish** — optional `label` / `function-enumerator` for
+   `white:flash-rear` / `white:flash-front` names; libcamera V4L2 flash glue.
+6. **Optional A/B** — isolate first-light: only `vdda` vs only `<0 1>` lanes
+   (current tree keeps both).
+
+### Next-session quick commands
+
+```bash
+# Front still works?
+cam -l
+cam --camera 1 --capture=3
+
+# Flash map: L0 rear, L1 front
+echo 16 | sudo tee /sys/class/leds/white:flash/brightness; sleep 2
+echo 0  | sudo tee /sys/class/leds/white:flash/brightness
+echo 16 | sudo tee /sys/class/leds/white:flash_1/brightness; sleep 2
+echo 0  | sudo tee /sys/class/leds/white:flash_1/brightness
+
+# Kernel deploy loop (DT/driver): apply → checksum → shutdown → build --force --lax
+# → scp apk → apk add → reboot  (see §Build / deploy below)
+```
 
 ---
 
