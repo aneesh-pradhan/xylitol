@@ -21,6 +21,7 @@ depends="
 	lk2nd-msm8952
 	mkbootimg
 	msm-firmware-loader
+	phosh-plugin-perry-torch
 	pipewire-spa-libcamera
 	postmarketos-base
 	soc-qcom-msm89x7

@@ -1,0 +1,7 @@
+[Plugin]
+Id=perry-front-torch-quick-setting
+Name=Perry Front Torch
+Types=quick-setting;
+Comment=Toggle the front camera torch / flash LED
+Plugin=@plugins_dir@/libphosh-plugin-perry-torch-quick-setting.so
+Icon=perry-front-torch-quick-setting

@@ -1,0 +1,7 @@
+[Plugin]
+Id=perry-rear-torch-quick-setting
+Name=Perry Rear Torch
+Types=quick-setting;
+Comment=Toggle the rear camera torch / flash LED
+Plugin=@plugins_dir@/libphosh-plugin-perry-torch-quick-setting.so
+Icon=perry-rear-torch-quick-setting

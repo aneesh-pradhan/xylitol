@@ -1,0 +1,54 @@
+# Maintainer: Project Xylitol <xylitol@users.noreply.github.com>
+#
+# Phosh quick-setting plugins for separate rear + front torch toggles on perry.
+# LED sysfs names (rear:lamp / front:lamp) are set by linux-motorola-perry so
+# they do not match stock Phosh's single *:flash / *:torch torch manager.
+#
+# Tile icon: Adwaita media-flash-symbolic (installed as plugin Id icons).
+pkgname=phosh-plugin-perry-torch
+pkgver=1
+pkgrel=2
+pkgdesc="Phosh front/rear torch quick settings for Moto E4 (perry)"
+url="https://github.com/aneesh-pradhan/xylitol"
+arch="aarch64"
+license="GPL-3.0-or-later"
+depends="phosh libphosh"
+makedepends="
+	meson
+	ninja
+	libphosh-dev
+	phosh-dev
+	gtk+3.0-dev
+	glib-dev
+"
+source="
+	meson.build
+	perry-rear-torch-quick-setting.plugin.in
+	perry-front-torch-quick-setting.plugin.in
+	perry-torch-led.c
+	perry-torch-led.h
+	phosh-plugin-perry-torch-quick-setting.c
+	perry-rear-torch-quick-setting-symbolic.svg
+	perry-front-torch-quick-setting-symbolic.svg
+	"
+options="!check"
+
+build() {
+	abuild-meson . output
+	meson compile -C output
+}
+
+package() {
+	DESTDIR="$pkgdir" meson install --no-rebuild -C output
+}
+
+sha512sums="
+7104dea5ca9b2a83426ddce5dec944b30b5900261300f125df98e1854a6c997d132ff1d459a337227c2ac21d971c311934c22c44ad16b10ad775e6d63585a0ba  meson.build
+af3940d21fb42cf4645d939b9d7a5961f2740d68ca2f5b66e9c5503b842570c6931a0fb68accd44b7daf75d3acd1ec276737412347f72c4a573a6ee713a56599  perry-rear-torch-quick-setting.plugin.in
+bf413f336565161ab5dd8de144a92202214d4867982219566ca8c58191edfae0d1cf0fecd13ef45340511c9adb50697cfce83478343177a60e62e5bcc9b0d2ba  perry-front-torch-quick-setting.plugin.in
+0804b1e6856e48b9bf329d2d55561c48f985d2d6725bf7fc036c0f30200aaa5633d2f2027e67016213b6dd3d8edbd6e116f5263058c4126313a33ca2dd329e8d  perry-torch-led.c
+69d5b75033245a46e3fa8acbd36011e071847d2bb248c2fc6f567ca04be10c3ec9555fb60bb33d11c5253ec6e84383b883fc7acd83373f7193c01881fad3f2da  perry-torch-led.h
+b69f7d75284924eea70012ff41a333fb6275c8a8f12653d57ca6434a388dca7a5b3e86229e4ec2b792c36cb0820f9572c55b9049657075f7616ace96cc2a6347  phosh-plugin-perry-torch-quick-setting.c
+da854f51f42f3a30c5bc78a1d29e4a9a33c762ea71b8da04dfbac32fa52f8cac695d1a5e2b4c702610a35f0b6a2a14ab82c20b5d9dbee4b88471f5ddcd09dc60  perry-rear-torch-quick-setting-symbolic.svg
+da854f51f42f3a30c5bc78a1d29e4a9a33c762ea71b8da04dfbac32fa52f8cac695d1a5e2b4c702610a35f0b6a2a14ab82c20b5d9dbee4b88471f5ddcd09dc60  perry-front-torch-quick-setting-symbolic.svg
+"
